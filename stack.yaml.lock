@@ -3,8 +3,65 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages: []
+packages:
+- completed:
+    subdir: cborg
+    cabal-file:
+      size: 4786
+      sha256: 1f5ea5fa9fdff393211c89a6e32553837955920f8f5a09af50a48db2317f231a
+    name: cborg
+    version: 0.2.2.1
+    git: https://github.com/well-typed/cborg
+    pantry-tree:
+      size: 2711
+      sha256: 46906962e840d9d9c7a37c15fac8d5b5a7b44d172d037b46ba5256b524ce8b6f
+    commit: 42a83192749774268337258f4f94c97584b80ca6
+  original:
+    subdir: cborg
+    git: https://github.com/well-typed/cborg
+    commit: 42a83192749774268337258f4f94c97584b80ca6
+- completed:
+    hackage: base58-bytestring-0.1.0@sha256:a1da72ee89d5450bac1c792d9fcbe95ed7154ab7246f2172b57bd4fd9b5eab79,1913
+    pantry-tree:
+      size: 419
+      sha256: 053784f8edef6433518c873a7c502dc75348f812e2384e1306f90467ea54f40b
+  original:
+    hackage: base58-bytestring-0.1.0
+- completed:
+    hackage: hedgehog-1.0.2@sha256:bc80f8df76a122c6c5d0bbf66efd53cca1c29691a53110628894802ba3f207e2,4582
+    pantry-tree:
+      size: 2549
+      sha256: 2129144cdfa14318a04c102eaf47ab751297ab62c1c97fa567e6abf21e4676e5
+  original:
+    hackage: hedgehog-1.0.2
+- completed:
+    hackage: micro-recursion-schemes-5.0.2.2@sha256:3e7e4e3aa4b1bb1f6b72add2804602db1460dae541dc1c59d1b741477879be7d,1869
+    pantry-tree:
+      size: 641
+      sha256: 698cb91cbc5a3bcd8a82417a4632db96aaf84bd70eb6783693be44f8f0593c53
+  original:
+    hackage: micro-recursion-schemes-5.0.2.2
+- completed:
+    hackage: streaming-binary-0.3.0.1@sha256:f02a45297ca42a27cf9b3888711aafaf25e7cf7e640ac3133ebac856bb690083,1058
+    pantry-tree:
+      size: 443
+      sha256: fdc2e67e1117e5c536ae6c8707cedc9b08fa2344d8735bdefd56b9815fdc43d4
+  original:
+    hackage: streaming-binary-0.3.0.1
+- completed:
+    hackage: canonical-json-0.6.0.0@sha256:9021f435ccb884a3b4c55bcc6b50eb19d5fc3cc3f29d5fcbdef016f5bbae23a2,3488
+    pantry-tree:
+      size: 646
+      sha256: 18e3afbd09480a247cd39355929d638e0888ccd2c3873cb79c5a5bc2231fae4f
+  original:
+    hackage: canonical-json-0.6.0.0
 snapshots:
+- completed:
+    size: 418
+    url: https://raw.githubusercontent.com/input-output-hk/cardano-prelude/fe76ec64f6b45259cc407a6d840dad79ee6063b6/snapshot.yaml
+    sha256: 5a4317a62831055e828c33051dc30c067f6ed6c9e841fa936fe6efa61f551eff
+  original:
+    url: https://raw.githubusercontent.com/input-output-hk/cardano-prelude/fe76ec64f6b45259cc407a6d840dad79ee6063b6/snapshot.yaml
 - completed:
     size: 499889
     url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/13/26.yaml
