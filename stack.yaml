@@ -17,8 +17,7 @@
 #
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
-#resolver: lts-15.4
-resolver: lts-13.26
+resolver: https://raw.githubusercontent.com/input-output-hk/cardano-prelude/fe76ec64f6b45259cc407a6d840dad79ee6063b6/snapshot.yaml
 compiler: ghc-8.6.5
 
 # User packages to be built.
@@ -66,3 +65,5 @@ packages:
 #
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-check: newer-minor
+nix:
+  shell-file: nix/stack-shell.nix
