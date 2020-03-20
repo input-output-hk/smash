@@ -1,6 +1,6 @@
 # our packages overlay
 pkgs: _: with pkgs; {
-  iohkMonitoringHaskellPackages = import ./haskell.nix {
+  smashHaskellPackages = import ./haskell.nix {
     inherit config
       lib
       stdenv

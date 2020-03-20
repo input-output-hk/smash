@@ -1,14 +1,16 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DataKinds     #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Lib
     ( someFunc
     ) where
 
-import Servant.API
+import           Cardano.Prelude
+
+import           Servant.API
 
 someFunc :: IO ()
-someFunc = putStrLn "someFunc"
+someFunc = putTextLn "someFunc"
 
 -- GET /metadata/{hash}
 type SmashAPI = "metadata" :> Get '[JSON] PoolOfflineMetadata
@@ -39,9 +41,9 @@ data PoolOfflineMetadata = PoolOfflineMetadata {
 --      "format":"uri",
 --      "pattern":"^https://"
 --   },
-  name :: String,
-  description :: String,
-  ticker :: String,
-  homepage :: String
+  name        :: Text,
+  description :: Text,
+  ticker      :: Text,
+  homepage    :: Text
 }
 

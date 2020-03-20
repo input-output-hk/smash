@@ -2,10 +2,8 @@
 , crossSystem ? null
 # allows to cutomize haskellNix (ghc and profiling, see ./nix/haskell.nix)
 , config ? {}
-# override scripts with custom configuration
-, customConfig ? {}
 # allows to override dependencies of the project without modifications,
-# eg. to test build against local checkout of nixpkgs and iohk-nix:
+# eg. to test build against local checkout of iohk-nix:
 # nix build -f default.nix cardano-node --arg sourcesOverride '{
 #   iohk-nix = ../iohk-nix;
 # }'
@@ -18,41 +16,19 @@ with pkgs; with commonLib;
 let
 
   haskellPackages = recRecurseIntoAttrs
-    # the Haskell.nix package set, reduced to local packages.
-    (selectProjectPackages cardanoNodeHaskellPackages);
-
-  scripts = callPackage ./nix/scripts.nix { inherit customConfig; };
-  # NixOS tests run a proxy and validate it listens
-  nixosTests = import ./nix/nixos/tests {
-    inherit pkgs;
-  };
-
-  dockerImage = let
-    defaultConfig = rec {
-      stateDir = "/data";
-      dbPrefix = "db";
-      socketPath = stateDir + "/node.socket";
-    };
-    customConfig' = defaultConfig // customConfig;
-  in pkgs.callPackage ./nix/docker.nix {
-    inherit (self) cardano-node;
-    scripts = callPackage ./nix/scripts.nix { customConfig = customConfig'; };
-  };
+    # we are only intersted in listing the project packages:
+    (selectProjectPackages smashHaskellPackages);
 
   self = {
-    inherit haskellPackages scripts nixosTests environments check-hydra dockerImage;
-
-    inherit (haskellPackages.cardano-node.identifier) version;
-    # Grab the executable component of our package.
-    inherit (haskellPackages.cardano-node.components.exes)
-      cardano-node;
-
-    inherit (pkgs.iohkNix) checkCabalProject;
+    inherit haskellPackages;
+    inherit (haskellPackages.smash.identifier) version;
 
     # `tests` are the test suites which have been built.
     tests = collectComponents' "tests" haskellPackages;
-    # `benchmarks` (only built, not run).
-    benchmarks = collectComponents' "benchmarks" haskellPackages;
+
+    libs = collectComponents' "library" haskellPackages;
+
+    exes = collectComponents' "exes" haskellPackages;
 
     checks = recurseIntoAttrs {
       # `checks.tests` collect results of executing the tests:

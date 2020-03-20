@@ -10,7 +10,7 @@ with pkgs;
 let
   # This provides a development environment that can be used with nix-shell or
   # lorri. See https://input-output-hk.github.io/haskell.nix/user-guide/development/
-  shell = iohkMonitoringHaskellPackages.shellFor {
+  shell = smashHaskellPackages.shellFor {
     name = "cabal-dev-shell";
 
     # If shellFor local packages selection is wrong,
@@ -21,7 +21,15 @@ let
     # These programs will be available inside the nix-shell.
     buildInputs = with haskellPackages; [
       cabal-install
+      ghcid
+      hlint
+      weeder
+      nix
       niv
+      pkgconfig
+      sqlite-interactive
+      tmux
+      git
     ];
 
     # Prevents cabal from choosing alternate plans, so that
