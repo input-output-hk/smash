@@ -1,6 +1,8 @@
 module Main where
 
-import Lib
+import           Cardano.Prelude
+
+import           Lib
 
 main :: IO ()
 main = someFunc

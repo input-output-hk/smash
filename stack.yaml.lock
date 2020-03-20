@@ -55,6 +55,38 @@ packages:
       sha256: 18e3afbd09480a247cd39355929d638e0888ccd2c3873cb79c5a5bc2231fae4f
   original:
     hackage: canonical-json-0.6.0.0
+- completed:
+    subdir: .
+    cabal-file:
+      size: 4901
+      sha256: 03d3491158c85dd325540acb0b7da7565d91cbbff93b7906842bbaf01f127293
+    name: cardano-prelude
+    version: 0.1.0.0
+    git: https://github.com/input-output-hk/cardano-prelude
+    pantry-tree:
+      size: 4603
+      sha256: 698b2e7075911dcb2b77955930cf3c4d34ef12cd10816d869f81e4448ff8b54f
+    commit: fe76ec64f6b45259cc407a6d840dad79ee6063b6
+  original:
+    subdir: .
+    git: https://github.com/input-output-hk/cardano-prelude
+    commit: fe76ec64f6b45259cc407a6d840dad79ee6063b6
+- completed:
+    subdir: test
+    cabal-file:
+      size: 2028
+      sha256: 9edbf9c6d91b2271cfa43a5bc00511ac5d4912307423c5be0b372cc01e4680ea
+    name: cardano-prelude-test
+    version: 0.1.0.0
+    git: https://github.com/input-output-hk/cardano-prelude
+    pantry-tree:
+      size: 1222
+      sha256: 062b469b6751a510f441977a41bae03abefe9ae3022ba4510fcf1245cd73261f
+    commit: fe76ec64f6b45259cc407a6d840dad79ee6063b6
+  original:
+    subdir: test
+    git: https://github.com/input-output-hk/cardano-prelude
+    commit: fe76ec64f6b45259cc407a6d840dad79ee6063b6
 snapshots:
 - completed:
     size: 418

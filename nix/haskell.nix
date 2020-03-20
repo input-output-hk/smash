@@ -36,7 +36,7 @@ let
         ];
       }
       {
-        packages.iohk-monitoring-framework.configureFlags = [ "--ghc-option=-Werror" ];
+        packages.smash.configureFlags = [ "--ghc-option=-Werror" ];
       }
     ];
   };

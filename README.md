@@ -1,5 +1,7 @@
 # smash
 
+[![Coverage Status](https://coveralls.io/repos/github/input-output-hk/smash/badge.svg?branch=master)](https://coveralls.io/github/input-output-hk/smash?branch=master)
+
 This is the repository that takes care of the cardano node Stakepool Metadata Aggregation Server.
 
 *The metadata is restricted to have no more than 512 bytes.*
