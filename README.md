@@ -69,6 +69,24 @@ The most important points of it are here:
 
 70+50+255+5+64 = 444 bytes.
 
+## How to test this works?
 
+You can run the provided example and try out these commands (presuming you know what CURL is and how to use it).
+```
+curl --verbose --header "Content-Type: application/json" --request GET http://localhost:3000/api/v1/metadata/ed25519_pk1z2ffur59cq7t806nc9y2g64wa60pg5m6e9cmrhxz9phppaxk5d4sn8nsqg
 
+curl --verbose --user ksaric:cirask --header "Content-Type: application/json" --request POST --data '{"blacklistPool":"xyz"}' http://localhost:3000/api/v1/blacklist
+```
+
+## What else do I need?
+
+*YOU NEED TO SERVE IT BEHIND HTTPS!*
+Please understand that it's unsafe otherwise since it's using Basic Auth, which is not protected in any way and is visible when interacting with the server via the regular HTTP protocol.
+
+You need an HTTP server to serve it from and simply point to the application port.
+
+## How to get the Swagger/OpenAPI info?
+
+Run the application, go to the local port http://localhost:3000/swagger.json and copy the content into https://editor.swagger.io/
+Voila! You got it, the spec is there.
 
