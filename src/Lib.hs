@@ -11,36 +11,23 @@ module Lib
 
 import           Cardano.Prelude
 
-import           Data.Aeson
-import           Data.Swagger             (Info (..), Swagger (..),
-                                           ToParamSchema (..), ToSchema (..),
-                                           URL (..))
+import           Data.Swagger             (Info (..), Swagger (..))
 
-import           Network.Wai
-import           Network.Wai.Handler.Warp
+import           Network.Wai.Handler.Warp (defaultSettings, runSettings,
+                                           setBeforeMainLoop, setPort)
 
-import           Servant
+import           Servant                  ((:<|>) (..), (:>))
+import           Servant                  (Application, BasicAuth,
+                                           BasicAuthCheck (..),
+                                           BasicAuthData (..),
+                                           BasicAuthResult (..), Capture,
+                                           Context (..), Get, Handler (..),
+                                           JSON, Post, ReqBody, Server,
+                                           serveWithContext)
 import           Servant.Swagger
 
--- A data type we use to store user credentials.
-data ApplicationUser = ApplicationUser
-    { username :: !Text
-    , password :: !Text
-    } deriving (Eq, Show, Generic)
-
-instance ToJSON ApplicationUser
-instance FromJSON ApplicationUser
-
--- A list of users we use.
-newtype ApplicationUsers = ApplicationUsers [ApplicationUser]
-    deriving (Eq, Show, Generic)
-
-instance ToJSON ApplicationUsers
-instance FromJSON ApplicationUsers
-
--- | A user we'll grab from the database when we authenticate someone
-newtype User = User { userName :: Text }
-  deriving (Eq, Show)
+import           DB
+import           Types
 
 -- The basic auth.
 type BasicAuthURL = BasicAuth "smash" User
@@ -100,26 +87,25 @@ mkApp = return $ serveWithContext
             (basicAuthServerContext stubbedApplicationUsers)
             (server stubbedConfiguration stubbedDataLayer)
 
--- | A list of users with very original passwords.
-stubbedApplicationUsers :: ApplicationUsers
-stubbedApplicationUsers = ApplicationUsers [ApplicationUser "ksaric" "cirask"]
-
 -- | We need to supply our handlers with the right Context.
 basicAuthServerContext :: ApplicationUsers -> Context (BasicAuthCheck User ': '[])
 basicAuthServerContext applicationUsers = (authCheck applicationUsers) :. EmptyContext
   where
     -- | 'BasicAuthCheck' holds the handler we'll use to verify a username and password.
     authCheck :: ApplicationUsers -> BasicAuthCheck User
-    authCheck (ApplicationUsers applicationUsers') =
+    authCheck applicationUsers' =
 
         let check :: BasicAuthData -> IO (BasicAuthResult User)
-            check (BasicAuthData username password) =
-                if (ApplicationUser usernameText passwordText) `elem` applicationUsers'
-                    then pure (Authorized (User usernameText))
-                    else pure Unauthorized
-              where
-                usernameText = decodeUtf8 username
-                passwordText = decodeUtf8 password
+            check (BasicAuthData username password) = do
+                let usernameText = decodeUtf8 username
+                let passwordText = decodeUtf8 password
+
+                let applicationUser  = ApplicationUser usernameText passwordText
+                let userAuthValidity = checkIfUserValid applicationUsers' applicationUser
+
+                case userAuthValidity of
+                    UserValid user -> pure (Authorized user)
+                    UserInvalid    -> pure Unauthorized
 
         in BasicAuthCheck check
 
@@ -130,10 +116,10 @@ convertIOToHandler = Handler . ExceptT . try
 
 -- | Combined server of a Smash service with Swagger documentation.
 server :: Configuration -> DataLayer -> Server API --Server SmashAPI
-server configuration dataLayer =
-         return todoSwagger
-    :<|> getPoolOfflineMetadata
-    :<|> postBlacklistPool
+server configuration dataLayer
+    =       return todoSwagger
+    :<|>    getPoolOfflineMetadata
+    :<|>    postBlacklistPool
 
 postBlacklistPool :: User -> BlacklistPool -> Handler PoolOfflineMetadata
 postBlacklistPool user blacklistPool = convertIOToHandler $ do
@@ -146,147 +132,11 @@ getPoolOfflineMetadata poolHash = convertIOToHandler $ do
     putTextLn $ show poolHash
     return examplePoolOfflineMetadata
 
-
--- | The basic @Configuration@.
-data Configuration = Configuration
-    { cPortNumber :: !Word
-    } deriving (Eq, Show)
-
-stubbedConfiguration :: Configuration
-stubbedConfiguration = Configuration 3100
-
-data DataLayerError
-    = PoolHashNotFound !PoolHash
-    deriving (Eq, Show)
-
--- | This is the data layer for the DB.
-data DataLayer = DataLayer
-    { dlGetPoolHash :: PoolHash -> Either DataLayerError PoolOfflineMetadata
-    }
-
--- | Simple stubbed @DataLayer@ for an example.
-stubbedDataLayer :: DataLayer
-stubbedDataLayer = DataLayer
-    { dlGetPoolHash = \_ -> Right examplePoolOfflineMetadata
-    }
-
-examplePoolOfflineMetadata :: PoolOfflineMetadata
-examplePoolOfflineMetadata =
-    PoolOfflineMetadata
-        (PoolName "TestPool")
-        (PoolDescription "This is a pool for testing")
-        (PoolTicker "testp")
-        (PoolHomepage "https://iohk.io")
-
---   "name":{
---      "type":"string",
---      "minLength":1,
---      "maxLength":50
---   },
---   "description":{
---      "type":"string",
---      "minLength":1,
---      "maxLength":255
---   },
---   "ticker":{
---      "type":"string",
---      "minLength":3,
---      "maxLength":5,
---      "pattern":"^[A-Z0-9]{3,5}$"
---   },
---   "homepage":{
---      "type":"string",
---      "format":"uri",
---      "pattern":"^https://"
---   },
-
 -- | Here for checking the validity of the data type.
 --isValidPoolOfflineMetadata :: PoolOfflineMetadata -> Bool
 --isValidPoolOfflineMetadata poolOfflineMetadata =
 --    poolOfflineMetadata
 -- TODO(KS): Validation!?
-
-newtype BlacklistPool = BlacklistPool
-    { blacklistPool :: Text
-    } deriving (Eq, Show, Generic)
-
-instance FromJSON BlacklistPool
-instance ToJSON BlacklistPool
-
-instance ToSchema BlacklistPool
-
--- | Submissions are identified by the subject's Bech32-encoded Ed25519 public key (all lowercase).
--- ed25519_pk1z2ffur59cq7t806nc9y2g64wa60pg5m6e9cmrhxz9phppaxk5d4sn8nsqg
-newtype PoolHash = PoolHash
-    { getPoolHash :: Text
-    } deriving (Eq, Show, Generic)
-
-instance ToParamSchema PoolHash
-
--- TODO(KS): Temporarily, validation!?
-instance FromHttpApiData PoolHash where
-    parseUrlPiece poolHashText =
-        if (isPrefixOf "ed25519_" (toS poolHashText))
-            then Right $ PoolHash poolHashText
-            else Left "PoolHash not starting with 'ed25519_'!"
-
-newtype PoolName = PoolName
-    { getPoolName :: Text
-    } deriving (Eq, Show, Generic)
-
-instance ToSchema PoolName
-
-newtype PoolDescription = PoolDescription
-    { getPoolDescription :: Text
-    } deriving (Eq, Show, Generic)
-
-instance ToSchema PoolDescription
-
-newtype PoolTicker = PoolTicker
-    { getPoolTicker :: Text
-    } deriving (Eq, Show, Generic)
-
-instance ToSchema PoolTicker
-
-newtype PoolHomepage = PoolHomepage
-    { getPoolHomepage :: Text
-    } deriving (Eq, Show, Generic)
-
-instance ToSchema PoolHomepage
-
-data PoolOfflineMetadata = PoolOfflineMetadata
-    { name        :: !PoolName
-    , description :: !PoolDescription
-    , ticker      :: !PoolTicker
-    , homepage    :: !PoolHomepage
-    } deriving (Eq, Show, Generic)
-
--- Required instances
-instance FromJSON PoolOfflineMetadata where
-    parseJSON = withObject "poolOfflineMetadata" $ \o -> do
-        name'           <- o .: "name"
-        description'    <- o .: "description"
-        ticker'         <- o .: "ticker"
-        homepage'       <- o .: "homepage"
-
-        return $ PoolOfflineMetadata
-            { name          = PoolName name'
-            , description   = PoolDescription description'
-            , ticker        = PoolTicker ticker'
-            , homepage      = PoolHomepage homepage'
-            }
-
-instance ToJSON PoolOfflineMetadata where
-    toJSON (PoolOfflineMetadata name' description' ticker' homepage') =
-        object
-            [ "name"            .= getPoolName name'
-            , "description"     .= getPoolDescription description'
-            , "ticker"          .= getPoolTicker ticker'
-            , "homepage"        .= getPoolHomepage homepage'
-            ]
-
---instance ToParamSchema PoolOfflineMetadata
-instance ToSchema PoolOfflineMetadata
 
 -- For now, we just ignore the @BasicAuth@ definition.
 instance (HasSwagger api) => HasSwagger (BasicAuth name typo :> api) where
