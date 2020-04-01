@@ -6,12 +6,16 @@
 {-# LANGUAGE TypeOperators       #-}
 
 module Lib
-    ( runApp
+    ( Configuration (..)
+    , defaultConfiguration
+    , runApp
     ) where
 
 import           Cardano.Prelude
 
+import           Data.IORef               (newIORef)
 import           Data.Swagger             (Info (..), Swagger (..))
+
 
 import           Network.Wai.Handler.Warp (defaultSettings, runSettings,
                                            setBeforeMainLoop, setPort)
@@ -72,20 +76,29 @@ smashApi = Proxy
 -- 404 if it is not available (e.g. it could not be downloaded, or was invalid)
 -- 200 with the JSON content. Note that this must be the original content with the expected hash, not a re-rendering of the original.
 
-runApp :: IO ()
-runApp = do
-    let port = 3000
-        settings =
+runApp :: Configuration -> IO ()
+runApp configuration = do
+    let port = cPortNumber configuration
+    let settings =
           setPort port $
           setBeforeMainLoop (hPutStrLn stderr ("listening on port " ++ show port)) $
           defaultSettings
-    runSettings settings =<< mkApp
 
-mkApp :: IO Application
-mkApp = return $ serveWithContext
-            fullAPI
-            (basicAuthServerContext stubbedApplicationUsers)
-            (server stubbedConfiguration stubbedDataLayer)
+    runSettings settings =<< mkApp configuration
+
+mkApp :: Configuration -> IO Application
+mkApp configuration = do
+
+    ioDataMap           <- newIORef stubbedInitialDataMap
+    ioBlacklistedPools  <- newIORef stubbedBlacklistedPools
+
+    let dataLayer :: DataLayer
+        dataLayer = stubbedDataLayer ioDataMap ioBlacklistedPools
+
+    return $ serveWithContext
+        fullAPI
+        (basicAuthServerContext stubbedApplicationUsers)
+        (server configuration dataLayer)
 
 -- | We need to supply our handlers with the right Context.
 basicAuthServerContext :: ApplicationUsers -> Context (BasicAuthCheck User ': '[])
@@ -95,8 +108,8 @@ basicAuthServerContext applicationUsers = (authCheck applicationUsers) :. EmptyC
     authCheck :: ApplicationUsers -> BasicAuthCheck User
     authCheck applicationUsers' =
 
-        let check :: BasicAuthData -> IO (BasicAuthResult User)
-            check (BasicAuthData username password) = do
+        let check' :: BasicAuthData -> IO (BasicAuthResult User)
+            check' (BasicAuthData username password) = do
                 let usernameText = decodeUtf8 username
                 let passwordText = decodeUtf8 password
 
@@ -107,7 +120,7 @@ basicAuthServerContext applicationUsers = (authCheck applicationUsers) :. EmptyC
                     UserValid user -> pure (Authorized user)
                     UserInvalid    -> pure Unauthorized
 
-        in BasicAuthCheck check
+        in BasicAuthCheck check'
 
 
 -- | Natural transformation from @IO@ to @Handler@.
