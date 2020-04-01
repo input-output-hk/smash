@@ -12,17 +12,21 @@ module Types
     , PoolHash
     , createPoolHash
     -- * Pool offline metadata
-    , PoolName
-    , PoolDescription
-    , PoolTicker
-    , PoolHomepage
+    , PoolName (..)
+    , PoolDescription (..)
+    , PoolTicker (..)
+    , PoolHomepage (..)
     , PoolOfflineMetadata
+    , createPoolOfflineMetadata
     , examplePoolOfflineMetadata
     -- * Pool online data
     , PoolOnlineData
     , PoolOwner
     , PoolPledgeAddress
     , examplePoolOnlineData
+    -- * Configuration
+    , Configuration (..)
+    , defaultConfiguration
     ) where
 
 import           Cardano.Prelude
@@ -31,6 +35,14 @@ import           Data.Aeson
 import           Data.Swagger    (ToParamSchema (..), ToSchema (..))
 
 import           Servant         (FromHttpApiData (..))
+
+-- | The basic @Configuration@.
+data Configuration = Configuration
+    { cPortNumber :: !Int
+    } deriving (Eq, Show)
+
+defaultConfiguration :: Configuration
+defaultConfiguration = Configuration 3100
 
 -- | A list of users with very original passwords.
 stubbedApplicationUsers :: ApplicationUsers
@@ -47,7 +59,7 @@ examplePoolOfflineMetadata =
 examplePoolOnlineData :: PoolOnlineData
 examplePoolOnlineData =
     PoolOnlineData
-        (PoolOwner "ed25519_pk1jfuzzwhsrvq52aj7lec725vrnfkcprufcghj7jr9g7e6cx3eqp3qc89fl4")
+        (PoolOwner "AAAAC3NzaC1lZDI1NTE5AAAAIKFx4CnxqX9mCaUeqp/4EI1+Ly9SfL23/Uxd0Ieegspc")
         (PoolPledgeAddress "e8080fd3b5b5c9fcd62eb9cccbef9892dd74dacf62d79a9e9e67a79afa3b1207")
 
 -- A data type we use to store user credentials.
@@ -146,6 +158,15 @@ data PoolOfflineMetadata = PoolOfflineMetadata
     , pomTicker         :: !PoolTicker
     , pomHomepage       :: !PoolHomepage
     } deriving (Eq, Show, Ord, Generic)
+
+-- | Smart constructor, just adding one more layer of indirection.
+createPoolOfflineMetadata
+    :: PoolName
+    -> PoolDescription
+    -> PoolTicker
+    -> PoolHomepage
+    -> PoolOfflineMetadata
+createPoolOfflineMetadata = PoolOfflineMetadata
 
 newtype PoolOwner = PoolOwner
     { getPoolOwner :: Text

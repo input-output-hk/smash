@@ -6,26 +6,20 @@
 {-# LANGUAGE TypeOperators       #-}
 
 module DB
-    ( Configuration (..)
-    , stubbedConfiguration
-    , DataLayerError
-    , DataLayer
+    ( DataLayerError
+    , DataLayer (..)
     , stubbedDataLayer
+    -- * Examples
+    , stubbedInitialDataMap
+    , stubbedBlacklistedPools
     ) where
 
 import           Cardano.Prelude
 
 import qualified Data.Map as Map
+import           Data.IORef (IORef, readIORef, modifyIORef)
 
 import           Types
-
--- | The basic @Configuration@.
-data Configuration = Configuration
-    { cPortNumber :: !Word
-    } deriving (Eq, Show)
-
-stubbedConfiguration :: Configuration
-stubbedConfiguration = Configuration 3100
 
 -- | Errors, not exceptions.
 data DataLayerError
@@ -43,17 +37,34 @@ data DataLayer = DataLayer
     }
 
 -- | Simple stubbed @DataLayer@ for an example.
--- We do need state here.
-stubbedDataLayer :: DataLayer
-stubbedDataLayer = DataLayer
-    { dlGetPoolMetadata     = \poolHash ->
-        case (Map.lookup poolHash stubbedInitialDataMap) of
-            Just poolHash'  -> return $ Right poolHash'
-            Nothing         -> return $ Left (PoolHashNotFound poolHash)
+-- We do need state here. _This thing is thread safe._
+-- __This is really our model here.__
+stubbedDataLayer
+    :: IORef (Map PoolHash PoolOfflineMetadata)
+    -> IORef [PoolHash]
+    -> DataLayer
+stubbedDataLayer ioDataMap ioBlacklistedPool = DataLayer
+    { dlGetPoolMetadata     = \poolHash -> do
+        ioDataMap' <- readIORef ioDataMap
+        case (Map.lookup poolHash ioDataMap') of
+            Just poolOfflineMetadata'   -> return $ Right poolOfflineMetadata'
+            Nothing                     -> return $ Left (PoolHashNotFound poolHash)
 
-    , dlAddPoolMetadata     = \poolHash poolMetadata -> return $ Right poolMetadata -- Right $ Map.insert poolHash poolMetadata stubbedInitialDataMap
-    , dlGetBlacklistedPools = return $ Right blacklistedPools
-    , dlAddBlacklistedPool  = \poolHash -> return $ Right poolHash
+    , dlAddPoolMetadata     = \poolHash poolMetadata -> do
+        -- TODO(KS): What if the pool metadata already exists?
+        _ <- modifyIORef ioDataMap (\dataMap -> Map.insert poolHash poolMetadata dataMap)
+        return $ Right poolMetadata
+
+    , dlGetBlacklistedPools = do
+        blacklistedPool <- readIORef ioBlacklistedPool
+        return $ Right blacklistedPool
+
+    , dlAddBlacklistedPool  = \poolHash -> do
+        _ <- modifyIORef ioBlacklistedPool (\pool -> [poolHash] ++ pool)
+        -- TODO(KS): Do I even need to query this?
+        blacklistedPool <- readIORef ioBlacklistedPool
+        return $ Right poolHash
+
     }
 
 -- The approximation for the table.
@@ -63,6 +74,6 @@ stubbedInitialDataMap = Map.fromList
     ]
 
 -- The approximation for the table.
-blacklistedPools :: [PoolHash]
-blacklistedPools = []
+stubbedBlacklistedPools :: [PoolHash]
+stubbedBlacklistedPools = []
 
