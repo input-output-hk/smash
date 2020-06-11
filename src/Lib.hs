@@ -7,14 +7,17 @@
 
 module Lib
     ( Configuration (..)
+    , DBFail (..) -- We need to see errors clearly outside
     , defaultConfiguration
     , runApp
+    , runPoolInsertion
     ) where
 
 import           Cardano.Prelude
 
+import qualified Data.ByteString as B
 import           Data.IORef               (newIORef)
-import           Data.Swagger             (Info (..), Swagger (..))
+import           Data.Swagger             (Info (..), Swagger (..), ToSchema)
 
 
 import           Network.Wai.Handler.Warp (defaultSettings, runSettings,
@@ -37,7 +40,7 @@ import           Types
 type BasicAuthURL = BasicAuth "smash" User
 
 -- GET api/v1/metadata/{hash}
-type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "hash" PoolHash :> Get '[JSON] PoolOfflineMetadata
+type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "hash" PoolHash :> Get '[JSON] PoolMetadataWrapped
 -- POST api/v1/blacklist |-> {"blacklistPool" : "pool"}
 type BlacklistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "blacklist" :> ReqBody '[JSON] BlacklistPool :> Post '[JSON] PoolOfflineMetadata
 
@@ -86,8 +89,8 @@ runApp configuration = do
 
     runSettings settings =<< mkApp configuration
 
-mkApp :: Configuration -> IO Application
-mkApp configuration = do
+mkAppStubbed :: Configuration -> IO Application
+mkAppStubbed configuration = do
 
     ioDataMap           <- newIORef stubbedInitialDataMap
     ioBlacklistedPools  <- newIORef stubbedBlacklistedPools
@@ -99,6 +102,31 @@ mkApp configuration = do
         fullAPI
         (basicAuthServerContext stubbedApplicationUsers)
         (server configuration dataLayer)
+
+mkApp :: Configuration -> IO Application
+mkApp configuration = do
+
+    let dataLayer :: DataLayer
+        dataLayer = postgresqlDataLayer
+
+    return $ serveWithContext
+        fullAPI
+        (basicAuthServerContext stubbedApplicationUsers)
+        (server configuration dataLayer)
+
+--runPoolInsertion poolMetadataJsonPath poolHash
+runPoolInsertion :: FilePath -> Text -> IO (Either DBFail TxMetadataId)
+runPoolInsertion poolMetadataJsonPath poolHash = do
+    putTextLn $ "Inserting pool! " <> (toS poolMetadataJsonPath) <> " " <> poolHash
+
+    let dataLayer :: DataLayer
+        dataLayer = postgresqlDataLayer
+
+    --PoolHash -> ByteString -> IO (Either DBFail PoolHash)
+    --poolMetadataJson <- B.readFile poolMetadataJsonPath
+    poolMetadataJson <- readFile poolMetadataJsonPath
+
+    (dlAddPoolMetadataSimple dataLayer) (PoolHash poolHash) poolMetadataJson
 
 -- | We need to supply our handlers with the right Context.
 basicAuthServerContext :: ApplicationUsers -> Context (BasicAuthCheck User ': '[])
@@ -131,7 +159,7 @@ convertIOToHandler = Handler . ExceptT . try
 server :: Configuration -> DataLayer -> Server API --Server SmashAPI
 server configuration dataLayer
     =       return todoSwagger
-    :<|>    getPoolOfflineMetadata
+    :<|>    getPoolOfflineMetadata dataLayer
     :<|>    postBlacklistPool
 
 postBlacklistPool :: User -> BlacklistPool -> Handler PoolOfflineMetadata
@@ -140,10 +168,11 @@ postBlacklistPool user blacklistPool = convertIOToHandler $ do
     return examplePoolOfflineMetadata
 
 -- throwError err404
-getPoolOfflineMetadata :: PoolHash -> Handler PoolOfflineMetadata
-getPoolOfflineMetadata poolHash = convertIOToHandler $ do
+getPoolOfflineMetadata :: DataLayer -> PoolHash -> Handler PoolMetadataWrapped
+getPoolOfflineMetadata dataLayer poolHash = convertIOToHandler $ do
     putTextLn $ show poolHash
-    return examplePoolOfflineMetadata
+    fmap PoolMetadataWrapped $ either (\m -> panic $ renderLookupFail m) (\a -> a) <$> (dlGetPoolMetadataSimple dataLayer) poolHash
+    --(dlGetPoolMetadataSimple dataLayer) poolHash
 
 -- | Here for checking the validity of the data type.
 --isValidPoolOfflineMetadata :: PoolOfflineMetadata -> Bool

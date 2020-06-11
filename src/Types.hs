@@ -9,8 +9,10 @@ module Types
     , checkIfUserValid
     -- * Pool info
     , BlacklistPool
-    , PoolHash
+    , PoolHash (..)
     , createPoolHash
+    -- * Wrapper
+    , PoolMetadataWrapped (..)
     -- * Pool offline metadata
     , PoolName (..)
     , PoolDescription (..)
@@ -32,7 +34,10 @@ module Types
 import           Cardano.Prelude
 
 import           Data.Aeson
-import           Data.Swagger    (ToParamSchema (..), ToSchema (..))
+import           Data.Swagger    (ToParamSchema (..), ToSchema (..), NamedSchema (..), declareSchemaRef)
+
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BL
 
 import           Servant         (FromHttpApiData (..))
 
@@ -209,4 +214,19 @@ instance ToJSON PoolOfflineMetadata where
 
 --instance ToParamSchema PoolOfflineMetadata
 instance ToSchema PoolOfflineMetadata
+
+
+newtype PoolMetadataWrapped = PoolMetadataWrapped Text
+    deriving (Eq, Show, Ord, Generic)
+
+instance ToJSON PoolMetadataWrapped where
+    --toJSON (PoolMetadataWrapped hash) = toJSON $ (either (\_ -> panic "Error") (\a -> a) (eitherDecode $ BL.fromStrict $ encodeUtf8 hash) :: PoolOfflineMetadata)
+
+    toJSON (PoolMetadataWrapped hash) = String $ hash
+    --toJSON (PoolMetadataWrapped hash) = String $ decodeUtf8 hash
+
+instance ToSchema PoolMetadataWrapped where
+  declareNamedSchema _ =
+    return $ NamedSchema (Just "PoolMetadataWrapped") $ mempty
+
 
