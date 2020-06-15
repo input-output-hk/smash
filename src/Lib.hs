@@ -10,15 +10,14 @@ module Lib
     , DBFail (..) -- We need to see errors clearly outside
     , defaultConfiguration
     , runApp
+    , runAppStubbed
     , runPoolInsertion
     ) where
 
 import           Cardano.Prelude
 
-import qualified Data.ByteString as B
 import           Data.IORef               (newIORef)
-import           Data.Swagger             (Info (..), Swagger (..), ToSchema)
-
+import           Data.Swagger             (Info (..), Swagger (..))
 
 import           Network.Wai.Handler.Warp (defaultSettings, runSettings,
                                            setBeforeMainLoop, setPort)
@@ -39,8 +38,11 @@ import           Types
 -- The basic auth.
 type BasicAuthURL = BasicAuth "smash" User
 
+-- | Shortcut for common api result types.
+type ApiRes verb a = verb '[JSON] (Either DBFail a)
+
 -- GET api/v1/metadata/{hash}
-type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "hash" PoolHash :> Get '[JSON] PoolMetadataWrapped
+type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "hash" PoolHash :> ApiRes Get PoolMetadataWrapped
 -- POST api/v1/blacklist |-> {"blacklistPool" : "pool"}
 type BlacklistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "blacklist" :> ReqBody '[JSON] BlacklistPool :> Post '[JSON] PoolOfflineMetadata
 
@@ -88,6 +90,16 @@ runApp configuration = do
           defaultSettings
 
     runSettings settings =<< mkApp configuration
+
+runAppStubbed :: Configuration -> IO ()
+runAppStubbed configuration = do
+    let port = cPortNumber configuration
+    let settings =
+          setPort port $
+          setBeforeMainLoop (hPutStrLn stderr ("listening on port " ++ show port)) $
+          defaultSettings
+
+    runSettings settings =<< mkAppStubbed configuration
 
 mkAppStubbed :: Configuration -> IO Application
 mkAppStubbed configuration = do
@@ -168,11 +180,11 @@ postBlacklistPool user blacklistPool = convertIOToHandler $ do
     return examplePoolOfflineMetadata
 
 -- throwError err404
-getPoolOfflineMetadata :: DataLayer -> PoolHash -> Handler PoolMetadataWrapped
+getPoolOfflineMetadata :: DataLayer -> PoolHash -> Handler (Either DBFail PoolMetadataWrapped)
 getPoolOfflineMetadata dataLayer poolHash = convertIOToHandler $ do
-    putTextLn $ show poolHash
-    fmap PoolMetadataWrapped $ either (\m -> panic $ renderLookupFail m) (\a -> a) <$> (dlGetPoolMetadataSimple dataLayer) poolHash
-    --(dlGetPoolMetadataSimple dataLayer) poolHash
+    let getPoolMetadataSimple = dlGetPoolMetadataSimple dataLayer
+    poolMetadata <- getPoolMetadataSimple poolHash
+    return $ PoolMetadataWrapped <$> poolMetadata
 
 -- | Here for checking the validity of the data type.
 --isValidPoolOfflineMetadata :: PoolOfflineMetadata -> Bool

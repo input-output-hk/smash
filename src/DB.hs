@@ -17,11 +17,11 @@ module DB
 
 import           Cardano.Prelude
 
-import           Data.Aeson (encode, eitherDecode)
+import           Data.Aeson (eitherDecode)
 import qualified Data.Map as Map
 import           Data.IORef (IORef, readIORef, modifyIORef)
 
-import qualified Data.ByteString as BS
+import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as BL
 
 import           Types
@@ -46,11 +46,9 @@ import           Cardano.Db.Error as X
 -- but currently there is no complexity involved for that to be a sane choice.
 data DataLayer = DataLayer
     { dlGetPoolMetadataSimple   :: PoolHash -> IO (Either DBFail Text)
-    --{ dlGetPoolMetadataSimple   :: PoolHash -> IO (Either DBFail ByteString)
     , dlGetPoolMetadata         :: PoolHash -> IO (Either DBFail PoolOfflineMetadata)
     , dlAddPoolMetadata         :: PoolHash -> PoolOfflineMetadata -> IO (Either DBFail PoolOfflineMetadata)
     , dlAddPoolMetadataSimple   :: PoolHash -> Text -> IO (Either DBFail TxMetadataId)
-    --, dlAddPoolMetadataSimple   :: PoolHash -> ByteString -> IO (Either DBFail TxMetadataId)
     , dlGetBlacklistedPools     :: IO (Either DBFail [PoolHash])
     , dlAddBlacklistedPool      :: PoolHash -> IO (Either DBFail PoolHash)
     }
@@ -111,10 +109,6 @@ postgresqlDataLayer = DataLayer
         let metadata :: Text
             metadata = txMetadataMetadata txMetadata
 
-        --BS.putStrLn metadata
-        --putTextLn $ decodeUtf8 metadata
-
-        --return $ first (\m -> UnknownError (toS m)) $ eitherDecode $ BL.fromStrict metadata
         return $ first (\m -> UnknownError (toS m)) $ eitherDecode $ BL.fromStrict (encodeUtf8 metadata)
 
     , dlGetPoolMetadataSimple = \poolHash -> do
@@ -125,13 +119,11 @@ postgresqlDataLayer = DataLayer
 
     , dlAddPoolMetadataSimple     = \poolHash poolMetadata -> do
         let poolHashBytestring = (encodeUtf8 $ getPoolHash poolHash)
-        let poolEncodedMetadata = poolMetadata
-        let hashFromMetadata = B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) $ (encodeUtf8 poolEncodedMetadata)
+        let hashFromMetadata = B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadata)
 
-        when (hashFromMetadata /= poolHashBytestring) $
-            panic "TxMetadataHashMismatch"
-
-        fmap Right $ runDbAction Nothing $ insertTxMetadata $ TxMetadata poolHashBytestring poolEncodedMetadata
+        if hashFromMetadata /= poolHashBytestring
+            then return $ Left TxMetadataHashMismatch
+            else fmap Right $ runDbAction Nothing $ insertTxMetadata $ TxMetadata poolHashBytestring poolMetadata
 
     , dlGetBlacklistedPools = panic "To implement!"
     , dlAddBlacklistedPool  = \poolHash -> panic "To implement!"

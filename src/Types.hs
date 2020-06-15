@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Types
     ( ApplicationUser (..)
@@ -33,13 +33,16 @@ module Types
 
 import           Cardano.Prelude
 
-import           Data.Aeson
-import           Data.Swagger    (ToParamSchema (..), ToSchema (..), NamedSchema (..), declareSchemaRef)
+import           Data.Aeson          (FromJSON (..), ToJSON (..), object,
+                                      withObject, (.:), (.=))
+import           Data.Aeson.Encoding (unsafeToEncoding)
+import           Data.Swagger        (NamedSchema (..), ToParamSchema (..),
+                                      ToSchema (..))
+import           Data.Text.Encoding  (encodeUtf8Builder)
 
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BL
+import           Servant             (FromHttpApiData (..))
 
-import           Servant         (FromHttpApiData (..))
+import           Cardano.Db.Error
 
 -- | The basic @Configuration@.
 data Configuration = Configuration
@@ -158,10 +161,10 @@ instance ToSchema PoolHomepage
 
 -- | The bit of the pool data off the chain.
 data PoolOfflineMetadata = PoolOfflineMetadata
-    { pomName           :: !PoolName
-    , pomDescription    :: !PoolDescription
-    , pomTicker         :: !PoolTicker
-    , pomHomepage       :: !PoolHomepage
+    { pomName        :: !PoolName
+    , pomDescription :: !PoolDescription
+    , pomTicker      :: !PoolTicker
+    , pomHomepage    :: !PoolHomepage
     } deriving (Eq, Show, Ord, Generic)
 
 -- | Smart constructor, just adding one more layer of indirection.
@@ -184,8 +187,8 @@ newtype PoolPledgeAddress = PoolPledgeAddress
 -- | The bit of the pool data on the chain.
 -- This doesn't leave the internal database.
 data PoolOnlineData = PoolOnlineData
-    { podOwner          :: !PoolOwner
-    , podPledgeAddress  :: !PoolPledgeAddress
+    { podOwner         :: !PoolOwner
+    , podPledgeAddress :: !PoolPledgeAddress
     } deriving (Eq, Show, Ord, Generic)
 
 -- Required instances
@@ -217,16 +220,19 @@ instance ToSchema PoolOfflineMetadata
 
 
 newtype PoolMetadataWrapped = PoolMetadataWrapped Text
-    deriving (Eq, Show, Ord, Generic)
+    deriving (Eq, Ord, Show, Generic)
 
+-- Here we are usingg the unsafe encoding since we already have the JSON format
+-- from the database.
 instance ToJSON PoolMetadataWrapped where
-    --toJSON (PoolMetadataWrapped hash) = toJSON $ (either (\_ -> panic "Error") (\a -> a) (eitherDecode $ BL.fromStrict $ encodeUtf8 hash) :: PoolOfflineMetadata)
-
-    toJSON (PoolMetadataWrapped hash) = String $ hash
-    --toJSON (PoolMetadataWrapped hash) = String $ decodeUtf8 hash
+    toJSON (PoolMetadataWrapped metadata) = toJSON metadata
+    toEncoding (PoolMetadataWrapped metadata) = unsafeToEncoding $ encodeUtf8Builder metadata
 
 instance ToSchema PoolMetadataWrapped where
   declareNamedSchema _ =
     return $ NamedSchema (Just "PoolMetadataWrapped") $ mempty
 
+instance ToSchema DBFail where
+  declareNamedSchema _ =
+    return $ NamedSchema (Just "DBFail") $ mempty
 
