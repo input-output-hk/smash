@@ -64,6 +64,7 @@ library
     , base16-bytestring
     , monad-logger
     , transformers
+    , transformers-except
     , resourcet
     , extra
     , conduit-extra

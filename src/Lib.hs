@@ -39,7 +39,7 @@ import           Types
 type BasicAuthURL = BasicAuth "smash" User
 
 -- | Shortcut for common api result types.
-type ApiRes verb a = verb '[JSON] (Either DBFail a)
+type ApiRes verb a = verb '[JSON] (ApiResult DBFail a)
 
 -- GET api/v1/metadata/{hash}
 type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "hash" PoolHash :> ApiRes Get PoolMetadataWrapped
@@ -135,7 +135,6 @@ runPoolInsertion poolMetadataJsonPath poolHash = do
         dataLayer = postgresqlDataLayer
 
     --PoolHash -> ByteString -> IO (Either DBFail PoolHash)
-    --poolMetadataJson <- B.readFile poolMetadataJsonPath
     poolMetadataJson <- readFile poolMetadataJsonPath
 
     (dlAddPoolMetadataSimple dataLayer) (PoolHash poolHash) poolMetadataJson
@@ -180,11 +179,11 @@ postBlacklistPool user blacklistPool = convertIOToHandler $ do
     return examplePoolOfflineMetadata
 
 -- throwError err404
-getPoolOfflineMetadata :: DataLayer -> PoolHash -> Handler (Either DBFail PoolMetadataWrapped)
+getPoolOfflineMetadata :: DataLayer -> PoolHash -> Handler (ApiResult DBFail PoolMetadataWrapped)
 getPoolOfflineMetadata dataLayer poolHash = convertIOToHandler $ do
     let getPoolMetadataSimple = dlGetPoolMetadataSimple dataLayer
     poolMetadata <- getPoolMetadataSimple poolHash
-    return $ PoolMetadataWrapped <$> poolMetadata
+    return . ApiResult $ PoolMetadataWrapped <$> poolMetadata
 
 -- | Here for checking the validity of the data type.
 --isValidPoolOfflineMetadata :: PoolOfflineMetadata -> Bool

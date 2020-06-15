@@ -29,6 +29,8 @@ module Types
     -- * Configuration
     , Configuration (..)
     , defaultConfiguration
+    -- * API
+    , ApiResult (..)
     ) where
 
 import           Cardano.Prelude
@@ -235,4 +237,20 @@ instance ToSchema PoolMetadataWrapped where
 instance ToSchema DBFail where
   declareNamedSchema _ =
     return $ NamedSchema (Just "DBFail") $ mempty
+
+instance ToSchema (ApiResult err a) where
+  declareNamedSchema _ =
+    return $ NamedSchema (Just "ApiResult") $ mempty
+
+-- Result wrapper.
+newtype ApiResult err a = ApiResult (Either err a)
+
+instance (ToJSON err, ToJSON a) => ToJSON (ApiResult err a) where
+
+    toJSON (ApiResult (Left dbFail))  = toJSON dbFail
+    toJSON (ApiResult (Right result)) = toJSON result
+
+    toEncoding (ApiResult (Left result))  = toEncoding result
+    toEncoding (ApiResult (Right result)) = toEncoding result
+
 

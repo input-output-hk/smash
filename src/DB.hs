@@ -17,7 +17,10 @@ module DB
 
 import           Cardano.Prelude
 
-import           Data.Aeson (eitherDecode)
+import           Control.Monad.Trans.Except.Exit (orDie)
+import           Control.Monad.Trans.Except.Extra (newExceptT)
+
+import           Data.Aeson (eitherDecode')
 import qualified Data.Map as Map
 import           Data.IORef (IORef, readIORef, modifyIORef)
 
@@ -86,7 +89,6 @@ stubbedDataLayer ioDataMap ioBlacklistedPool = DataLayer
         -- TODO(KS): Do I even need to query this?
         blacklistedPool <- readIORef ioBlacklistedPool
         return $ Right poolHash
-
     }
 
 -- The approximation for the table.
@@ -101,15 +103,7 @@ stubbedBlacklistedPools = []
 
 postgresqlDataLayer :: DataLayer
 postgresqlDataLayer = DataLayer
-    { dlGetPoolMetadata     = \poolHash -> do
-        txMetadata' <- runDbAction Nothing $ queryTxMetadata (encodeUtf8 $ getPoolHash poolHash)
-
-        let txMetadata = either (\_ -> panic "EROR!") (\m -> m) txMetadata'
-
-        let metadata :: Text
-            metadata = txMetadataMetadata txMetadata
-
-        return $ first (\m -> UnknownError (toS m)) $ eitherDecode $ BL.fromStrict (encodeUtf8 metadata)
+    { dlGetPoolMetadata     = \poolHash -> panic "To implement!"
 
     , dlGetPoolMetadataSimple = \poolHash -> do
         txMetadata <- runDbAction Nothing $ queryTxMetadata (encodeUtf8 $ getPoolHash poolHash)
@@ -118,11 +112,23 @@ postgresqlDataLayer = DataLayer
     , dlAddPoolMetadata     = \poolHash poolMetadata -> panic "To implement!"
 
     , dlAddPoolMetadataSimple     = \poolHash poolMetadata -> do
-        let poolHashBytestring = (encodeUtf8 $ getPoolHash poolHash)
+
+        let poolOfflineMetadataByteString = BL.fromStrict . encodeUtf8 $ poolMetadata
+
+        -- Let us try to decode the contents to JSON.
+        let decodedPoolMetadataJSON :: Either DBFail PoolOfflineMetadata
+            decodedPoolMetadataJSON = case (eitherDecode' poolOfflineMetadataByteString) of
+                Left err -> Left $ UnableToEncodePoolMetadataToJSON $ toS err
+                Right result -> return result
+
+        -- If unable to decode into JSON object, fails!
+        _ <- orDie (\e -> renderLookupFail e) (newExceptT $ pure decodedPoolMetadataJSON)
+
+        let poolHashBytestring = encodeUtf8 $ getPoolHash poolHash
         let hashFromMetadata = B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadata)
 
         if hashFromMetadata /= poolHashBytestring
-            then return $ Left TxMetadataHashMismatch
+            then return $ Left PoolMetadataHashMismatch
             else fmap Right $ runDbAction Nothing $ insertTxMetadata $ TxMetadata poolHashBytestring poolMetadata
 
     , dlGetBlacklistedPools = panic "To implement!"

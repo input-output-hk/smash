@@ -44,7 +44,10 @@ runCommand cmd =
     InsertPool poolMetadataJsonPath poolHash -> do
         putTextLn "Inserting pool metadata!"
         result <- runPoolInsertion poolMetadataJsonPath poolHash
-        either (\_ -> putTextLn "Error occured!") (\_ -> putTextLn "Completed") result
+        either
+            (\err -> putTextLn $ "Error occured. " <> renderLookupFail err)
+            (\_ -> putTextLn "Insertion completed!")
+            result
 
 doCreateMigration :: MigrationDir -> IO ()
 doCreateMigration mdir = do
