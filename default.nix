@@ -35,6 +35,10 @@ let
       tests = collectChecks haskellPackages;
     };
 
+    nixosTests = import ./nix/nixos/tests {
+      inherit pkgs;
+    };
+
     shell = import ./shell.nix {
       inherit pkgs;
       withHoogle = true;
