@@ -1,0 +1,5 @@
+{
+  imports = [
+    ./smash-service.nix
+  ];
+}
