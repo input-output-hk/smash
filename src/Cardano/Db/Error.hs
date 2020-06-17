@@ -11,10 +11,6 @@ import           Cardano.Prelude
 import           Data.Aeson (ToJSON (..), (.=), object, Value (..))
 
 import           Data.ByteString.Char8 (ByteString)
-import qualified Data.Text as Text
-import           Data.Text (Text)
-import qualified Data.Text.Encoding as Text
-import           Data.Word (Word16, Word64)
 
 -- | Errors, not exceptions.
 data DBFail
@@ -37,25 +33,25 @@ The example we agreed would be:
 -}
 
 instance ToJSON DBFail where
-    toJSON (DbLookupTxMetadataHash hash) =
+    toJSON failure@(DbLookupTxMetadataHash _hash) =
         object
             [ "code"            .= String "DbLookupTxMetadataHash"
-            , "description"     .= String ("The hash " <> decodeUtf8 hash <> " is missing from the DB.")
+            , "description"     .= String (renderLookupFail failure)
             ]
-    toJSON (PoolMetadataHashMismatch) =
+    toJSON failure@(PoolMetadataHashMismatch) =
         object
             [ "code"            .= String "PoolMetadataHashMismatch"
-            , "description"     .= String "The pool metadata does not match!"
+            , "description"     .= String (renderLookupFail failure)
             ]
-    toJSON (UnableToEncodePoolMetadataToJSON err) =
+    toJSON failure@(UnableToEncodePoolMetadataToJSON _err) =
         object
             [ "code"            .= String "UnableToEncodePoolMetadataToJSON"
-            , "description"     .= String ("Unable to encode the content to JSON. " <> err)
+            , "description"     .= String (renderLookupFail failure)
             ]
-    toJSON (UnknownError err) =
+    toJSON failure@(UnknownError _err) =
         object
             [ "code"            .= String "UnknownError"
-            , "description"     .= String err
+            , "description"     .= String (renderLookupFail failure)
             ]
 
 
@@ -67,6 +63,3 @@ renderLookupFail lf =
     UnableToEncodePoolMetadataToJSON err -> "Unable to encode the content to JSON. " <> err
     UnknownError text -> "Unknown error. Context: " <> text
 
-
-textShow :: Show a => a -> Text
-textShow = Text.pack . show

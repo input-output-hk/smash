@@ -108,8 +108,9 @@ pCommand =
 pFilePath :: Parser FilePath
 pFilePath =
   Opt.strOption
-    (  Opt.long "filepath"
+    (  Opt.long "metadata"
     <> Opt.help "The JSON metadata filepath location."
+    <> Opt.metavar "FILEPATH"
     <> Opt.completer (Opt.bashCompleter "directory")
     )
 

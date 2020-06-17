@@ -150,7 +150,7 @@ PGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
 PGPASSFILE=config/pgpass stack run smash-exe -- create-migration --mdir ./schema
 PGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
 
-PGPASSFILE=config/pgpass stack run smash-exe -- insert-pool --filepath test_pool.json --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
+PGPASSFILE=config/pgpass stack run smash-exe -- insert-pool --metadata test_pool.json --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
 
 PGPASSFILE=config/pgpass stack run smash-exe -- run-app
 ```
