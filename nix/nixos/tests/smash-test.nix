@@ -53,7 +53,7 @@ with pkgs; with commonLib;
     $machine->waitForUnit("postgresql.service");
     $machine->waitForUnit("smash.service");
     $machine->waitForOpenPort(3100);
-    $machine->succeed("smash-exe insert-pool --filepath ${../../../test_pool.json} --poolhash \"cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f\"");
+    $machine->succeed("smash-exe insert-pool --metadata ${../../../test_pool.json} --poolhash \"cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f\"");
     $machine->succeed("curl -s -i -H \"Accept: application/json\" http://localhost:3100/api/v1/metadata/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f | systemd-cat --identifier=curl-smash");
     $machine->succeed("curl -s -H \"Accept: application/json\" http://localhost:3100/api/v1/metadata/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f | jq | systemd-cat --identifier=jq-smash");
   '';
