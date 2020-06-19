@@ -13,10 +13,7 @@ let
   shell = smashHaskellPackages.shellFor {
     name = "cabal-dev-shell";
 
-    # If shellFor local packages selection is wrong,
-    # then list all local packages then include source-repository-package that cabal complains about:
-    #packages = ps: with ps; [
-    #];
+    packages = ps: lib.attrValues (haskell-nix.haskellLib.selectProjectPackages ps);
 
     # These programs will be available inside the nix-shell.
     buildInputs = with haskellPackages; [

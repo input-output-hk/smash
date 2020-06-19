@@ -13,11 +13,19 @@
 }:
 let
 
+  src = haskell-nix.haskellLib.cleanGit {
+      name = "smash-src";
+      src = ../.;
+  };
+
+  projectPackages = lib.attrNames (haskell-nix.haskellLib.selectProjectPackages
+    (haskell-nix.cabalProject { inherit src; }));
+
   # This creates the Haskell package set.
   # https://input-output-hk.github.io/haskell.nix/user-guide/projects/
   pkgSet = haskell-nix.cabalProject {
-    src = haskell-nix.haskellLib.cleanGit { src = ../. ; };
-    ghc = buildPackages.haskell-nix.compiler.${compiler};
+    inherit src;
+    compiler-nix-name = compiler;
     modules = [
       # Allow reinstallation of Win32
       { nonReinstallablePkgs =
@@ -35,9 +43,11 @@ let
           # "stm" "terminfo"
         ];
       }
-      {
-        packages.smash.configureFlags = [ "--ghc-option=-Werror" ];
-      }
+      # TODO: Compile all local packages with -Werror:
+      #{
+      #  packages = lib.genAttrs projectPackages
+      #    (name: { configureFlags = [ "--ghc-option=-Werror" ]; });
+      #}
     ];
   };
 in

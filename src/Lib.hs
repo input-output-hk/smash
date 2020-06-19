@@ -7,15 +7,17 @@
 
 module Lib
     ( Configuration (..)
+    , DBFail (..) -- We need to see errors clearly outside
     , defaultConfiguration
     , runApp
+    , runAppStubbed
+    , runPoolInsertion
     ) where
 
 import           Cardano.Prelude
 
 import           Data.IORef               (newIORef)
 import           Data.Swagger             (Info (..), Swagger (..))
-
 
 import           Network.Wai.Handler.Warp (defaultSettings, runSettings,
                                            setBeforeMainLoop, setPort)
@@ -36,8 +38,11 @@ import           Types
 -- The basic auth.
 type BasicAuthURL = BasicAuth "smash" User
 
+-- | Shortcut for common api result types.
+type ApiRes verb a = verb '[JSON] (ApiResult DBFail a)
+
 -- GET api/v1/metadata/{hash}
-type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "hash" PoolHash :> Get '[JSON] PoolOfflineMetadata
+type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "hash" PoolHash :> ApiRes Get PoolMetadataWrapped
 -- POST api/v1/blacklist |-> {"blacklistPool" : "pool"}
 type BlacklistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "blacklist" :> ReqBody '[JSON] BlacklistPool :> Post '[JSON] PoolOfflineMetadata
 
@@ -86,8 +91,18 @@ runApp configuration = do
 
     runSettings settings =<< mkApp configuration
 
-mkApp :: Configuration -> IO Application
-mkApp configuration = do
+runAppStubbed :: Configuration -> IO ()
+runAppStubbed configuration = do
+    let port = cPortNumber configuration
+    let settings =
+          setPort port $
+          setBeforeMainLoop (hPutStrLn stderr ("listening on port " ++ show port)) $
+          defaultSettings
+
+    runSettings settings =<< mkAppStubbed configuration
+
+mkAppStubbed :: Configuration -> IO Application
+mkAppStubbed configuration = do
 
     ioDataMap           <- newIORef stubbedInitialDataMap
     ioBlacklistedPools  <- newIORef stubbedBlacklistedPools
@@ -99,6 +114,30 @@ mkApp configuration = do
         fullAPI
         (basicAuthServerContext stubbedApplicationUsers)
         (server configuration dataLayer)
+
+mkApp :: Configuration -> IO Application
+mkApp configuration = do
+
+    let dataLayer :: DataLayer
+        dataLayer = postgresqlDataLayer
+
+    return $ serveWithContext
+        fullAPI
+        (basicAuthServerContext stubbedApplicationUsers)
+        (server configuration dataLayer)
+
+--runPoolInsertion poolMetadataJsonPath poolHash
+runPoolInsertion :: FilePath -> Text -> IO (Either DBFail TxMetadataId)
+runPoolInsertion poolMetadataJsonPath poolHash = do
+    putTextLn $ "Inserting pool! " <> (toS poolMetadataJsonPath) <> " " <> poolHash
+
+    let dataLayer :: DataLayer
+        dataLayer = postgresqlDataLayer
+
+    --PoolHash -> ByteString -> IO (Either DBFail PoolHash)
+    poolMetadataJson <- readFile poolMetadataJsonPath
+
+    (dlAddPoolMetadataSimple dataLayer) (PoolHash poolHash) poolMetadataJson
 
 -- | We need to supply our handlers with the right Context.
 basicAuthServerContext :: ApplicationUsers -> Context (BasicAuthCheck User ': '[])
@@ -131,7 +170,7 @@ convertIOToHandler = Handler . ExceptT . try
 server :: Configuration -> DataLayer -> Server API --Server SmashAPI
 server configuration dataLayer
     =       return todoSwagger
-    :<|>    getPoolOfflineMetadata
+    :<|>    getPoolOfflineMetadata dataLayer
     :<|>    postBlacklistPool
 
 postBlacklistPool :: User -> BlacklistPool -> Handler PoolOfflineMetadata
@@ -140,10 +179,11 @@ postBlacklistPool user blacklistPool = convertIOToHandler $ do
     return examplePoolOfflineMetadata
 
 -- throwError err404
-getPoolOfflineMetadata :: PoolHash -> Handler PoolOfflineMetadata
-getPoolOfflineMetadata poolHash = convertIOToHandler $ do
-    putTextLn $ show poolHash
-    return examplePoolOfflineMetadata
+getPoolOfflineMetadata :: DataLayer -> PoolHash -> Handler (ApiResult DBFail PoolMetadataWrapped)
+getPoolOfflineMetadata dataLayer poolHash = convertIOToHandler $ do
+    let getPoolMetadataSimple = dlGetPoolMetadataSimple dataLayer
+    poolMetadata <- getPoolMetadataSimple poolHash
+    return . ApiResult $ PoolMetadataWrapped <$> poolMetadata
 
 -- | Here for checking the validity of the data type.
 --isValidPoolOfflineMetadata :: PoolOfflineMetadata -> Bool

@@ -90,3 +90,69 @@ You need an HTTP server to serve it from and simply point to the application por
 Run the application, go to the local port http://localhost:3000/swagger.json and copy the content into https://editor.swagger.io/
 Voila! You got it, the spec is there.
 
+## How to run
+
+### Create DB
+
+You first need to create the database. You can provide your own path, the example will use the default location. We need the PostgreSQL database and we create it with:
+```
+PGPASSFILE=config/pgpass ./scripts/postgresql-setup.sh --createdb
+```
+Or if it needs to be recreated:
+```
+PGPASSFILE=config/pgpass ./scripts/postgresql-setup.sh --recreatedb
+```
+
+After that we need to run the migrations (if there are any):
+```
+PGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
+```
+
+And after that we can run additional migration scripts if they need to be created:
+```
+PGPASSFILE=config/pgpass stack run smash-exe -- create-migration --mdir ./schema
+```
+
+To show all tables:
+```
+\dt
+```
+
+To show details about specific table:
+```
+\d+ TABLE_NAME
+```
+
+For example:
+```
+\d+ block
+```
+
+Dumping the schema:
+```
+pg_dump -c -s --no-owner cexplorer > cexplorer.sql
+```
+
+## Inserting pool metadata
+
+
+This is an example (we got the hash from Blake2 256):
+```
+stack exec smash-exe -- insert-pool --metadata test_pool.json --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
+```
+
+## Test script
+
+An example of how the whole thing works.
+```
+PGPASSFILE=config/pgpass ./scripts/postgresql-setup.sh --recreatedb
+PGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
+PGPASSFILE=config/pgpass stack run smash-exe -- create-migration --mdir ./schema
+PGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
+
+PGPASSFILE=config/pgpass stack run smash-exe -- insert-pool --metadata test_pool.json --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
+
+PGPASSFILE=config/pgpass stack run smash-exe -- run-app
+```
+
+After the server is running, you can check the hash on http://localhost:3100/api/v1/metadata/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f to see it return the JSON metadata.

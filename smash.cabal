@@ -23,6 +23,20 @@ library
       Lib
     , Types
     , DB
+    -- Migration
+    , Cardano.Db.Migration
+    , Cardano.Db.Migration.Haskell
+    , Cardano.Db.Migration.Version
+    -- Config
+    , Cardano.Db.PGConfig
+    , Cardano.Db.Run
+    , Cardano.Db.Schema
+    -- DB operations
+    , Cardano.Db.Error
+    , Cardano.Db.Insert
+    , Cardano.Db.Query
+
+
   other-modules:
       Paths_smash
   hs-source-dirs:
@@ -38,6 +52,32 @@ library
     , wai
     , warp
     , aeson
+    -- DB
+    , persistent
+    , persistent-postgresql
+    , persistent-template >= 2.7.0
+    , postgresql-simple
+    , esqueleto
+    -- REST
+    , cardano-crypto
+    , cardano-crypto-class
+    , base16-bytestring
+    , monad-logger
+    , transformers
+    , transformers-except
+    , resourcet
+    , extra
+    , conduit-extra
+    , bytestring
+    , text
+    , time
+    , directory
+    , filepath
+    , template-haskell
+    , fast-logger
+    , unix
+    , contra-tracer
+    , iohk-monitoring
   default-language:    Haskell2010
   default-extensions:  NoImplicitPrelude
                        OverloadedStrings
@@ -60,6 +100,7 @@ executable smash-exe
       base >=4.7 && <5
     , cardano-prelude
     , smash
+    , optparse-applicative
   default-language:    Haskell2010
   default-extensions:  NoImplicitPrelude
                        OverloadedStrings
