@@ -156,3 +156,19 @@ PGPASSFILE=config/pgpass stack run smash-exe -- run-app
 ```
 
 After the server is running, you can check the hash on http://localhost:3100/api/v1/metadata/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f to see it return the JSON metadata.
+
+## How to figure out the JSON hash?
+
+You can do it inside GHCi.
+So run GHCi, using whatever you please (I will be using `stack ghci`) and:
+```
+import qualified Cardano.Crypto.Hash.Class as Crypto
+import qualified Cardano.Crypto.Hash.Blake2b as Crypto
+import qualified Data.ByteString.Base16 as B16
+
+poolMetadata <- readFile "test_pool.json"
+B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadata)
+```
+
+This presumes that you have a file containing the JSON in your path called "test_pool.json".
+

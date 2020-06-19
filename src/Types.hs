@@ -35,9 +35,14 @@ module Types
 
 import           Cardano.Prelude
 
+import           Control.Monad.Fail  (fail)
+
 import           Data.Aeson          (FromJSON (..), ToJSON (..), object,
                                       withObject, (.:), (.=))
+import qualified Data.Aeson          as Aeson
 import           Data.Aeson.Encoding (unsafeToEncoding)
+import qualified Data.Aeson.Types    as Aeson
+
 import           Data.Swagger        (NamedSchema (..), ToParamSchema (..),
                                       ToSchema (..))
 import           Data.Text.Encoding  (encodeUtf8Builder)
@@ -196,9 +201,9 @@ data PoolOnlineData = PoolOnlineData
 -- Required instances
 instance FromJSON PoolOfflineMetadata where
     parseJSON = withObject "poolOfflineMetadata" $ \o -> do
-        name'           <- o .: "name"
-        description'    <- o .: "description"
-        ticker'         <- o .: "ticker"
+        name'           <- parseName o
+        description'    <- parseDescription o
+        ticker'         <- parseTicker o
         homepage'       <- o .: "homepage"
 
         return $ PoolOfflineMetadata
@@ -207,7 +212,55 @@ instance FromJSON PoolOfflineMetadata where
             , pomTicker         = PoolTicker ticker'
             , pomHomepage       = PoolHomepage homepage'
             }
+      where
 
+        -- Copied from https://github.com/input-output-hk/cardano-node/pull/1299
+
+        -- | Parse and validate the stake pool metadata name from a JSON object.
+        --
+        -- If the name consists of more than 50 characters, the parser will fail.
+        parseName :: Aeson.Object -> Aeson.Parser Text
+        parseName obj = do
+          name <- obj .: "name"
+          if length name <= 50
+            then pure name
+            else fail $
+                 "\"name\" must have at most 50 characters, but it has "
+              <> show (length name)
+              <> " characters."
+
+        -- | Parse and validate the stake pool metadata description from a JSON
+        -- object.
+        --
+        -- If the description consists of more than 255 characters, the parser will
+        -- fail.
+        parseDescription :: Aeson.Object -> Aeson.Parser Text
+        parseDescription obj = do
+          description <- obj .: "description"
+          if length description <= 255
+            then pure description
+            else fail $
+                 "\"description\" must have at most 255 characters, but it has "
+              <> show (length description)
+              <> " characters."
+
+        -- | Parse and validate the stake pool ticker description from a JSON object.
+        --
+        -- If the ticker consists of less than 3 or more than 5 characters, the parser
+        -- will fail.
+        parseTicker :: Aeson.Object -> Aeson.Parser Text
+        parseTicker obj = do
+          ticker <- obj .: "ticker"
+          let tickerLen = length ticker
+          if tickerLen >= 3 && tickerLen <= 5
+            then pure ticker
+            else fail $
+                 "\"ticker\" must have at least 3 and at most 5 "
+              <> "characters, but it has "
+              <> show (length ticker)
+              <> " characters."
+
+-- |We presume the validation is not required the other way around?
 instance ToJSON PoolOfflineMetadata where
     toJSON (PoolOfflineMetadata name' description' ticker' homepage') =
         object
@@ -219,7 +272,6 @@ instance ToJSON PoolOfflineMetadata where
 
 --instance ToParamSchema PoolOfflineMetadata
 instance ToSchema PoolOfflineMetadata
-
 
 newtype PoolMetadataWrapped = PoolMetadataWrapped Text
     deriving (Eq, Ord, Show, Generic)

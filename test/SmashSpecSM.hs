@@ -1,0 +1,207 @@
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE KindSignatures      #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving  #-}
+
+-- Yes, yes, this is an exception.
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
+module SmashSpecSM
+    ( smashSpecSM
+    ) where
+
+import           Cardano.Prelude
+import           Prelude (Show (..))
+
+import           Data.TreeDiff (ToExpr (..), Expr (..))
+import qualified Data.Map as Map
+import           Data.IORef (newIORef)
+
+import           Test.Hspec (Spec, describe, it)
+
+import           Test.QuickCheck (Gen, Property, oneof, (===), elements, listOf)
+import           Test.QuickCheck.Monadic (monadicIO, run)
+
+import           Test.StateMachine
+import           Test.StateMachine.Types
+import qualified Test.StateMachine.Types.Rank2 as Rank2
+
+import           Lib
+import           Types
+import           DB
+
+-- Ewwww. Should be burned.
+import           System.IO.Unsafe (unsafePerformIO)
+
+-------------------------------------------------------------------------------
+-- Tests
+-------------------------------------------------------------------------------
+
+-- This is currently just checking that it inserts a pool into a model.
+smashSpecSM :: Spec
+smashSpecSM = do
+    describe "SMASH state machine" $ do
+        it "HULK should SMASH the state machine" $ do
+            prop_smash
+
+prop_smash :: Property
+prop_smash = do
+
+    -- Placeholder
+    let testdDL =   stubbedDataLayer
+                        (unsafePerformIO $ newIORef stubbedInitialDataMap)
+                        (unsafePerformIO $ newIORef stubbedBlacklistedPools)
+
+    forAllCommands (smUnused testdDL) (Just 100) $ \cmds -> monadicIO $ do
+
+        --TODO(KS): Initialize the REAL DB!
+        ioDataMap           <- run $ newIORef stubbedInitialDataMap
+        ioBlacklistedPools  <- run $ newIORef stubbedBlacklistedPools
+
+        let dataLayer :: DataLayer
+            dataLayer = stubbedDataLayer ioDataMap ioBlacklistedPools
+
+        -- Run the actual commands
+        (hist, _model, res) <- runCommands (smashSM dataLayer) cmds
+
+        -- Pretty the commands
+        prettyCommands (smashSM dataLayer) hist $ checkCommandNames cmds (res === Ok)
+
+-- | Weird, but ok.
+smUnused :: DataLayer -> StateMachine Model Action IO Response
+smUnused dataLayer = smashSM dataLayer
+
+-------------------------------------------------------------------------------
+-- Language
+-------------------------------------------------------------------------------
+
+-- | The list of commands/actions the model can take.
+-- The __r__ type here is the polymorphic type param for symbolic and concrete @Action@.
+data Action (r :: Type -> Type)
+    = InsertPool !PoolHash !Text
+    -- ^ This should really be more type-safe.
+    deriving (Show, Generic1, Rank2.Foldable, Rank2.Traversable, Rank2.Functor, CommandNames)
+
+-- | The types of responses of the model.
+-- The __r__ type here is the polymorphic type param for symbolic and concrete @Response@.
+data Response (r :: Type -> Type)
+    = PoolInserted !PoolHash !Text
+    | MissingPoolHash !PoolHash
+    deriving (Show, Generic1, Rank2.Foldable, Rank2.Traversable, Rank2.Functor)
+
+-- | The types of error that can occur in the model.
+data Error
+    = ExitCodeError ExitCode
+    | UnexpectedError
+    deriving (Show)
+
+-- | Do we need this instance?
+instance Exception Error
+
+-------------------------------------------------------------------------------
+-- Instances
+-------------------------------------------------------------------------------
+
+deriving instance ToExpr (Model Concrete)
+
+-- No way to convert this.
+instance ToExpr DataLayer where
+    toExpr dataLayer = Rec "DataLayer" (Map.empty)
+
+-------------------------------------------------------------------------------
+-- The model we keep track of
+-------------------------------------------------------------------------------
+
+-- AND. Logic. N stuff.
+instance Eq DataLayer where
+     _ == _ = True
+
+instance Show DataLayer where
+    show _ = "DataLayer"
+
+-- | The model contains the data.
+data Model (r :: Type -> Type) = RunningModel !DataLayer
+    deriving (Eq, Show, Generic)
+
+-- | Initially, we don't have any exit codes in the protocol.
+initialModel :: DataLayer -> Model r
+initialModel dataLayer = RunningModel dataLayer
+
+-------------------------------------------------------------------------------
+-- State machine
+-------------------------------------------------------------------------------
+
+smashSM :: DataLayer -> StateMachine Model Action IO Response
+smashSM dataLayer = StateMachine
+    { initModel     = initialModel dataLayer
+    , transition    = mTransitions
+    , precondition  = mPreconditions
+    , postcondition = mPostconditions
+    , generator     = mGenerator
+    , invariant     = Nothing
+    , shrinker      = mShrinker
+    , semantics     = mSemantics
+    , mock          = mMock
+    , distribution  = Nothing
+    }
+  where
+    -- | Let's handle ju
+    mTransitions :: Model r -> Action r -> Response r -> Model r
+    mTransitions m@(RunningModel model) action response = m
+
+    -- | Preconditions for this model.
+    -- No preconditions?
+    mPreconditions :: Model Symbolic -> Action Symbolic -> Logic
+    mPreconditions (RunningModel model) _ = Top
+
+    -- | Post conditions for the system.
+    mPostconditions :: Model Concrete -> Action Concrete -> Response Concrete -> Logic
+    mPostconditions _ (InsertPool poolHash poolOfflineMeta) (PoolInserted poolHash' poolOfflineMeta')   = Top
+    mPostconditions _ _                                     _                                           = Bot
+
+    -- | Generator for symbolic actions.
+    mGenerator :: Model Symbolic -> Maybe (Gen (Action Symbolic))
+    mGenerator _            = Just $ oneof
+        [ InsertPool <$> genPoolHash <*> genPoolOfflineMetadataText
+        ]
+
+    -- | Trivial shrinker. __No shrinker__.
+    mShrinker :: Model Symbolic -> Action Symbolic -> [Action Symbolic]
+    mShrinker _ _ = []
+
+    -- | Here we'd do the dispatch to the actual SUT.
+    mSemantics :: Action Concrete -> IO (Response Concrete)
+    mSemantics (InsertPool poolHash poolOfflineMeta) = do
+        let addPoolMetadata = dlAddPoolMetadata dataLayer
+        result <- addPoolMetadata poolHash poolOfflineMeta
+        case result of
+            Left err -> return $ MissingPoolHash poolHash
+            Right poolOfflineMeta' -> return $ PoolInserted poolHash poolOfflineMeta'
+
+    -- | Compare symbolic and SUT.
+    mMock :: Model Symbolic -> Action Symbolic -> GenSym (Response Symbolic)
+    mMock _ (InsertPool poolHash poolOfflineMeta)   = return (PoolInserted poolHash poolOfflineMeta)
+    --mMock _ (MissingPoolHash _)    = return PoolInserted
+
+-- | A simple utility function so we don't have to pass panic around.
+doNotUse :: a
+doNotUse = panic "Should not be used!"
+
+genPoolHash :: Gen PoolHash
+genPoolHash = PoolHash <$> genSafeText
+
+-- |Improve this.
+genPoolOfflineMetadataText :: Gen Text
+genPoolOfflineMetadataText = genSafeText
+
+genSafeChar :: Gen Char
+genSafeChar = elements ['a'..'z']
+
+genSafeText :: Gen Text
+genSafeText = toS <$> listOf genSafeChar
+

@@ -81,6 +81,34 @@ packages:
   original:
     hackage: servant-0.16.2
 - completed:
+    hackage: servant-server-0.16.2@sha256:f6b36df7c4f1688ff9d48d272e6cfc5f001b3221d2a732e73faf44e8b9e1ea04,5798
+    pantry-tree:
+      size: 2517
+      sha256: 12330638c1b455050d19ad0797b35893efbb5cd233789581eae93cc8983a84c3
+  original:
+    hackage: servant-server-0.16.2
+- completed:
+    hackage: http-api-data-0.4.1.1@sha256:998b3a5e4d2707dff19e2a877c2f9859ac5fdf491a94d31024d20212c2c250b7,3704
+    pantry-tree:
+      size: 887
+      sha256: 4e76b5bc6a9e45679e25665be7dd1ed8161840d4d781e3e125557e6f2b9d1fd7
+  original:
+    hackage: http-api-data-0.4.1.1
+- completed:
+    hackage: singleton-bool-0.1.5@sha256:56211ccd9f98c77e7e826c8a5db1e54b5a65b173c2c5bf3053e2619b04041285,1220
+    pantry-tree:
+      size: 326
+      sha256: 0189da334aced513effdb69d2c6055342be2858fb1ed519bdc2574db58ad7216
+  original:
+    hackage: singleton-bool-0.1.5
+- completed:
+    hackage: dec-0.0.3@sha256:1a822a19129c1eca8d12a85e4d6fdc77625016ea6c3e8ce30f8d32e0972faeec,1180
+    pantry-tree:
+      size: 212
+      sha256: e95827d0c4bb7a97b8b612b49630f84252bb6e553e593d294150fb610277bdad
+  original:
+    hackage: dec-0.0.3
+- completed:
     hackage: binary-0.8.7.0@sha256:ae3e6cca723ac55c54bbb3fa771bcf18142bc727afd57818e66d6ee6c8044f12,7705
     pantry-tree:
       size: 1976
@@ -298,13 +326,6 @@ packages:
   original:
     hackage: connection-0.3.1
 - completed:
-    hackage: http-api-data-0.4.1.1@sha256:998b3a5e4d2707dff19e2a877c2f9859ac5fdf491a94d31024d20212c2c250b7,3704
-    pantry-tree:
-      size: 887
-      sha256: 4e76b5bc6a9e45679e25665be7dd1ed8161840d4d781e3e125557e6f2b9d1fd7
-  original:
-    hackage: http-api-data-0.4.1.1
-- completed:
     hackage: time-compat-1.9.2.2@sha256:ccf268e6ec91a6d9a79392697634c670c095a34a60d1ccfa1be1c84f20bb24c5,4254
     pantry-tree:
       size: 3602
@@ -318,6 +339,13 @@ packages:
       sha256: c64a9ec9827f140768c01f1d9df1ed9ec9de2d70682a3822061bbe52cf85006c
   original:
     hackage: quiet-0.2
+- completed:
+    hackage: quickcheck-state-machine-0.6.0@sha256:3e4f8df0f6b5d415e3c8840dc75034a63e37f56f5f8cfa1035ded16345235ac4,3825
+    pantry-tree:
+      size: 1926
+      sha256: ae502fd7f4c6680294149bed482d1896904c1259d5ae614093da01e0731ec92e
+  original:
+    hackage: quickcheck-state-machine-0.6.0
 - completed:
     subdir: .
     name: cardano-prelude

@@ -20,7 +20,7 @@
 resolver: https://raw.githubusercontent.com/input-output-hk/cardano-prelude/fe76ec64f6b45259cc407a6d840dad79ee6063b6/snapshot.yaml
 compiler: ghc-8.6.5
 
-allow-newer: true
+#allow-newer: true
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -48,6 +48,13 @@ extra-deps:
   - th-lift-0.8.1
   - network-3.0.1.1
   - servant-0.16.2
+  - servant-server-0.16.2
+
+  # Dependencies required by the servant version which should be higher because of
+  # the network version.
+  - http-api-data-0.4.1.1
+  - singleton-bool-0.1.5
+  - dec-0.0.3
 
   - binary-0.8.7.0
   - bimap-0.4.0
@@ -80,9 +87,10 @@ extra-deps:
   - statistics-linreg-0.3
   - socks-0.6.1
   - connection-0.3.1
-  - http-api-data-0.4.1.1
+    #  - http-api-data-0.4.1.1
   - time-compat-1.9.2.2
   - quiet-0.2
+  - quickcheck-state-machine-0.6.0
 
   - git: https://github.com/input-output-hk/cardano-prelude
     commit: e0257be9d745a04f85ab8287a48a9c193acafec8
