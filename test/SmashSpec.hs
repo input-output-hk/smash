@@ -94,6 +94,10 @@ genSafeChar = elements ['a'..'z']
 genSafeText :: Gen Text
 genSafeText = toS <$> listOf genSafeChar
 
+-- TODO(KS): Create more realistic arbitrary instance.
+instance Arbitrary Text where
+    arbitrary = genSafeText
+
 instance Arbitrary PoolOfflineMetadata where
     arbitrary = do
         poolName        <- PoolName         <$> genSafeText

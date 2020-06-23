@@ -124,9 +124,12 @@ test-suite smash-test
   build-depends:
       base >=4.7 && <5
     , cardano-prelude
+    , containers
     , smash
     , hspec
     , QuickCheck
+    , quickcheck-state-machine >= 0.6
+    , tree-diff
     -- * Required for generation of keys
     , ed25519
   default-language:    Haskell2010

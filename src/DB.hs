@@ -47,38 +47,32 @@ import           Cardano.Db.Error as X
 -- | This is the data layer for the DB.
 -- The resulting operation has to be @IO@, it can be made more granular,
 -- but currently there is no complexity involved for that to be a sane choice.
+-- TODO(KS): Newtype wrapper around @Text@ for the metadata.
 data DataLayer = DataLayer
-    { dlGetPoolMetadataSimple   :: PoolHash -> IO (Either DBFail Text)
-    , dlGetPoolMetadata         :: PoolHash -> IO (Either DBFail PoolOfflineMetadata)
-    , dlAddPoolMetadata         :: PoolHash -> PoolOfflineMetadata -> IO (Either DBFail PoolOfflineMetadata)
-    , dlAddPoolMetadataSimple   :: PoolHash -> Text -> IO (Either DBFail TxMetadataId)
+    { dlGetPoolMetadata         :: PoolHash -> IO (Either DBFail Text)
+    , dlAddPoolMetadata         :: PoolHash -> Text -> IO (Either DBFail Text)
     , dlGetBlacklistedPools     :: IO (Either DBFail [PoolHash])
     , dlAddBlacklistedPool      :: PoolHash -> IO (Either DBFail PoolHash)
-    }
+    } deriving (Generic)
 
 -- | Simple stubbed @DataLayer@ for an example.
 -- We do need state here. _This is thread safe._
 -- __This is really our model here.__
 stubbedDataLayer
-    :: IORef (Map PoolHash PoolOfflineMetadata)
+    :: IORef (Map PoolHash Text)
     -> IORef [PoolHash]
     -> DataLayer
 stubbedDataLayer ioDataMap ioBlacklistedPool = DataLayer
     { dlGetPoolMetadata     = \poolHash -> do
         ioDataMap' <- readIORef ioDataMap
         case (Map.lookup poolHash ioDataMap') of
-            Just poolOfflineMetadata'   -> return $ Right poolOfflineMetadata'
+            Just poolOfflineMetadata'   -> return . Right $ poolOfflineMetadata'
             Nothing                     -> return $ Left (DbLookupTxMetadataHash (encodeUtf8 $ getPoolHash poolHash))
-
-    , dlGetPoolMetadataSimple = \poolHash -> panic "To implement!"
 
     , dlAddPoolMetadata     = \poolHash poolMetadata -> do
         -- TODO(KS): What if the pool metadata already exists?
         _ <- modifyIORef ioDataMap (\dataMap -> Map.insert poolHash poolMetadata dataMap)
-        return $ Right poolMetadata
-
-    -- TODO(KS): To speed up development.
-    , dlAddPoolMetadataSimple = panic "To implement!"
+        return . Right $ poolMetadata
 
     , dlGetBlacklistedPools = do
         blacklistedPool <- readIORef ioBlacklistedPool
@@ -92,9 +86,9 @@ stubbedDataLayer ioDataMap ioBlacklistedPool = DataLayer
     }
 
 -- The approximation for the table.
-stubbedInitialDataMap :: Map PoolHash PoolOfflineMetadata
+stubbedInitialDataMap :: Map PoolHash Text
 stubbedInitialDataMap = Map.fromList
-    [ (createPoolHash "AAAAC3NzaC1lZDI1NTE5AAAAIKFx4CnxqX9mCaUeqp/4EI1+Ly9SfL23/Uxd0Ieegspc", examplePoolOfflineMetadata)
+    [ (createPoolHash "AAAAC3NzaC1lZDI1NTE5AAAAIKFx4CnxqX9mCaUeqp/4EI1+Ly9SfL23/Uxd0Ieegspc", show examplePoolOfflineMetadata)
     ]
 
 -- The approximation for the table.
@@ -103,15 +97,11 @@ stubbedBlacklistedPools = []
 
 postgresqlDataLayer :: DataLayer
 postgresqlDataLayer = DataLayer
-    { dlGetPoolMetadata     = \poolHash -> panic "To implement!"
-
-    , dlGetPoolMetadataSimple = \poolHash -> do
+    { dlGetPoolMetadata = \poolHash -> do
         txMetadata <- runDbAction Nothing $ queryTxMetadata (encodeUtf8 $ getPoolHash poolHash)
         return (txMetadataMetadata <$> txMetadata)
 
-    , dlAddPoolMetadata     = \poolHash poolMetadata -> panic "To implement!"
-
-    , dlAddPoolMetadataSimple     = \poolHash poolMetadata -> do
+    , dlAddPoolMetadata     = \poolHash poolMetadata -> do
 
         let poolOfflineMetadataByteString = BL.fromStrict . encodeUtf8 $ poolMetadata
 
@@ -129,7 +119,9 @@ postgresqlDataLayer = DataLayer
 
         if hashFromMetadata /= poolHashBytestring
             then return $ Left PoolMetadataHashMismatch
-            else fmap Right $ runDbAction Nothing $ insertTxMetadata $ TxMetadata poolHashBytestring poolMetadata
+            else do
+                _poolMetadata <- runDbAction Nothing $ insertTxMetadata $ TxMetadata poolHashBytestring poolMetadata
+                return $ Right poolMetadata
 
     , dlGetBlacklistedPools = panic "To implement!"
     , dlAddBlacklistedPool  = \poolHash -> panic "To implement!"

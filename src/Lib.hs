@@ -127,7 +127,7 @@ mkApp configuration = do
         (server configuration dataLayer)
 
 --runPoolInsertion poolMetadataJsonPath poolHash
-runPoolInsertion :: FilePath -> Text -> IO (Either DBFail TxMetadataId)
+runPoolInsertion :: FilePath -> Text -> IO (Either DBFail Text)
 runPoolInsertion poolMetadataJsonPath poolHash = do
     putTextLn $ "Inserting pool! " <> (toS poolMetadataJsonPath) <> " " <> poolHash
 
@@ -137,7 +137,7 @@ runPoolInsertion poolMetadataJsonPath poolHash = do
     --PoolHash -> ByteString -> IO (Either DBFail PoolHash)
     poolMetadataJson <- readFile poolMetadataJsonPath
 
-    (dlAddPoolMetadataSimple dataLayer) (PoolHash poolHash) poolMetadataJson
+    (dlAddPoolMetadata dataLayer) (PoolHash poolHash) poolMetadataJson
 
 -- | We need to supply our handlers with the right Context.
 basicAuthServerContext :: ApplicationUsers -> Context (BasicAuthCheck User ': '[])
@@ -181,7 +181,7 @@ postBlacklistPool user blacklistPool = convertIOToHandler $ do
 -- throwError err404
 getPoolOfflineMetadata :: DataLayer -> PoolHash -> Handler (ApiResult DBFail PoolMetadataWrapped)
 getPoolOfflineMetadata dataLayer poolHash = convertIOToHandler $ do
-    let getPoolMetadataSimple = dlGetPoolMetadataSimple dataLayer
+    let getPoolMetadataSimple = dlGetPoolMetadata dataLayer
     poolMetadata <- getPoolMetadataSimple poolHash
     return . ApiResult $ PoolMetadataWrapped <$> poolMetadata
 
