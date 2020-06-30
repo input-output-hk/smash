@@ -47,13 +47,13 @@ toConnectionString pgc =
     ]
 
 -- | Read the PostgreSQL configuration from the file at the location specified by the
--- '$PGPASSFILE' environment variable.
+-- '$SMASHPGPASSFILE' environment variable.
 readPGPassFileEnv :: IO PGConfig
 readPGPassFileEnv = do
-  mpath <- lookupEnv "PGPASSFILE"
+  mpath <- lookupEnv "SMASHPGPASSFILE"
   case mpath of
     Just fp -> readPGPassFileExit (PGPassFile fp)
-    Nothing -> panic $ "Environment variable 'PGPASSFILE' not set."
+    Nothing -> panic $ "Environment variable 'SMASHPGPASSFILE' not set."
 
 -- | Read the PostgreSQL configuration from the specified file.
 readPGPassFile :: PGPassFile -> IO (Maybe PGConfig)
@@ -99,5 +99,5 @@ readPGPassFileExit pgpassfile@(PGPassFile fpath) = do
   case mc of
     Nothing -> panic $ toS $ "Not able to read PGPassFile at " ++ show fpath ++ "."
     Just pgc -> do
-      setEnv "PGPASSFILE" fpath
+      setEnv "SMASHPGPASSFILE" fpath
       pure pgc

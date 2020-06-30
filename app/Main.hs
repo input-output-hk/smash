@@ -2,16 +2,22 @@ module Main where
 
 import           Cardano.Prelude
 
+import           DB
+import           DbSyncPlugin          (poolMetadataDbSyncNodePlugin)
 import           Lib
 
-import           DB
+import           Cardano.SmashDbSync   (ConfigFile (..), GenesisFile (..),
+                                        SmashDbSyncNodeParams (..),
+                                        SocketPath (..), runDbSyncNode)
 
-import           Control.Applicative (optional)
+import           Cardano.Slotting.Slot (SlotNo (..))
 
-import           Data.Monoid ((<>))
+import           Control.Applicative   (optional)
 
-import           Options.Applicative (Parser, ParserInfo, ParserPrefs)
-import qualified Options.Applicative as Opt
+import           Data.Monoid           ((<>))
+
+import           Options.Applicative   (Parser, ParserInfo, ParserPrefs)
+import qualified Options.Applicative   as Opt
 
 
 main :: IO ()
@@ -21,7 +27,7 @@ main = do
     opts :: ParserInfo Command
     opts = Opt.info (Opt.helper <*> pVersion <*> pCommand)
       ( Opt.fullDesc
-      <> Opt.header "SMASH - Manage the Stakepool Metadata Aggregation Server"
+      <> Opt.header "SMASH - manage the Stakepool Metadata Aggregation Server"
       )
 
     p :: ParserPrefs
@@ -30,9 +36,10 @@ main = do
 -- -----------------------------------------------------------------------------
 
 data Command
-  = CreateMigration MigrationDir
-  | RunMigrations MigrationDir (Maybe LogFileDir)
+  = CreateMigration SmashMigrationDir
+  | RunMigrations SmashMigrationDir (Maybe SmashLogFileDir)
   | RunApplication
+  | RunApplicationWithDbSync SmashDbSyncNodeParams
   | InsertPool FilePath Text
 
 runCommand :: Command -> IO ()
@@ -41,6 +48,7 @@ runCommand cmd =
     CreateMigration mdir -> doCreateMigration mdir
     RunMigrations mdir mldir -> runMigrations (\pgConfig -> pgConfig) False mdir mldir
     RunApplication -> runApp defaultConfiguration
+    RunApplicationWithDbSync dbSyncNodeParams -> runDbSyncNode poolMetadataDbSyncNodePlugin dbSyncNodeParams
     InsertPool poolMetadataJsonPath poolHash -> do
         putTextLn "Inserting pool metadata!"
         result <- runPoolInsertion poolMetadataJsonPath poolHash
@@ -49,7 +57,7 @@ runCommand cmd =
             (\_ -> putTextLn "Insertion completed!")
             result
 
-doCreateMigration :: MigrationDir -> IO ()
+doCreateMigration :: SmashMigrationDir -> IO ()
 doCreateMigration mdir = do
   mfp <- createMigration mdir
   case mfp of
@@ -57,6 +65,67 @@ doCreateMigration mdir = do
     Just fp -> putTextLn $ toS ("New migration '" ++ fp ++ "' created.")
 
 -------------------------------------------------------------------------------
+
+opts :: ParserInfo SmashDbSyncNodeParams
+opts =
+  Opt.info (pCommandLine <**> Opt.helper)
+    ( Opt.fullDesc
+    <> Opt.progDesc "Extended Cardano POstgreSQL sync node."
+    )
+
+
+pCommandLine :: Parser SmashDbSyncNodeParams
+pCommandLine =
+  SmashDbSyncNodeParams
+    <$> pConfigFile
+    <*> pGenesisFile
+    <*> pSocketPath
+    <*> pMigrationDir
+    <*> optional pSlotNo
+
+pConfigFile :: Parser ConfigFile
+pConfigFile =
+  ConfigFile <$> Opt.strOption
+    ( Opt.long "config"
+    <> Opt.help "Path to the db-sync node config file"
+    <> Opt.completer (Opt.bashCompleter "file")
+    <> Opt.metavar "FILEPATH"
+    )
+
+pGenesisFile :: Parser GenesisFile
+pGenesisFile =
+  GenesisFile <$> Opt.strOption
+    ( Opt.long "genesis-file"
+    <> Opt.help "Path to the genesis JSON file"
+    <> Opt.completer (Opt.bashCompleter "file")
+    <> Opt.metavar "FILEPATH"
+    )
+
+pMigrationDir :: Parser SmashMigrationDir
+pMigrationDir =
+  SmashMigrationDir <$> Opt.strOption
+    (  Opt.long "schema-dir"
+    <> Opt.help "The directory containing the migrations."
+    <> Opt.completer (Opt.bashCompleter "directory")
+    <> Opt.metavar "FILEPATH"
+    )
+
+pSocketPath :: Parser SocketPath
+pSocketPath =
+  SocketPath <$> Opt.strOption
+    ( Opt.long "socket-path"
+    <> Opt.help "Path to a cardano-node socket"
+    <> Opt.completer (Opt.bashCompleter "file")
+    <> Opt.metavar "FILEPATH"
+    )
+
+pSlotNo :: Parser SlotNo
+pSlotNo =
+  SlotNo <$> Opt.option Opt.auto
+    (  Opt.long "rollback-to-slot"
+    <> Opt.help "Force a rollback to the specified slot (mainly for testing and debugging)."
+    <> Opt.metavar "WORD"
+    )
 
 pVersion :: Parser (a -> a)
 pVersion =
@@ -79,7 +148,11 @@ pCommand =
           )
     <> Opt.command "run-app"
         ( Opt.info pRunApp
-          $ Opt.progDesc "Run the actual application."
+          $ Opt.progDesc "Run the application that just serves the pool info."
+          )
+    <> Opt.command "run-app-with-db-sync"
+        ( Opt.info pRunAppWithDbSync
+          $ Opt.progDesc "Run the application that syncs up the pool info and serves it."
           )
     <> Opt.command "insert-pool"
         ( Opt.info pInsertPool
@@ -89,16 +162,21 @@ pCommand =
   where
     pCreateMigration :: Parser Command
     pCreateMigration =
-      CreateMigration <$> pMigrationDir
+      CreateMigration <$> pSmashMigrationDir
 
     pRunMigrations :: Parser Command
     pRunMigrations =
-      RunMigrations <$> pMigrationDir <*> optional pLogFileDir
+      RunMigrations <$> pSmashMigrationDir <*> optional pLogFileDir
 
     -- Empty right now but we might add some params over time. Like ports and stuff?
     pRunApp :: Parser Command
     pRunApp =
       pure RunApplication
+
+    -- Empty right now but we might add some params over time. Like ports and stuff?
+    pRunAppWithDbSync :: Parser Command
+    pRunAppWithDbSync =
+      RunApplicationWithDbSync <$> pCommandLine
 
     -- Empty right now but we might add some params over time.
     pInsertPool :: Parser Command
@@ -121,17 +199,17 @@ pPoolHash =
     <> Opt.help "The JSON metadata Blake2 256 hash."
     )
 
-pMigrationDir :: Parser MigrationDir
-pMigrationDir =
-  MigrationDir <$> Opt.strOption
+pSmashMigrationDir :: Parser SmashMigrationDir
+pSmashMigrationDir =
+  SmashMigrationDir <$> Opt.strOption
     (  Opt.long "mdir"
-    <> Opt.help "The directory containing the migrations."
+    <> Opt.help "The SMASH directory containing the migrations."
     <> Opt.completer (Opt.bashCompleter "directory")
     )
 
-pLogFileDir :: Parser LogFileDir
+pLogFileDir :: Parser SmashLogFileDir
 pLogFileDir =
-  LogFileDir <$> Opt.strOption
+  SmashLogFileDir <$> Opt.strOption
     (  Opt.long "ldir"
     <> Opt.help "The directory to write the log to."
     <> Opt.completer (Opt.bashCompleter "directory")

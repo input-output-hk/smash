@@ -17,10 +17,10 @@
 #
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
-resolver: https://raw.githubusercontent.com/input-output-hk/cardano-prelude/fe76ec64f6b45259cc407a6d840dad79ee6063b6/snapshot.yaml
+resolver: https://raw.githubusercontent.com/input-output-hk/cardano-prelude/316c854d1d3089f480708ad5cd5ecf8a74423ddd/snapshot.yaml
 compiler: ghc-8.6.5
 
-#allow-newer: true
+allow-newer: true
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -33,28 +33,14 @@ compiler: ghc-8.6.5
 #   - wai
 packages:
 - .
-# Dependency packages to be pulled from upstream that are not in the resolver.
-# These entries can reference officially published versions as well as
-# forks / in-progress versions pinned to a git hash. For example:
-#
-# extra-deps:
-# - acme-missiles-0.3
-# - git: https://github.com/commercialhaskell/stack.git
-#   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
-#
+
+flags:
+  # Bundle VRF crypto in libsodium and do not rely on an external fork to have it.
+  # This still requires the host system to have the 'standard' libsodium installed.
+  cardano-crypto-praos:
+    external-libsodium-vrf: false
+
 extra-deps:
-
-  - th-lift-instances-0.1.16
-  - th-lift-0.8.1
-  - network-3.0.1.1
-  - servant-0.16.2
-  - servant-server-0.16.2
-
-  # Dependencies required by the servant version which should be higher because of
-  # the network version.
-  - http-api-data-0.4.1.1
-  - singleton-bool-0.1.5
-  - dec-0.0.3
 
   - binary-0.8.7.0
   - bimap-0.4.0
@@ -66,6 +52,7 @@ extra-deps:
   - esqueleto-3.2.2
   - generic-monoid-0.1.0.0
   - libsystemd-journal-1.4.4
+  - network-3.1.1.1
   - snap-core-1.0.4.1
   - snap-server-1.1.1.1
   - persistent-2.10.5.1
@@ -86,20 +73,86 @@ extra-deps:
   - Unique-0.4.7.6
   - statistics-linreg-0.3
   - socks-0.6.1
+  - servant-0.17
+  - servant-server-0.17
   - connection-0.3.1
-    #  - http-api-data-0.4.1.1
+  - http-api-data-0.4.1.1
   - time-compat-1.9.2.2
   - quiet-0.2
+
+    #  - th-lift-instances-0.1.16
+    #  - th-lift-0.8.1
+    #    #- network-3.0.1.1
+    #  - network-3.1.1.1
+    #  - servant-0.16.2
+    #  - servant-server-0.16.2
+    #
+    #  # Dependencies required by the servant version which should be higher because of
+    #  # the network version.
+    #  - http-api-data-0.4.1.1
+    #  - singleton-bool-0.1.5
+    #  - dec-0.0.3
+    #  - sop-core-0.5.0.1
+    #
+    #  - binary-0.8.7.0
+    #  - bimap-0.4.0
+    #  - brick-0.47.1
+    #  - config-ini-0.2.4.0
+    #  - containers-0.5.11.0
+    #  - data-clist-0.1.2.3
+    #  - ekg-prometheus-adapter-0.1.0.4
+    #  - esqueleto-3.2.2
+    #  - generic-monoid-0.1.0.0
+    #  - libsystemd-journal-1.4.4
+    #  - snap-core-1.0.4.1
+    #  - snap-server-1.1.1.1
+    #  - persistent-2.10.5.1
+    #  - persistent-postgresql-2.10.1.2
+    #  - persistent-template-2.8.2.3
+    #  - prometheus-2.1.2
+    #  - pvss-0.2.0
+    #  - tasty-hedgehog-1.0.0.2
+    #  - text-zipper-0.10.1
+    #  - time-units-1.0.0
+    #  - word-wrap-0.4.1
+    #  - transformers-except-0.1.1
+    #  - text-ansi-0.1.0
+    #  - Diff-0.4.0
+    #  - katip-0.8.3.0
+    #  - moo-1.2
+    #  - gray-code-0.3.1
+    #  - Unique-0.4.7.6
+    #  - statistics-linreg-0.3
+    #  - socks-0.6.1
+    #  - connection-0.3.1
+    #    #  - http-api-data-0.4.1.1
+    #  - time-compat-1.9.2.2
+    #  - quiet-0.2
   - quickcheck-state-machine-0.6.0
 
+  - git: https://github.com/input-output-hk/cardano-db-sync
+    commit: 85b75f13f98d719aa28df1a1e2fa74249952eccc
+    subdirs:
+      - cardano-db
+      - cardano-db-sync
+      - cardano-db-sync-extended
+
+  - git: https://github.com/input-output-hk/cardano-shell
+    commit: 601bb4324c258e3c8cbd2d532e5696fd09e2582e
+    subdirs:
+      - cardano-shell
+
+  - git: https://github.com/input-output-hk/cardano-crypto
+    commit: 2547ad1e80aeabca2899951601079408becbc92c
+
   - git: https://github.com/input-output-hk/cardano-prelude
-    commit: e0257be9d745a04f85ab8287a48a9c193acafec8
+    commit: 316c854d1d3089f480708ad5cd5ecf8a74423ddd
     subdirs:
       - .
       - test
 
   - git: https://github.com/input-output-hk/iohk-monitoring-framework
-    commit: 71df15f7b888d2671f619cc632080aaaaca48087
+    commit: efa4b5ecd7f0a13124616b12679cd42517cd905a
     subdirs:
       - contra-tracer
       - iohk-monitoring
@@ -110,21 +163,61 @@ extra-deps:
       - plugins/scribe-systemd
       - tracer-transformers
 
-  - git: https://github.com/input-output-hk/ouroboros-network
-    commit: 16bca08140fb37746538edff9fe77220acf91d55
-    subdirs:
-      - Win32-network
-
-  - git: https://github.com/input-output-hk/cardano-crypto
-    commit: 2547ad1e80aeabca2899951601079408becbc92c
-
   - git: https://github.com/input-output-hk/cardano-base
-    commit: 4a457f44e68132ce2bd978ab45a3188e64327abc
+    commit: 5e0b8bc8c7862be12da6989440f8644ba7c1e1cf
     subdirs:
       - binary
+      - cardano-crypto-praos
       - binary/test
       - cardano-crypto-class
       - slotting
+
+  - git: https://github.com/input-output-hk/goblins
+    commit: 26d35ad52fe9ade3391532dbfeb2f416f07650bc
+
+  - git: https://github.com/input-output-hk/cardano-ledger-specs
+    commit: ee92681752dc1a27ac77cb3466af8dca4ade997f
+    subdirs:
+      - byron/chain/executable-spec
+      - byron/ledger/executable-spec
+      - semantics/executable-spec
+      - shelley/chain-and-ledger/dependencies/non-integer
+      - shelley/chain-and-ledger/executable-spec
+      - shelley/chain-and-ledger/executable-spec/test
+
+  - git: https://github.com/input-output-hk/cardano-ledger
+    commit: d309449e6c303a9f0dcc8dcf172df6f0b3195ed5
+    subdirs:
+      - cardano-ledger
+      - cardano-ledger/test
+      - crypto
+      - crypto/test
+
+  - git: https://github.com/input-output-hk/ouroboros-network
+    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    subdirs:
+      - cardano-client
+      - io-sim
+      - io-sim-classes
+      - network-mux
+      - ouroboros-network
+      - ouroboros-network-framework
+      - Win32-network
+      - ouroboros-consensus
+      - ouroboros-consensus-byron
+      - ouroboros-consensus-byronspec
+      - ouroboros-consensus-shelley
+      - ouroboros-consensus-cardano
+      - typed-protocols
+      - typed-protocols-examples
+      - ouroboros-network-testing
+      - ouroboros-consensus/ouroboros-consensus-mock
+      - ouroboros-consensus/ouroboros-consensus-test-infra
+
+  - git: https://github.com/input-output-hk/cardano-node
+    commit: 46f296f8a9f3f497d9bd41e20c8398d2b5730c86
+    subdirs:
+      - cardano-config
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

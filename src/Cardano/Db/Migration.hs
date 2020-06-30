@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Cardano.Db.Migration
-  ( MigrationDir (..)
-  , LogFileDir (..)
+  ( SmashMigrationDir (..)
+  , SmashLogFileDir (..)
   , createMigration
   , applyMigration
   , runMigrations
@@ -43,15 +43,15 @@ import           System.IO (Handle, IOMode (AppendMode), hClose, hFlush, hPrint,
 
 
 
-newtype MigrationDir
-  = MigrationDir FilePath
+newtype SmashMigrationDir
+  = SmashMigrationDir FilePath
 
-newtype LogFileDir
-  = LogFileDir FilePath
+newtype SmashLogFileDir
+  = SmashLogFileDir FilePath
 
 -- | Run the migrations in the provided 'MigrationDir' and write date stamped log file
 -- to 'LogFileDir'.
-runMigrations :: (PGConfig -> PGConfig) -> Bool -> MigrationDir -> Maybe LogFileDir -> IO ()
+runMigrations :: (PGConfig -> PGConfig) -> Bool -> SmashMigrationDir -> Maybe SmashLogFileDir -> IO ()
 runMigrations cfgOverride quiet migrationDir mLogfiledir = do
     pgconfig <- cfgOverride <$> readPGPassFileEnv
     scripts <- getMigrationScripts migrationDir
@@ -68,8 +68,8 @@ runMigrations cfgOverride quiet migrationDir mLogfiledir = do
           forM_ scripts $ applyMigration quiet pgconfig (Just logFilename) logHandle
           unless quiet $ putTextLn "Success!"
   where
-    genLogFilename :: LogFileDir -> IO FilePath
-    genLogFilename (LogFileDir logdir) =
+    genLogFilename :: SmashLogFileDir -> IO FilePath
+    genLogFilename (SmashLogFileDir logdir) =
       (logdir </>)
         . formatTime defaultTimeLocale ("migrate-" ++ iso8601DateFormat (Just "%H%M%S") ++ ".log")
         <$> getCurrentTime
@@ -115,8 +115,8 @@ applyMigration quiet pgconfig mLogFilename logHandle (version, script) = do
 
 -- | Create a database migration (using functionality built into Persistent). If no
 -- migration is needed return 'Nothing' otherwise return the migration as 'Text'.
-createMigration :: MigrationDir -> IO (Maybe FilePath)
-createMigration (MigrationDir migdir) = do
+createMigration :: SmashMigrationDir -> IO (Maybe FilePath)
+createMigration (SmashMigrationDir migdir) = do
     mt <- runDbNoLogging create
     case mt of
       Nothing -> pure Nothing
@@ -173,8 +173,8 @@ createMigration (MigrationDir migdir) = do
 
 --------------------------------------------------------------------------------
 
-getMigrationScripts :: MigrationDir -> IO [(MigrationVersion, FilePath)]
-getMigrationScripts (MigrationDir location) = do
+getMigrationScripts :: SmashMigrationDir -> IO [(MigrationVersion, FilePath)]
+getMigrationScripts (SmashMigrationDir location) = do
     files <- listDirectory location
     let xs = map addVersionString (List.sort $ List.filter isMigrationScript files)
     case partitionEithers xs of

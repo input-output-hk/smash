@@ -23,7 +23,11 @@ library
       Lib
     , Types
     , DB
+    , DbSyncPlugin
+    -- DbSync
+    , Cardano.SmashDbSync
     -- Migration
+    , Cardano.Db.Database
     , Cardano.Db.Migration
     , Cardano.Db.Migration.Haskell
     , Cardano.Db.Migration.Version
@@ -58,9 +62,32 @@ library
     , persistent-template >= 2.7.0
     , postgresql-simple
     , esqueleto
-    -- REST
+    -- CARDANO
+    , cardano-binary
+    , cardano-client
     , cardano-crypto
     , cardano-crypto-class
+    , cardano-crypto-wrapper
+    -- REMOVE!
+    , cardano-config
+    , cardano-db-sync
+    , cardano-slotting
+    , cardano-ledger
+    , shelley-spec-ledger
+    , ouroboros-consensus
+    , ouroboros-consensus-byron
+    , ouroboros-consensus-shelley
+    , ouroboros-consensus-cardano
+    , iohk-monitoring
+    , prometheus
+    , cborg
+    , io-sim-classes
+    , network
+    , network-mux
+    , ouroboros-network
+    , ouroboros-network-framework
+    , typed-protocols
+    -- REST
     , base16-bytestring
     , monad-logger
     , transformers
@@ -77,7 +104,6 @@ library
     , fast-logger
     , unix
     , contra-tracer
-    , iohk-monitoring
   default-language:    Haskell2010
   default-extensions:  NoImplicitPrelude
                        OverloadedStrings
@@ -100,6 +126,8 @@ executable smash-exe
       base >=4.7 && <5
     , cardano-prelude
     , smash
+    , cardano-db-sync
+    , cardano-slotting
     , optparse-applicative
   default-language:    Haskell2010
   default-extensions:  NoImplicitPrelude
