@@ -4,6 +4,7 @@
 
 module Cardano.Db.Insert
   ( insertTxMetadata
+  , insertPoolMetaData
 
   -- Export mainly for testing.
   , insertByReturnKey
@@ -24,6 +25,9 @@ import           Cardano.Db.Schema
 
 insertTxMetadata :: MonadIO m => TxMetadata -> ReaderT SqlBackend m TxMetadataId
 insertTxMetadata = insertByReturnKey
+
+insertPoolMetaData :: (MonadIO m) => PoolMetaData -> ReaderT SqlBackend m PoolMetaDataId
+insertPoolMetaData = insertByReturnKey
 
 -------------------------------------------------------------------------------
 

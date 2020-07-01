@@ -59,5 +59,18 @@ share
     metadata            Text                sqltype=json
     UniqueTxMetadata    hash
 
+  PoolMetaData
+    url                 Text
+    hash                ByteString          sqltype=hash32type
+    UniquePoolMetaData  hash
+
+  -- We actually need the block table to be able to persist sync data
+
+  Block
+    hash                ByteString          sqltype=hash32type
+    epochNo             Word64 Maybe        sqltype=uinteger
+    slotNo              Word64 Maybe        sqltype=uinteger
+    blockNo             Word64 Maybe        sqltype=uinteger
+
   |]
 
