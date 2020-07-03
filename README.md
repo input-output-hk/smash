@@ -103,21 +103,21 @@ Voila! You got it, the spec is there.
 
 You first need to create the database. You can provide your own path, the example will use the default location. We need the PostgreSQL database and we create it with:
 ```
-PGPASSFILE=config/pgpass ./scripts/postgresql-setup.sh --createdb
+SMASHPGPASSFILE=config/pgpass ./scripts/postgresql-setup.sh --createdb
 ```
 Or if it needs to be recreated:
 ```
-PGPASSFILE=config/pgpass ./scripts/postgresql-setup.sh --recreatedb
+SMASHPGPASSFILE=config/pgpass ./scripts/postgresql-setup.sh --recreatedb
 ```
 
 After that we need to run the migrations (if there are any):
 ```
-PGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
 ```
 
 And after that we can run additional migration scripts if they need to be created:
 ```
-PGPASSFILE=config/pgpass stack run smash-exe -- create-migration --mdir ./schema
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- create-migration --mdir ./schema
 ```
 
 To show all tables:
@@ -152,14 +152,14 @@ stack exec smash-exe -- insert-pool --metadata test_pool.json --poolhash "cbdfc4
 
 An example of how the whole thing works.
 ```
-PGPASSFILE=config/pgpass ./scripts/postgresql-setup.sh --recreatedb
-PGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
-PGPASSFILE=config/pgpass stack run smash-exe -- create-migration --mdir ./schema
-PGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
+SMASHPGPASSFILE=config/pgpass ./scripts/postgresql-setup.sh --recreatedb
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- create-migration --mdir ./schema
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
 
-PGPASSFILE=config/pgpass stack run smash-exe -- insert-pool --metadata test_pool.json --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- insert-pool --metadata test_pool.json --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
 
-PGPASSFILE=config/pgpass stack run smash-exe -- run-app
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-app
 ```
 
 After the server is running, you can check the hash on http://localhost:3100/api/v1/metadata/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f to see it return the JSON metadata.
