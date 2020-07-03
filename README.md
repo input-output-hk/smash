@@ -69,6 +69,13 @@ The most important points of it are here:
 
 70+50+255+5+64 = 444 bytes.
 
+## How to run it with the node
+
+First run the node. The genesis should be generated from Nix. You can run smash with:
+```
+SMASHPGPASSFILE=./config/pgpass stack run smash-exe -- run-app-with-db-sync --config ../cardano-db-sync/config/testnet-config.yaml --genesis-file /nix/store/pdnsmv1gi6llr92fk7sgs3j2gcphm6fm-shelley-testnet-genesis.json --socket-path ../cardano-node/state-node-shelley_testnet/node.socket --schema-dir schema/
+```
+
 ## How to test this works?
 
 You can run the provided example and try out these commands (presuming you know what CURL is and how to use it).
