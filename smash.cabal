@@ -88,6 +88,9 @@ library
     , ouroboros-network-framework
     , typed-protocols
     -- REST
+    , http-client
+    , http-client-tls
+    , http-types
     , base16-bytestring
     , monad-logger
     , transformers

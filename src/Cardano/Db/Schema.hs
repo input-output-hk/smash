@@ -20,8 +20,7 @@ import Cardano.Prelude hiding (Meta)
 
 import Data.ByteString.Char8 (ByteString)
 import Data.Text (Text)
-import Data.Time.Clock (UTCTime)
-import Data.Word (Word16, Word64)
+import Data.Word (Word64)
 
 -- Do not use explicit imports from this module as the imports can change
 -- from version to version due to changes to the TH code in Persistent.

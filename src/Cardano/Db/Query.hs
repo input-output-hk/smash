@@ -1,6 +1,6 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE NumericUnderscores #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE NumericUnderscores  #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Cardano.Db.Query
@@ -12,30 +12,22 @@ module Cardano.Db.Query
   , queryCheckPoints
   ) where
 
-import           Cardano.Prelude hiding (from, maybeToEither, isJust, isNothing)
+import           Cardano.Prelude            hiding (from, isJust, isNothing,
+                                             maybeToEither)
 
-import           Control.Monad (join)
-import           Control.Monad.Extra (mapMaybeM)
-import           Control.Monad.IO.Class (MonadIO, liftIO)
-import           Control.Monad.Trans.Except (ExceptT (..), runExceptT)
+import           Control.Monad              (join)
+import           Control.Monad.Extra        (mapMaybeM)
 import           Control.Monad.Trans.Reader (ReaderT)
 
-import           Data.ByteString.Char8 (ByteString)
-import           Data.Fixed (Micro)
-import           Data.Maybe (catMaybes, fromMaybe, listToMaybe)
-import           Data.Ratio ((%), numerator)
-import           Data.Text (Text)
-import           Data.Time.Clock (UTCTime, addUTCTime, diffUTCTime, getCurrentTime)
-import           Data.Time.Clock.POSIX (POSIXTime, utcTimeToPOSIXSeconds)
-import           Data.Word (Word16, Word64)
+import           Data.ByteString.Char8      (ByteString)
+import           Data.Maybe                 (catMaybes, listToMaybe)
+import           Data.Word                  (Word64)
 
-import           Database.Esqueleto (Entity (..), From, InnerJoin (..), LeftOuterJoin (..),
-                    PersistField, SqlExpr, SqlQuery, Value (..), ValueList,
-                    (^.), (==.), (<=.), (&&.), (||.), (>.),
-                    count, countRows, desc, entityKey, entityVal, from, exists,
-                    in_, isNothing, just, limit, max_, min_, not_, notExists, on, orderBy,
-                    select, subList_select, sum_, unValue, unSqlBackendKey, val, where_)
-import           Database.Persist.Sql (SqlBackend)
+import           Database.Esqueleto         (PersistField, SqlExpr, Value, desc,
+                                             entityVal, from, isNothing, just,
+                                             limit, not_, orderBy, select,
+                                             unValue, val, where_, (==.), (^.))
+import           Database.Persist.Sql       (SqlBackend)
 
 import           Cardano.Db.Error
 import           Cardano.Db.Schema
@@ -82,7 +74,7 @@ queryCheckPoints limitCount = do
                 limit 1
                 pure $ (blk ^. BlockSlotNo)
     case join (unValue <$> listToMaybe latest) of
-      Nothing -> pure []
+      Nothing     -> pure []
       Just slotNo -> mapMaybeM querySpacing (calcSpacing slotNo)
   where
     querySpacing :: MonadIO m => Word64 -> ReaderT SqlBackend m (Maybe (Word64, ByteString))
@@ -96,7 +88,7 @@ queryCheckPoints limitCount = do
     convert (va, vb) =
       case (unValue va, unValue vb) of
         (Nothing, _ ) -> Nothing
-        (Just a, b) -> Just (a, b)
+        (Just a, b)   -> Just (a, b)
 
     calcSpacing :: Word64 -> [Word64]
     calcSpacing end =

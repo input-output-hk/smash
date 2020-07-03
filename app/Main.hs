@@ -48,7 +48,10 @@ runCommand cmd =
     CreateMigration mdir -> doCreateMigration mdir
     RunMigrations mdir mldir -> runMigrations (\pgConfig -> pgConfig) False mdir mldir
     RunApplication -> runApp defaultConfiguration
-    RunApplicationWithDbSync dbSyncNodeParams -> runDbSyncNode poolMetadataDbSyncNodePlugin dbSyncNodeParams
+    RunApplicationWithDbSync dbSyncNodeParams ->
+        race_
+            (runDbSyncNode poolMetadataDbSyncNodePlugin dbSyncNodeParams)
+            (runApp defaultConfiguration)
     InsertPool poolMetadataJsonPath poolHash -> do
         putTextLn "Inserting pool metadata!"
         result <- runPoolInsertion poolMetadataJsonPath poolHash

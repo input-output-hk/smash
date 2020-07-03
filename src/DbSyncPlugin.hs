@@ -1,38 +1,47 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
+
 module DbSyncPlugin
   ( poolMetadataDbSyncNodePlugin
   ) where
 
 import           Cardano.Prelude
 
-import           Cardano.BM.Trace (Trace, logInfo)
+import           Cardano.BM.Trace (Trace, logInfo, logError)
 
 import           Control.Monad.Logger (LoggingT)
 import           Control.Monad.Trans.Reader (ReaderT)
+import           Control.Monad.Trans.Except.Extra (firstExceptT, newExceptT, runExceptT, handleExceptT, left)
+
+import           DB (DataLayer (..), DBFail (..), postgresqlDataLayer)
+import           Types (PoolHash (..), PoolOfflineMetadata)
+
+import           Data.Aeson (eitherDecode')
+import qualified Data.ByteString.Lazy as BL
+
+import qualified Cardano.Crypto.Hash.Class as Crypto
+import qualified Cardano.Crypto.Hash.Blake2b as Crypto
+
+import qualified Data.ByteString.Base16 as B16
+
+import           Network.HTTP.Client hiding (Proxy)
+import           Network.HTTP.Client.TLS (tlsManagerSettings)
+import           Network.HTTP.Types.Status (statusCode)
 
 import           Database.Persist.Sql (SqlBackend)
 
 import qualified Cardano.Db.Schema as DB
 import           Cardano.Db.Insert (insertPoolMetaData)
-import           Cardano.Db.Run
 
 import           Cardano.DbSync.Error
---import qualified Cardano.DbSync.Plugin.Default.Byron.Insert as Byron
---import qualified Cardano.DbSync.Plugin.Default.Shelley.Insert as Shelley
 import           Cardano.DbSync.Types
 
 import           Cardano.DbSync (DbSyncNodePlugin (..), defDbSyncNodePlugin)
-import           Cardano.DbSync.Plugin.Epoch (epochPluginOnStartup, epochPluginInsertBlock,
-                    epochPluginRollbackBlock)
 
-import           Ouroboros.Consensus.Byron.Ledger (ByronBlock (..))
-
-import qualified Cardano.DbSync.Era.Byron.Util as Byron
 import qualified Cardano.DbSync.Era.Shelley.Util as Shelley
 
-import qualified Shelley.Spec.Ledger.Address as Shelley
 import           Shelley.Spec.Ledger.BaseTypes (strictMaybeToMaybe)
 import qualified Shelley.Spec.Ledger.BaseTypes as Shelley
-import qualified Shelley.Spec.Ledger.Coin as Shelley
 import qualified Shelley.Spec.Ledger.Tx as Shelley
 import qualified Shelley.Spec.Ledger.TxData as Shelley
 
@@ -55,7 +64,7 @@ insertCardanoBlock
     -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
 insertCardanoBlock tracer _env blkTip = do
   case blkTip of
-    ByronBlockTip blk tip -> pure $ Right ()  --insertByronBlock tracer blk tip
+    ByronBlockTip _blk _tip -> pure $ Right ()  --insertByronBlock tracer blk tip
     ShelleyBlockTip blk tip -> insertShelleyBlock tracer blk tip
 
 -- We don't care about Byron, no pools there
@@ -75,7 +84,7 @@ insertCardanoBlock tracer _env blkTip = do
 insertShelleyBlock
     :: Trace IO Text -> ShelleyBlock -> Tip ShelleyBlock
     -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
-insertShelleyBlock tracer blk tip = do
+insertShelleyBlock tracer blk _tip = do
   runExceptT $ do
     zipWithM_ (insertTx tracer) [0 .. ] (Shelley.blockTxs blk)
 
@@ -91,7 +100,7 @@ insertTx
     :: (MonadIO m)
     => Trace IO Text -> Word64 -> ShelleyTx
     -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
-insertTx tracer blockIndex tx =
+insertTx tracer _blockIndex tx =
     mapM_ (insertPoolCert tracer) (Shelley.txPoolCertificates $ Shelley._body tx)
 
 insertPoolCert
@@ -101,26 +110,100 @@ insertPoolCert
 insertPoolCert tracer pCert =
   case pCert of
     Shelley.RegPool pParams -> void $ insertPoolRegister tracer pParams
-    Shelley.RetirePool keyHash epochNum -> pure ()
+    Shelley.RetirePool _keyHash _epochNum -> pure ()
         -- Currently we just maintain the data for the pool, we might not want to
         -- know whether it's registered
 
 insertPoolRegister
-    :: (MonadIO m)
+    :: forall m. (MonadIO m)
     => Trace IO Text -> ShelleyPoolParams
     -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) (Maybe DB.PoolMetaDataId)
 insertPoolRegister tracer params = do
   liftIO . logInfo tracer $ "Inserting pool register."
   poolMetadataId <- case strictMaybeToMaybe $ Shelley._poolMD params of
     Just md -> do
-        -- Fetch the JSON info!
-        liftIO . logInfo tracer $ "Fetching JSON metadata."
-        liftIO . logInfo tracer $ "Inserting JSON offline metadata."
+
+        let eitherPoolMetadata :: IO (Either DbSyncNodeError (Response BL.ByteString))
+            eitherPoolMetadata = runExceptT (fetchInsertPoolMetadata tracer md)
+
+        liftIO $ eitherPoolMetadata >>= \case
+                Left err -> logError tracer $ renderDbSyncNodeError err
+                Right response -> logInfo tracer (decodeUtf8 . BL.toStrict $ responseBody response)
+
         liftIO . logInfo tracer $ "Inserting metadata."
-        Just <$> insertMetaData tracer md
+        pmId <- Just <$> insertMetaData tracer md
+        liftIO . logInfo tracer $ "Metadata inserted."
+
+        return pmId
+
     Nothing -> pure Nothing
+
   liftIO . logInfo tracer $ "Inserted pool register."
   return poolMetadataId
+
+fetchInsertPoolMetadata
+    :: Trace IO Text
+    -> Shelley.PoolMetaData
+    -> ExceptT DbSyncNodeError IO (Response BL.ByteString)
+fetchInsertPoolMetadata tracer md = do
+    -- Fetch the JSON info!
+    liftIO . logInfo tracer $ "Fetching JSON metadata."
+
+    let poolUrl = Shelley.urlToText (Shelley._poolMDUrl md)
+
+    -- This is a bit bad to do each time, but good enough for now.
+    manager <- liftIO $ newManager tlsManagerSettings
+
+    liftIO . logInfo tracer $ "Request created with URL '" <> poolUrl <> "'."
+
+    let exceptRequest :: ExceptT DbSyncNodeError IO Request
+        exceptRequest = handleExceptT (\(e :: HttpException) -> NEError $ show e) (parseRequest $ toS poolUrl)
+
+    request <- exceptRequest
+
+    liftIO . logInfo tracer $ "HTTP Client GET request."
+
+    let httpRequest :: MonadIO n => n (Response BL.ByteString)
+        httpRequest = liftIO $ httpLbs request manager
+
+    response <- handleExceptT (\(e :: HttpException) -> NEError $ show e) httpRequest
+
+    liftIO . logInfo tracer $ "HTTP GET request complete."
+    liftIO . logInfo tracer $ "The status code was: " <> (show $ statusCode $ responseStatus response)
+
+    let poolMetadataJson = decodeUtf8 . BL.toStrict $ responseBody response
+
+    let mdHash :: ByteString
+        mdHash = Shelley._poolMDHash md
+
+    let poolHash :: Text
+        poolHash = decodeUtf8 . B16.encode $ mdHash
+
+    liftIO . logInfo tracer $ "Inserting pool with hash: " <> poolHash
+
+    let dataLayer :: DataLayer
+        dataLayer = postgresqlDataLayer
+
+    -- Let us try to decode the contents to JSON.
+    let decodedPoolMetadataJSON :: Either DBFail PoolOfflineMetadata
+        decodedPoolMetadataJSON = case (eitherDecode' (responseBody response)) of
+            Left err -> Left $ UnableToEncodePoolMetadataToJSON $ toS err
+            Right result -> return result
+
+    _exceptDecodedMetadata <- firstExceptT (\e -> NEError $ show e) (newExceptT $ pure decodedPoolMetadataJSON)
+
+    -- Let's check the hash
+    let poolHashBytestring = encodeUtf8 poolHash
+    let hashFromMetadata = B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadataJson)
+
+    when (hashFromMetadata /= poolHashBytestring) $
+        left $ NEError ("The pool hash does not match. '" <> poolHash <> "'")
+
+
+    liftIO . logInfo tracer $ "Inserting JSON offline metadata."
+    _ <- liftIO $ (dlAddPoolMetadata dataLayer) (PoolHash poolHash) poolMetadataJson
+
+    pure response
 
 insertMetaData
     :: (MonadIO m)
@@ -144,6 +227,4 @@ insertMetaData _tracer md =
 --      { DB.poolRetirePoolId = poolId
 --      , DB.poolRetireRetiringEpoch = unEpochNo epochNum
 --      }
-
-
 
