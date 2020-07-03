@@ -17,25 +17,13 @@ module DB
 
 import           Cardano.Prelude
 
-import           Control.Monad.Trans.Except.Exit (orDie)
-import           Control.Monad.Trans.Except.Extra (newExceptT)
-
-import           Data.Aeson (eitherDecode')
 import qualified Data.Map as Map
 import           Data.IORef (IORef, readIORef, modifyIORef)
-
-import qualified Data.Text as T
-import qualified Data.ByteString.Lazy as BL
 
 import           Types
 
 import           Cardano.Db.Insert (insertTxMetadata)
 import           Cardano.Db.Query (DBFail (..), queryTxMetadata)
-
-import qualified Cardano.Crypto.Hash.Class as Crypto
-import qualified Cardano.Crypto.Hash.Blake2b as Crypto
-
-import qualified Data.ByteString.Base16 as B16
 
 import           Cardano.Db.Migration as X
 import           Cardano.Db.Migration.Version as X
@@ -82,7 +70,7 @@ stubbedDataLayer ioDataMap ioBlacklistedPool = DataLayer
     , dlAddBlacklistedPool  = \poolHash -> do
         _ <- modifyIORef ioBlacklistedPool (\pool -> [poolHash] ++ pool)
         -- TODO(KS): Do I even need to query this?
-        blacklistedPool <- readIORef ioBlacklistedPool
+        _blacklistedPool <- readIORef ioBlacklistedPool
         return $ Right poolHash
     }
 
@@ -104,27 +92,20 @@ postgresqlDataLayer = DataLayer
 
     , dlAddPoolMetadata     = \poolHash poolMetadata -> do
 
-        let poolOfflineMetadataByteString = BL.fromStrict . encodeUtf8 $ poolMetadata
-
-        -- Let us try to decode the contents to JSON.
-        let decodedPoolMetadataJSON :: Either DBFail PoolOfflineMetadata
-            decodedPoolMetadataJSON = case (eitherDecode' poolOfflineMetadataByteString) of
-                Left err -> Left $ UnableToEncodePoolMetadataToJSON $ toS err
-                Right result -> return result
-
-        -- If unable to decode into JSON object, fails!
-        _ <- orDie (\e -> renderLookupFail e) (newExceptT $ pure decodedPoolMetadataJSON)
-
         let poolHashBytestring = encodeUtf8 $ getPoolHash poolHash
-        let hashFromMetadata = B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadata)
 
-        if hashFromMetadata /= poolHashBytestring
-            then return $ Left PoolMetadataHashMismatch
-            else do
-                _poolMetadata <- runDbAction Nothing $ insertTxMetadata $ TxMetadata poolHashBytestring poolMetadata
-                return $ Right poolMetadata
+        runDbAction Nothing $ insertTxMetadata $ TxMetadata poolHashBytestring poolMetadata
+        return $ Right poolMetadata
+
+
+--        let hashFromMetadata = B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadata)
+--        if hashFromMetadata /= poolHashBytestring
+--            then return $ Left PoolMetadataHashMismatch
+--            else do
+--                _poolMetadata <-
+--                return $ Right poolMetadata
 
     , dlGetBlacklistedPools = panic "To implement!"
-    , dlAddBlacklistedPool  = \poolHash -> panic "To implement!"
+    , dlAddBlacklistedPool  = \_poolHash -> panic "To implement!"
     }
 

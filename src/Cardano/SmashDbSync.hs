@@ -38,9 +38,8 @@ import qualified Cardano.Crypto                                        as Crypto
 
 import qualified DB                                                    as DB
 
-import           Cardano.DbSync                                        (MigrationDir (..),
-                                                                        getMigrationDir)
 import           Cardano.Db.Database
+import           Cardano.DbSync                                        (MigrationDir (..))
 import           Cardano.DbSync.Config
 import           Cardano.DbSync.Era
 import           Cardano.DbSync.Error
