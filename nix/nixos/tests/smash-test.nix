@@ -8,38 +8,38 @@ with pkgs; with commonLib;
       environment = {
         systemPackages = with pkgs; [ curl jq ];
         variables = {
-          PGPASSFILE = config.services.cardano-db-sync.pgpass;
+          SMASHPGPASSFILE = config.services.smash.postgres.pgpass;
         };
       };
       imports = [
         ../smash-service.nix
-        (sources.cardano-db-sync + "/nix/nixos")
+        (sources.cardano-node + "/nix/nixos")
       ];
-      services.cardano-db-sync = {
-        enable = true;
-        cluster = "ff";
-      };
       services.smash = {
         enable = true;
-        package = smashHaskellPackages.smash.components.exes.smash-exe;
+        environmentName = "shelley_testnet";
+        inherit (config.services.cardano-node) socketPath;
+      };
+      services.cardano-node = {
+        enable = true;
+        environment = "shelley_testnet";
       };
       services.postgresql = {
         enable = true;
         package = postgresql_12;
         enableTCPIP = false;
-        ensureDatabases = [ "${config.services.cardano-db-sync.user}" ];
+        ensureDatabases = [ "${config.services.smash.postgres.database}" ];
         ensureUsers = [
           {
-            name = "${config.services.cardano-db-sync.user}";
+            name = "${config.services.smash.postgres.user}";
             ensurePermissions = {
-              "DATABASE ${config.services.cardano-db-sync.user}" = "ALL PRIVILEGES";
+              "DATABASE ${config.services.smash.postgres.database}" = "ALL PRIVILEGES";
             };
           }
         ];
         identMap = ''
-          cdbsync-users root ${config.services.cardano-db-sync.user}
-          cdbsync-users smash ${config.services.cardano-db-sync.user}
-          cdbsync-users ${config.services.cardano-db-sync.user} ${config.services.cardano-db-sync.user}
+          cdbsync-users root ${config.services.smash.postgres.user}
+          cdbsync-users ${config.services.smash.user} ${config.services.smash.postgres.user}
           cdbsync-users postgres postgres
         '';
         authentication = ''
@@ -51,6 +51,7 @@ with pkgs; with commonLib;
   testScript = ''
     startAll
     $machine->waitForUnit("postgresql.service");
+    $machine->waitForUnit("cardano-node.service");
     $machine->waitForUnit("smash.service");
     $machine->waitForOpenPort(3100);
     $machine->succeed("smash-exe insert-pool --metadata ${../../../test_pool.json} --poolhash \"cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f\"");
