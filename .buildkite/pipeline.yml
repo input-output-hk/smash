@@ -1,22 +1,4 @@
 steps:
-  - label: 'hydra-eval-errors'
-    command: 'nix-build ./nix -A iohkNix.hydraEvalErrors && ./result/bin/hydra-eval-errors.py'
-    agents:
-      system: x86_64-linux
-
-  - label: "code coverage (stack)"
-    env:
-      STACK_ROOT: "/build/smash.stack"
-    command:
-      - "rm -rf /build/smash"
-      - "cp -R . /build/smash"
-      - "cd /build/smash"
-      - "nix-build scripts/buildkite -o stack-rebuild"
-      - "./stack-rebuild"
-    agents:
-      system: x86_64-linux
-    timeout: 60
-    branches: master
 
   - label: 'stack-cabal-sync'
     command: 'nix-shell ./nix -A iohkNix.stack-cabal-sync-shell --run scripts/buildkite/stack-cabal-sync.sh'
