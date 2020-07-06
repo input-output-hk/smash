@@ -351,6 +351,9 @@ constraints:
   , libsystemd-journal >= 1.4.4
   , systemd >= 2.3.0
 
+package cardano-crypto-praos
+  flags: -external-libsodium-vrf
+
 package comonad
   flags: -test-doctests
 
