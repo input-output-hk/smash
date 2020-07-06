@@ -23,7 +23,7 @@ in {
 
       cp ${config.services.cardano-db-sync.pgpass} $RUNTIME_DIRECTORY/pgpass
       chmod 0600 $RUNTIME_DIRECTORY/pgpass
-      export PGPASSFILE=$RUNTIME_DIRECTORY/pgpass
+      export SMASHPGPASSFILE=$RUNTIME_DIRECTORY/pgpass
 
       ${cfg.package}/bin/smash-exe run-migrations --mdir ${../../schema}
       exec ${cfg.package}/bin/smash-exe run-app
