@@ -163,6 +163,18 @@ fetchInsertPoolMetadata tracer md = do
 
     liftIO . logInfo tracer $ "HTTP Client GET request."
 
+    -- The response size check.
+    _responseRaw <- handleExceptT (\(e :: HttpException) -> NEError $ show e) $ withResponse request manager $ \responseBR -> do
+        -- We read the first chunk that should contain all the bytes from the reponse.
+        responseBSFirstChunk <- brReadSome (responseBody responseBR) 512
+        -- If there are more bytes in the second chunk, we don't go any further since that
+        -- violates the size constraint.
+        responseBSSecondChunk <- brReadSome (responseBody responseBR) 512
+        if BL.null responseBSSecondChunk
+           then pure responseBSFirstChunk
+           else throwIO $ HttpExceptionRequest request NoResponseDataReceived
+
+    -- The request for fetching the full content strictly.
     let httpRequest :: MonadIO n => n (Response BL.ByteString)
         httpRequest = liftIO $ httpLbs request manager
 
