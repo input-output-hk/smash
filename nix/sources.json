@@ -1,14 +1,14 @@
 {
-    "cardano-db-sync": {
-        "branch": "master",
-        "description": "A component that follows the Cardano chain and stores blocks and transactions in PostgreSQL",
-        "homepage": "",
+    "cardano-node": {
+        "branch": "tags/1.14.2",
+        "description": "The core component that is used to participate in a Cardano decentralised blockchain.",
+        "homepage": "https://cardano.org",
         "owner": "input-output-hk",
-        "repo": "cardano-db-sync",
-        "rev": "6d2917212848a7f70e7e84336b9291dd2634ea61",
-        "sha256": "0bi6v6b9c2i2d3h416lpn0p2qy8pd08w0g0zjjsnldr2sb7ph3s9",
+        "repo": "cardano-node",
+        "rev": "924a6f7d8c2bdb1bf525be8b0d5626e440697b01",
+        "sha256": "0bi1vwmb1w6wc2szpr8v1nbsci9y36lnjr4v5pli1wvll1hhpw3c",
         "type": "tarball",
-        "url": "https://github.com/input-output-hk/cardano-db-sync/archive/6d2917212848a7f70e7e84336b9291dd2634ea61.tar.gz",
+        "url": "https://github.com/input-output-hk/cardano-node/archive/924a6f7d8c2bdb1bf525be8b0d5626e440697b01.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "haskell.nix": {
@@ -29,10 +29,10 @@
         "homepage": null,
         "owner": "input-output-hk",
         "repo": "iohk-nix",
-        "rev": "a3eae81cbae000bbfdc2bc1880528512747a3a9c",
-        "sha256": "1jairn2vp43z36j0b1fi2nmnfpadff217dqv5bjjxm5v099g0gsw",
+        "rev": "0de0af2ed1b2d8f563e4f10e4e1fb386a5ffe683",
+        "sha256": "04pndv5vmhd2qhlrv086cz6dblzkr0nbxrq3k99n970121hjbi0k",
         "type": "tarball",
-        "url": "https://github.com/input-output-hk/iohk-nix/archive/a3eae81cbae000bbfdc2bc1880528512747a3a9c.tar.gz",
+        "url": "https://github.com/input-output-hk/iohk-nix/archive/0de0af2ed1b2d8f563e4f10e4e1fb386a5ffe683.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
