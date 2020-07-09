@@ -38,12 +38,12 @@ with pkgs; with commonLib;
           }
         ];
         identMap = ''
-          cdbsync-users root ${config.services.smash.postgres.user}
-          cdbsync-users ${config.services.smash.user} ${config.services.smash.postgres.user}
-          cdbsync-users postgres postgres
+          smash-users root ${config.services.smash.postgres.user}
+          smash-users ${config.services.smash.user} ${config.services.smash.postgres.user}
+          smash-users postgres postgres
         '';
         authentication = ''
-          local all all ident map=cdbsync-users
+          local all all ident map=smash-users
         '';
       };
     };
