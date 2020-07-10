@@ -31,7 +31,8 @@ import           Network.HTTP.Types.Status (statusCode)
 import           Database.Persist.Sql (SqlBackend)
 
 import qualified Cardano.Db.Schema as DB
-import           Cardano.Db.Insert (insertPoolMetaData)
+import qualified Cardano.Db.Query as DB
+import qualified Cardano.Db.Insert as DB
 
 import           Cardano.DbSync.Error
 import           Cardano.DbSync.Types
@@ -81,11 +82,28 @@ insertCardanoBlock tracer _env blkTip = do
 --        , ", block ", show (Byron.blockNumber blk)
 --        ]
 
+--liftLookupFail :: Monad m => Text -> m (Either LookupFail a) -> ExceptT DbFail m a
+--liftLookupFail loc =
+--  firstExceptT (DbLookupBlockHash loc) . newExceptT
+
 insertShelleyBlock
     :: Trace IO Text -> ShelleyBlock -> Tip ShelleyBlock
     -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
 insertShelleyBlock tracer blk _tip = do
   runExceptT $ do
+
+    meta <- firstExceptT (\(e :: DBFail) -> NEError $ show e) . newExceptT $ DB.queryMeta
+
+    let slotsPerEpoch = DB.metaSlotsPerEpoch meta
+
+    _blkId <- lift . DB.insertBlock $
+                  DB.Block
+                    { DB.blockHash = Shelley.blockHash blk
+                    , DB.blockEpochNo = Just $ Shelley.slotNumber blk `div` slotsPerEpoch
+                    , DB.blockSlotNo = Just $ Shelley.slotNumber blk
+                    , DB.blockBlockNo = Just $ Shelley.blockNumber blk
+                    }
+
     zipWithM_ (insertTx tracer) [0 .. ] (Shelley.blockTxs blk)
 
     liftIO $ do
@@ -222,7 +240,7 @@ insertMetaData
     => Trace IO Text -> Shelley.PoolMetaData
     -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) DB.PoolMetaDataId
 insertMetaData _tracer md =
-  lift . insertPoolMetaData $
+  lift . DB.insertPoolMetaData $
     DB.PoolMetaData
       { DB.poolMetaDataUrl = Shelley.urlToText (Shelley._poolMDUrl md)
       , DB.poolMetaDataHash = Shelley._poolMDHash md

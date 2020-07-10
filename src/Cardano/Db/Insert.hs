@@ -1,16 +1,17 @@
-
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Cardano.Db.Insert
-  ( insertTxMetadata
+  ( insertBlock
+  , insertMeta
+  , insertTxMetadata
   , insertPoolMetaData
 
   -- Export mainly for testing.
   , insertByReturnKey
   ) where
 
-import           Cardano.Prelude
+import           Cardano.Prelude hiding (Meta)
 
 import           Control.Monad.IO.Class (MonadIO)
 import           Control.Monad.Trans.Reader (ReaderT)
@@ -22,8 +23,13 @@ import           Database.Persist.Types (entityKey)
 
 import           Cardano.Db.Schema
 
+insertBlock :: (MonadIO m) => Block -> ReaderT SqlBackend m BlockId
+insertBlock = insertByReturnKey
 
-insertTxMetadata :: MonadIO m => TxMetadata -> ReaderT SqlBackend m TxMetadataId
+insertMeta :: (MonadIO m) => Meta -> ReaderT SqlBackend m MetaId
+insertMeta = insertByReturnKey
+
+insertTxMetadata :: (MonadIO m) => TxMetadata -> ReaderT SqlBackend m TxMetadataId
 insertTxMetadata = insertByReturnKey
 
 insertPoolMetaData :: (MonadIO m) => PoolMetaData -> ReaderT SqlBackend m PoolMetaDataId
