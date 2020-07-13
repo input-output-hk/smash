@@ -14,7 +14,10 @@ import           Data.ByteString.Char8 (ByteString)
 
 -- | Errors, not exceptions.
 data DBFail
-  = DbLookupTxMetadataHash !ByteString
+  = DbLookupBlockHash !ByteString
+  | DbLookupTxMetadataHash !ByteString
+  | DbMetaEmpty
+  | DbMetaMultipleRows
   | PoolMetadataHashMismatch
   | UnableToEncodePoolMetadataToJSON !Text
   | UnknownError !Text
@@ -33,9 +36,24 @@ The example we agreed would be:
 -}
 
 instance ToJSON DBFail where
+    toJSON failure@(DbLookupBlockHash _hash) =
+        object
+            [ "code"            .= String "DbLookupBlockHash"
+            , "description"     .= String (renderLookupFail failure)
+            ]
     toJSON failure@(DbLookupTxMetadataHash _hash) =
         object
             [ "code"            .= String "DbLookupTxMetadataHash"
+            , "description"     .= String (renderLookupFail failure)
+            ]
+    toJSON failure@DbMetaEmpty =
+        object
+            [ "code"            .= String "DbMetaEmpty"
+            , "description"     .= String (renderLookupFail failure)
+            ]
+    toJSON failure@DbMetaMultipleRows =
+        object
+            [ "code"            .= String "DbMetaMultipleRows"
             , "description"     .= String (renderLookupFail failure)
             ]
     toJSON failure@(PoolMetadataHashMismatch) =
@@ -58,7 +76,10 @@ instance ToJSON DBFail where
 renderLookupFail :: DBFail -> Text
 renderLookupFail lf =
   case lf of
-    DbLookupTxMetadataHash hash -> "The hash " <> decodeUtf8 hash <> " is missing from the DB."
+    DbLookupBlockHash hash -> "The block hash " <> decodeUtf8 hash <> " is missing from the DB."
+    DbLookupTxMetadataHash hash -> "The tx hash " <> decodeUtf8 hash <> " is missing from the DB."
+    DbMetaEmpty -> "The metadata table is empty!"
+    DbMetaMultipleRows -> "The metadata table contains multiple rows. Error."
     PoolMetadataHashMismatch -> "The pool metadata does not match!"
     UnableToEncodePoolMetadataToJSON err -> "Unable to encode the content to JSON. " <> err
     UnknownError text -> "Unknown error. Context: " <> text

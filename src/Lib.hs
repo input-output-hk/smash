@@ -29,7 +29,7 @@ import           Servant                  (Application, BasicAuth,
                                            BasicAuthResult (..), Capture,
                                            Context (..), Get, Handler (..),
                                            JSON, Post, ReqBody, Server,
-                                           serveWithContext)
+                                           serveWithContext, err404)
 import           Servant.Swagger
 
 import           DB
@@ -167,7 +167,7 @@ convertIOToHandler :: IO a -> Handler a
 convertIOToHandler = Handler . ExceptT . try
 
 -- | Combined server of a Smash service with Swagger documentation.
-server :: Configuration -> DataLayer -> Server API --Server SmashAPI
+server :: Configuration -> DataLayer -> Server API
 server configuration dataLayer
     =       return todoSwagger
     :<|>    getPoolOfflineMetadata dataLayer
@@ -183,7 +183,11 @@ getPoolOfflineMetadata :: DataLayer -> PoolHash -> Handler (ApiResult DBFail Poo
 getPoolOfflineMetadata dataLayer poolHash = convertIOToHandler $ do
     let getPoolMetadataSimple = dlGetPoolMetadata dataLayer
     poolMetadata <- getPoolMetadataSimple poolHash
-    return . ApiResult $ PoolMetadataWrapped <$> poolMetadata
+
+    -- We return 404 when the hash is not found.
+    case poolMetadata of
+        Left err -> throwIO err404
+        Right value -> return . ApiResult $ PoolMetadataWrapped <$> poolMetadata
 
 -- | Here for checking the validity of the data type.
 --isValidPoolOfflineMetadata :: PoolOfflineMetadata -> Bool

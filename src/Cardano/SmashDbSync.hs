@@ -23,8 +23,13 @@ module Cardano.SmashDbSync
   , runDbSyncNode
   ) where
 
+import           Prelude                                               (String)
+import qualified Prelude
+
 import           Cardano.Binary                                        (unAnnotated)
 
+import           Control.Monad.Trans.Except.Extra                      (firstExceptT,
+                                                                        newExceptT)
 import           Control.Tracer                                        (Tracer)
 
 import           Cardano.BM.Data.Tracer                                (ToLogObject (..))
@@ -62,7 +67,8 @@ import           Cardano.Prelude                                       hiding
                                                                         (%))
 
 import           Cardano.Slotting.Slot                                 (SlotNo (..),
-                                                                        WithOrigin (..))
+                                                                        WithOrigin (..),
+                                                                        unEpochSize)
 
 import qualified Codec.CBOR.Term                                       as CBOR
 import           Control.Monad.Class.MonadSTM.Strict                   (MonadSTM,
@@ -74,11 +80,16 @@ import           Control.Monad.Class.MonadTimer                        (MonadTim
 import           Control.Monad.IO.Class                                (liftIO)
 import           Control.Monad.Trans.Except.Exit                       (orDie)
 
+import qualified Data.ByteString.Char8                                 as BS
 import qualified Data.ByteString.Lazy                                  as BSL
 import           Data.Functor.Contravariant                            (contramap)
 import           Data.Text                                             (Text)
 import qualified Data.Text                                             as Text
+import           Data.Time.Clock                                       (UTCTime (..))
+import qualified Data.Time.Clock                                       as Time
 import           Data.Void                                             (Void)
+
+import           Database.Persist.Sql                                  (SqlBackend)
 
 import           Network.Mux                                           (MuxTrace,
                                                                         WithMuxBearer)
@@ -89,6 +100,8 @@ import           Network.TypedProtocol.Pipelined                       (Nat (Suc
 import           Ouroboros.Network.Driver.Simple                       (runPipelinedPeer)
 
 import           Ouroboros.Consensus.Block.Abstract                    (ConvertRawHash (..))
+import           Ouroboros.Consensus.BlockchainTime.WallClock.Types    (mkSlotLength,
+                                                                        slotLengthToMillisec)
 import           Ouroboros.Consensus.Byron.Ledger                      (GenTx)
 import           Ouroboros.Consensus.Config                            (TopLevelConfig)
 import           Ouroboros.Consensus.Network.NodeToClient              (ClientCodecs,
@@ -148,12 +161,15 @@ import           Ouroboros.Network.Protocol.LocalTxSubmission.Type     (SubmitRe
 import qualified Ouroboros.Network.Snocket                             as Snocket
 import           Ouroboros.Network.Subscription                        (SubscriptionTrace)
 
-import           Prelude                                               (String)
-import qualified Prelude
+import           Ouroboros.Consensus.Shelley.Node                      (ShelleyGenesis (..))
+import           Ouroboros.Consensus.Shelley.Protocol                  (TPraosStandardCrypto)
 
 import qualified Shelley.Spec.Ledger.Genesis                           as Shelley
 
 import qualified System.Metrics.Prometheus.Metric.Gauge                as Gauge
+
+import qualified Cardano.Db.Insert                                     as DB
+
 
 data Peer = Peer SockAddr SockAddr deriving Show
 
@@ -174,7 +190,7 @@ convertToNodeParams (SmashDbSyncNodeParams configFile genesisFile socketPath (DB
 
 runDbSyncNode :: DbSyncNodePlugin -> SmashDbSyncNodeParams -> IO ()
 runDbSyncNode plugin enp =
-  withIOManager $ \ iomgr -> do
+  withIOManager $ \iomgr -> do
 
     enc <- readDbSyncNodeConfig (unConfigFile $ senpConfigFile enp)
 
@@ -204,7 +220,9 @@ runDbSyncNode plugin enp =
       -- TODO(KS): We currently don't need this!
       -- If the DB is empty it will be inserted, otherwise it will be validated (to make
       -- sure we are on the right chain).
-      --insertValidateGenesisDist trce (encNetworkName enc) genCfg
+      case genCfg of
+          GenesisByron _ -> panic "We currently don't support Byron at all."
+          GenesisShelley genSh -> insertValidateGenesisDistSmash trce (encNetworkName enc) genSh
 
       liftIO . logInfo trce $ "Starting DB."
 
@@ -220,6 +238,128 @@ runDbSyncNode plugin enp =
           GenesisShelley sCfg ->
             runDbSyncNodeNodeClient (ShelleyEnv $ Shelley.sgNetworkId sCfg)
                 iomgr trce plugin (mkShelleyTopLevelConfig sCfg) (senpSocketPath enp)
+
+-- | Idempotent insert the initial Genesis distribution transactions into the DB.
+-- If these transactions are already in the DB, they are validated.
+insertValidateGenesisDistSmash
+    :: Trace IO Text -> NetworkName -> ShelleyGenesis TPraosStandardCrypto
+    -> ExceptT DbSyncNodeError IO ()
+insertValidateGenesisDistSmash tracer (NetworkName networkName) cfg =
+    newExceptT $ DB.runDbIohkLogging tracer insertAction
+  where
+    insertAction :: (MonadIO m) => ReaderT SqlBackend m (Either DbSyncNodeError ())
+    insertAction = do
+      ebid <- DB.queryBlockId (configGenesisHash cfg)
+      case ebid of
+        Right bid -> validateGenesisDistribution tracer networkName cfg bid
+        Left _ ->
+          runExceptT $ do
+            liftIO $ logInfo tracer "Inserting Genesis distribution"
+            count <- lift DB.queryBlockCount
+
+            when (count > 0) $
+              dbSyncNodeError "Shelley.insertValidateGenesisDist: Genesis data mismatch."
+            void . lift . DB.insertMeta
+                $ DB.Meta
+                    (protocolConstant cfg)
+                    (configSlotDuration cfg)
+                    (configStartTime cfg)
+                    (configSlotsPerEpoch cfg)
+                    (Just networkName)
+            -- Insert an 'artificial' Genesis block (with a genesis specific slot leader). We
+            -- need this block to attach the genesis distribution transactions to.
+            _blockId <- lift . DB.insertBlock $
+                      DB.Block
+                        { DB.blockHash = configGenesisHash cfg
+                        , DB.blockEpochNo = Nothing
+                        , DB.blockSlotNo = Nothing
+                        , DB.blockBlockNo = Nothing
+                        }
+
+            pure ()
+
+
+-- | Validate that the initial Genesis distribution in the DB matches the Genesis data.
+validateGenesisDistribution
+    :: (MonadIO m)
+    => Trace IO Text -> Text -> ShelleyGenesis TPraosStandardCrypto -> DB.BlockId
+    -> ReaderT SqlBackend m (Either DbSyncNodeError ())
+validateGenesisDistribution tracer networkName cfg _bid =
+  runExceptT $ do
+    liftIO $ logInfo tracer "Validating Genesis distribution"
+    meta <- firstExceptT (\(e :: DB.DBFail) -> NEError $ show e) . newExceptT $ DB.queryMeta
+
+    when (DB.metaProtocolConst meta /= protocolConstant cfg) $
+      dbSyncNodeError $ Text.concat
+            [ "Shelley: Mismatch protocol constant. Config value "
+            , textShow (protocolConstant cfg)
+            , " does not match DB value of ", textShow (DB.metaProtocolConst meta)
+            ]
+
+    when (DB.metaSlotDuration meta /= configSlotDuration cfg) $
+      dbSyncNodeError $ Text.concat
+            [ "Shelley: Mismatch slot duration time. Config value "
+            , textShow (configSlotDuration cfg)
+            , " does not match DB value of ", textShow (DB.metaSlotDuration meta)
+            ]
+
+    when (DB.metaStartTime meta /= configStartTime cfg) $
+      dbSyncNodeError $ Text.concat
+            [ "Shelley: Mismatch chain start time. Config value "
+            , textShow (configStartTime cfg)
+            , " does not match DB value of ", textShow (DB.metaStartTime meta)
+            ]
+
+    when (DB.metaSlotsPerEpoch meta /= configSlotsPerEpoch cfg) $
+      dbSyncNodeError $ Text.concat
+            [ "Shelley: Mismatch in slots per epoch. Config value "
+            , textShow (configSlotsPerEpoch cfg)
+            , " does not match DB value of ", textShow (DB.metaSlotsPerEpoch meta)
+            ]
+
+    case DB.metaNetworkName meta of
+      Nothing ->
+        dbSyncNodeError $ "Shelley.validateGenesisDistribution: Missing network name"
+      Just name ->
+        when (name /= networkName) $
+          dbSyncNodeError $ Text.concat
+              [ "Shelley.validateGenesisDistribution: Provided network name "
+              , networkName
+              , " does not match DB value "
+              , name
+              ]
+
+---------------------------------------------------------------------------------------------------
+
+
+configGenesisHash :: ShelleyGenesis TPraosStandardCrypto -> ByteString
+configGenesisHash _ = fakeGenesisHash
+  where
+    -- | This is both the Genesis Hash and the hash of the previous block.
+    fakeGenesisHash :: ByteString
+    fakeGenesisHash = BS.take 32 ("GenesisHash " <> BS.replicate 32 '\0')
+
+protocolConstant :: ShelleyGenesis TPraosStandardCrypto -> Word64
+protocolConstant = Shelley.sgSecurityParam
+
+-- | The genesis data is a NominalDiffTime (in picoseconds) and we need
+-- it as milliseconds.
+configSlotDuration :: ShelleyGenesis TPraosStandardCrypto -> Word64
+configSlotDuration =
+  fromIntegral . slotLengthToMillisec . mkSlotLength . sgSlotLength
+
+configSlotsPerEpoch :: ShelleyGenesis TPraosStandardCrypto -> Word64
+configSlotsPerEpoch sg = unEpochSize (Shelley.sgEpochLength sg)
+
+configStartTime :: ShelleyGenesis TPraosStandardCrypto -> UTCTime
+configStartTime = roundToMillseconds . Shelley.sgSystemStart
+
+roundToMillseconds :: UTCTime -> UTCTime
+roundToMillseconds (UTCTime day picoSecs) =
+    UTCTime day (Time.picosecondsToDiffTime $ 1000000 * (picoSeconds `div` 1000000))
+  where
+    picoSeconds :: Integer
+    picoSeconds = Time.diffTimeToPicoseconds picoSecs
 
 ---------------------------------------------------------------------------------------------------
 

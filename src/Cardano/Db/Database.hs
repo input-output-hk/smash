@@ -55,10 +55,12 @@ runDbThread trce env plugin metrics queue = do
     logInfo trce "Shutting down DB thread"
   where
     loop = do
+      logInfo trce "Starting the DBThread loop."
       xs <- blockingFlushDbActionQueue queue
       when (length xs > 1) $ do
         logDebug trce $ "runDbThread: " <> textShow (length xs) <> " blocks"
       eNextState <- runExceptT $ runActions trce env plugin xs
+      logInfo trce "Query latest block number."
       mBlkNo <-  DB.runDbAction (Just trce) DB.queryLatestBlockNo
       case mBlkNo of
         Nothing -> pure ()
