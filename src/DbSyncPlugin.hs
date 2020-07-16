@@ -46,6 +46,10 @@ import qualified Shelley.Spec.Ledger.BaseTypes as Shelley
 import qualified Shelley.Spec.Ledger.Tx as Shelley
 import qualified Shelley.Spec.Ledger.TxData as Shelley
 
+import           Ouroboros.Network.Block (Tip)
+
+
+
 
 poolMetadataDbSyncNodePlugin :: DbSyncNodePlugin
 poolMetadataDbSyncNodePlugin =

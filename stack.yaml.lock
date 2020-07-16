@@ -328,42 +328,42 @@ packages:
 - completed:
     subdir: cardano-db
     name: cardano-db
-    version: 2.0.0
+    version: 2.1.0
     git: https://github.com/input-output-hk/cardano-db-sync
     pantry-tree:
-      size: 2497
-      sha256: 3fb847b735a288cf9e63492769426c2d81279d6bc9358432a85dd9ae4032a576
-    commit: 85b75f13f98d719aa28df1a1e2fa74249952eccc
+      size: 2542
+      sha256: 49b26dda4f051f6c721c6ba3aa66aaf11eded35d6bffc1d1fc83e9937bf19729
+    commit: 5fa05200ea928e37a26f061e02ac44feda234135
   original:
     subdir: cardano-db
     git: https://github.com/input-output-hk/cardano-db-sync
-    commit: 85b75f13f98d719aa28df1a1e2fa74249952eccc
+    commit: 5fa05200ea928e37a26f061e02ac44feda234135
 - completed:
     subdir: cardano-db-sync
     name: cardano-db-sync
-    version: 2.0.0
+    version: 2.1.0
     git: https://github.com/input-output-hk/cardano-db-sync
     pantry-tree:
-      size: 2145
-      sha256: 0106f30da474bebfb96e1e24cb3746356558ffdc72d24d733f1252e1cc6b6c3f
-    commit: 85b75f13f98d719aa28df1a1e2fa74249952eccc
+      size: 2190
+      sha256: a436728a486d5ed49079d1304c46937146e792d07b7d1d76e1343a9f1fc41579
+    commit: 5fa05200ea928e37a26f061e02ac44feda234135
   original:
     subdir: cardano-db-sync
     git: https://github.com/input-output-hk/cardano-db-sync
-    commit: 85b75f13f98d719aa28df1a1e2fa74249952eccc
+    commit: 5fa05200ea928e37a26f061e02ac44feda234135
 - completed:
     subdir: cardano-db-sync-extended
     name: cardano-db-sync-extended
-    version: 2.0.0
+    version: 2.1.0
     git: https://github.com/input-output-hk/cardano-db-sync
     pantry-tree:
-      size: 370
-      sha256: 1ff7f0ed8223502c02ed604b9c4e63dd1fe449040100862906652c124788d731
-    commit: 85b75f13f98d719aa28df1a1e2fa74249952eccc
+      size: 415
+      sha256: 3a677fbf0ace2f40a3ef59357a7b532a59a81b68968fff6a8261806a6a909096
+    commit: 5fa05200ea928e37a26f061e02ac44feda234135
   original:
     subdir: cardano-db-sync-extended
     git: https://github.com/input-output-hk/cardano-db-sync
-    commit: 85b75f13f98d719aa28df1a1e2fa74249952eccc
+    commit: 5fa05200ea928e37a26f061e02ac44feda234135
 - completed:
     subdir: cardano-shell
     name: cardano-shell
@@ -371,12 +371,12 @@ packages:
     git: https://github.com/input-output-hk/cardano-shell
     pantry-tree:
       size: 3420
-      sha256: 474a4d0d1bf675e84cb18bb2be193d4f7eac20adb04e686f931057f92856db45
-    commit: 601bb4324c258e3c8cbd2d532e5696fd09e2582e
+      sha256: fc6a60dc4ce5ff86345b6721e98fcf1f583557c5f5eaa4177416d521999a480f
+    commit: b3231f7f3b8b6d07fef08f8cc41aa804524f94c2
   original:
     subdir: cardano-shell
     git: https://github.com/input-output-hk/cardano-shell
-    commit: 601bb4324c258e3c8cbd2d532e5696fd09e2582e
+    commit: b3231f7f3b8b6d07fef08f8cc41aa804524f94c2
 - completed:
     name: cardano-crypto
     version: 1.1.0
@@ -526,11 +526,11 @@ packages:
     pantry-tree:
       size: 1884
       sha256: b91847fafaf9798a563b6834ab9469fc2d573059662beee4ea8c07c17e485d94
-    commit: 5e0b8bc8c7862be12da6989440f8644ba7c1e1cf
+    commit: c454b6e791ee2fe84508b4d5ed2c4dedafb7dce4
   original:
     subdir: binary
     git: https://github.com/input-output-hk/cardano-base
-    commit: 5e0b8bc8c7862be12da6989440f8644ba7c1e1cf
+    commit: c454b6e791ee2fe84508b4d5ed2c4dedafb7dce4
 - completed:
     subdir: cardano-crypto-praos
     name: cardano-crypto-praos
@@ -538,12 +538,12 @@ packages:
     git: https://github.com/input-output-hk/cardano-base
     pantry-tree:
       size: 1886
-      sha256: b6e760903a9603026a7a5d5322a34b7807812c126cc176c06bb4296e6de70080
-    commit: 5e0b8bc8c7862be12da6989440f8644ba7c1e1cf
+      sha256: 97e67c1c9700caa1318e2c5bb16e55ffe0c8646cd4ccd2d167b8a5ff95b47b19
+    commit: c454b6e791ee2fe84508b4d5ed2c4dedafb7dce4
   original:
     subdir: cardano-crypto-praos
     git: https://github.com/input-output-hk/cardano-base
-    commit: 5e0b8bc8c7862be12da6989440f8644ba7c1e1cf
+    commit: c454b6e791ee2fe84508b4d5ed2c4dedafb7dce4
 - completed:
     subdir: binary/test
     name: cardano-binary-test
@@ -552,11 +552,11 @@ packages:
     pantry-tree:
       size: 1007
       sha256: e86851cebba16ed9ab7cb76d4531a391ef37f19eb0fc24efdc7b3a7f77efef56
-    commit: 5e0b8bc8c7862be12da6989440f8644ba7c1e1cf
+    commit: c454b6e791ee2fe84508b4d5ed2c4dedafb7dce4
   original:
     subdir: binary/test
     git: https://github.com/input-output-hk/cardano-base
-    commit: 5e0b8bc8c7862be12da6989440f8644ba7c1e1cf
+    commit: c454b6e791ee2fe84508b4d5ed2c4dedafb7dce4
 - completed:
     subdir: cardano-crypto-class
     name: cardano-crypto-class
@@ -564,12 +564,12 @@ packages:
     git: https://github.com/input-output-hk/cardano-base
     pantry-tree:
       size: 2406
-      sha256: 608e7dc7f6b6d74e0504f8b0df30da597222e4817fa3758df327416405ec8a59
-    commit: 5e0b8bc8c7862be12da6989440f8644ba7c1e1cf
+      sha256: 875584b76a5727e5dd3976d134a5e2ebeed9aa6893f5e80a2460148bd11e2985
+    commit: c454b6e791ee2fe84508b4d5ed2c4dedafb7dce4
   original:
     subdir: cardano-crypto-class
     git: https://github.com/input-output-hk/cardano-base
-    commit: 5e0b8bc8c7862be12da6989440f8644ba7c1e1cf
+    commit: c454b6e791ee2fe84508b4d5ed2c4dedafb7dce4
 - completed:
     subdir: slotting
     name: cardano-slotting
@@ -578,11 +578,11 @@ packages:
     pantry-tree:
       size: 648
       sha256: f76432c3ccfb6dc635343e7a505239394df9339a10147377d6ada3d66c1537d9
-    commit: 5e0b8bc8c7862be12da6989440f8644ba7c1e1cf
+    commit: c454b6e791ee2fe84508b4d5ed2c4dedafb7dce4
   original:
     subdir: slotting
     git: https://github.com/input-output-hk/cardano-base
-    commit: 5e0b8bc8c7862be12da6989440f8644ba7c1e1cf
+    commit: c454b6e791ee2fe84508b4d5ed2c4dedafb7dce4
 - completed:
     name: goblins
     version: 0.1.0.0
@@ -595,18 +595,44 @@ packages:
     git: https://github.com/input-output-hk/goblins
     commit: 26d35ad52fe9ade3391532dbfeb2f416f07650bc
 - completed:
+    subdir: byron/crypto
+    name: cardano-crypto-wrapper
+    version: 1.3.0
+    git: https://github.com/input-output-hk/cardano-ledger-specs
+    pantry-tree:
+      size: 4532
+      sha256: 0710cdaba50b9f8f063be3caf64e63b510b2f9ae8a3e9b3baae83c5ac9efecff
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
+  original:
+    subdir: byron/crypto
+    git: https://github.com/input-output-hk/cardano-ledger-specs
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
+- completed:
+    subdir: byron/crypto/test
+    name: cardano-crypto-test
+    version: 1.3.0
+    git: https://github.com/input-output-hk/cardano-ledger-specs
+    pantry-tree:
+      size: 2412
+      sha256: 88aba4aecf2734753e3a18e39aef0e895b4d9835d8858b138135c20dda58ecbe
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
+  original:
+    subdir: byron/crypto/test
+    git: https://github.com/input-output-hk/cardano-ledger-specs
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
+- completed:
     subdir: byron/chain/executable-spec
     name: byron-spec-chain
     version: 0.1.0.0
     git: https://github.com/input-output-hk/cardano-ledger-specs
     pantry-tree:
       size: 1031
-      sha256: 643ed23bd7f42c348e73abb6c911b08f96341d4640582753d8787720c2527b3b
-    commit: ee92681752dc1a27ac77cb3466af8dca4ade997f
+      sha256: c5ed99aae7cb75b5826789371f99412b4baf413ce1c88d9152a1873954d8f136
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
   original:
     subdir: byron/chain/executable-spec
     git: https://github.com/input-output-hk/cardano-ledger-specs
-    commit: ee92681752dc1a27ac77cb3466af8dca4ade997f
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
 - completed:
     subdir: byron/ledger/executable-spec
     name: byron-spec-ledger
@@ -614,25 +640,64 @@ packages:
     git: https://github.com/input-output-hk/cardano-ledger-specs
     pantry-tree:
       size: 5104
-      sha256: b6873b00851028e10522f4d494ab45f490f6cda5e28899d6c549fb5888ba4a1e
-    commit: ee92681752dc1a27ac77cb3466af8dca4ade997f
+      sha256: 9fbf4014d718430533b7dee67de7d09e16fac86b196a86c0fed1c85c27e12eec
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
   original:
     subdir: byron/ledger/executable-spec
     git: https://github.com/input-output-hk/cardano-ledger-specs
-    commit: ee92681752dc1a27ac77cb3466af8dca4ade997f
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
+- completed:
+    subdir: byron/ledger/impl
+    name: cardano-ledger
+    version: 0.1.0.0
+    git: https://github.com/input-output-hk/cardano-ledger-specs
+    pantry-tree:
+      size: 19676
+      sha256: d9bd015e8a0848f0c88bde0f3c12b69d01d4f023881397f605b0d51e300a4a43
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
+  original:
+    subdir: byron/ledger/impl
+    git: https://github.com/input-output-hk/cardano-ledger-specs
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
+- completed:
+    subdir: byron/ledger/impl/test
+    name: cardano-ledger-test
+    version: 1.3.0
+    git: https://github.com/input-output-hk/cardano-ledger-specs
+    pantry-tree:
+      size: 11396
+      sha256: fbe80c61c463f8cf3cf297b03441f15d90c512787a7057b7d92dc0d587b43d59
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
+  original:
+    subdir: byron/ledger/impl/test
+    git: https://github.com/input-output-hk/cardano-ledger-specs
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
 - completed:
     subdir: semantics/executable-spec
     name: small-steps
     version: 0.1.0.0
     git: https://github.com/input-output-hk/cardano-ledger-specs
     pantry-tree:
-      size: 1367
-      sha256: beb11be16521612cbaf95a033421f6396983417bb43ac4662543601d3b7a99e2
-    commit: ee92681752dc1a27ac77cb3466af8dca4ade997f
+      size: 615
+      sha256: af2dffa8ea89be5ad9637b76d5b03c35b687df9ac942bd667a9700ccb9e9478d
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
   original:
     subdir: semantics/executable-spec
     git: https://github.com/input-output-hk/cardano-ledger-specs
-    commit: ee92681752dc1a27ac77cb3466af8dca4ade997f
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
+- completed:
+    subdir: semantics/small-steps-test
+    name: small-steps-test
+    version: 0.1.0.0
+    git: https://github.com/input-output-hk/cardano-ledger-specs
+    pantry-tree:
+      size: 975
+      sha256: 0398f7a374be3b6d91eb63034c54c64032d855b48285f102e87b19d511ebf847
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
+  original:
+    subdir: semantics/small-steps-test
+    git: https://github.com/input-output-hk/cardano-ledger-specs
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
 - completed:
     subdir: shelley/chain-and-ledger/dependencies/non-integer
     name: shelley-spec-non-integral
@@ -640,90 +705,38 @@ packages:
     git: https://github.com/input-output-hk/cardano-ledger-specs
     pantry-tree:
       size: 1939
-      sha256: ddfa7acc3e55a6f3d8cff48e3ba4bcd8d77cb858e842f38c4065550f2a2cbb65
-    commit: ee92681752dc1a27ac77cb3466af8dca4ade997f
+      sha256: d11be0068e5d8e89306532920370b6ed3385f7426cc10d580cf17ac83b5ae402
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
   original:
     subdir: shelley/chain-and-ledger/dependencies/non-integer
     git: https://github.com/input-output-hk/cardano-ledger-specs
-    commit: ee92681752dc1a27ac77cb3466af8dca4ade997f
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
 - completed:
     subdir: shelley/chain-and-ledger/executable-spec
     name: shelley-spec-ledger
     version: 0.1.0.0
     git: https://github.com/input-output-hk/cardano-ledger-specs
     pantry-tree:
-      size: 8805
-      sha256: 51899b1cd3d787c3cc9029d176aa43436482f39eb0e82e40b22b0e79188fbcf8
-    commit: ee92681752dc1a27ac77cb3466af8dca4ade997f
+      size: 8872
+      sha256: ede0b87ffa5dea370c01ed548453b05b604848cabab3210ef0b11521e4db0cdc
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
   original:
     subdir: shelley/chain-and-ledger/executable-spec
     git: https://github.com/input-output-hk/cardano-ledger-specs
-    commit: ee92681752dc1a27ac77cb3466af8dca4ade997f
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
 - completed:
     subdir: shelley/chain-and-ledger/executable-spec/test
     name: shelley-spec-ledger-test
     version: 0.1.0.0
     git: https://github.com/input-output-hk/cardano-ledger-specs
     pantry-tree:
-      size: 3945
-      sha256: ea1d0e4e53d3b63a6fc16320215c362e15dd3d0faa188ecab9c23c20ee9fb3bc
-    commit: ee92681752dc1a27ac77cb3466af8dca4ade997f
+      size: 3933
+      sha256: f2e5157194e2a31e03f398e23aeee6ccb39f1175dd8a80a79d0363e812351f2b
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
   original:
     subdir: shelley/chain-and-ledger/executable-spec/test
     git: https://github.com/input-output-hk/cardano-ledger-specs
-    commit: ee92681752dc1a27ac77cb3466af8dca4ade997f
-- completed:
-    subdir: cardano-ledger
-    name: cardano-ledger
-    version: 0.1.0.0
-    git: https://github.com/input-output-hk/cardano-ledger
-    pantry-tree:
-      size: 19615
-      sha256: 614975fc84a85ee93d2d6aa73d1f0eb9dee7e4ef14e8602ee6de870efbc81d60
-    commit: d309449e6c303a9f0dcc8dcf172df6f0b3195ed5
-  original:
-    subdir: cardano-ledger
-    git: https://github.com/input-output-hk/cardano-ledger
-    commit: d309449e6c303a9f0dcc8dcf172df6f0b3195ed5
-- completed:
-    subdir: cardano-ledger/test
-    name: cardano-ledger-test
-    version: 1.3.0
-    git: https://github.com/input-output-hk/cardano-ledger
-    pantry-tree:
-      size: 11396
-      sha256: c7cadecab9736be6c650a527b0afa14a39e211442eccf3444dab41057b5ed775
-    commit: d309449e6c303a9f0dcc8dcf172df6f0b3195ed5
-  original:
-    subdir: cardano-ledger/test
-    git: https://github.com/input-output-hk/cardano-ledger
-    commit: d309449e6c303a9f0dcc8dcf172df6f0b3195ed5
-- completed:
-    subdir: crypto
-    name: cardano-crypto-wrapper
-    version: 1.3.0
-    git: https://github.com/input-output-hk/cardano-ledger
-    pantry-tree:
-      size: 4532
-      sha256: 0589ea3d3b9d5d3c1219f927e0eb2306f68278b408884857450b713d9a376006
-    commit: d309449e6c303a9f0dcc8dcf172df6f0b3195ed5
-  original:
-    subdir: crypto
-    git: https://github.com/input-output-hk/cardano-ledger
-    commit: d309449e6c303a9f0dcc8dcf172df6f0b3195ed5
-- completed:
-    subdir: crypto/test
-    name: cardano-crypto-test
-    version: 1.3.0
-    git: https://github.com/input-output-hk/cardano-ledger
-    pantry-tree:
-      size: 2412
-      sha256: 88aba4aecf2734753e3a18e39aef0e895b4d9835d8858b138135c20dda58ecbe
-    commit: d309449e6c303a9f0dcc8dcf172df6f0b3195ed5
-  original:
-    subdir: crypto/test
-    git: https://github.com/input-output-hk/cardano-ledger
-    commit: d309449e6c303a9f0dcc8dcf172df6f0b3195ed5
+    commit: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
 - completed:
     subdir: cardano-client
     name: cardano-client
@@ -731,12 +744,12 @@ packages:
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
       size: 233
-      sha256: bdd46cea5c2092a0468249176120b5751ae272ebaa791c7ad1a1721560326242
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      sha256: 203a20f233a5b32d01afa83e92c491a7985ca608d2bd4a1764ed43a46685baf5
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: cardano-client
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: io-sim
     name: io-sim
@@ -744,12 +757,12 @@ packages:
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
       size: 388
-      sha256: 938dc54ed555e030f7e07c2579d5e1ae6b220f64517a9d4042fbf97ead715811
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      sha256: 902099f02f2001795f42961c09416b4e91102ff00501612929f0974ec31adbb7
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: io-sim
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: io-sim-classes
     name: io-sim-classes
@@ -757,12 +770,12 @@ packages:
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
       size: 1053
-      sha256: 23a473ead185416c43c0433501d02d15f9fbe358cd84a7e80190183524d6003b
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      sha256: 02b4a7eeaad0b62257ffd5fca2ad394c5e70d1d6bc2ea21b0b1d02c301f7eacd
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: io-sim-classes
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: network-mux
     name: network-mux
@@ -770,38 +783,38 @@ packages:
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
       size: 1939
-      sha256: 2ffa522efb313524754199d9c1786e77f6fd59826188b9f83badecf7270e851b
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      sha256: 2fff559cbe905b0a985ed63c8b55e9583e31ebe1b45e182a36d5680c8d943fc5
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: network-mux
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: ouroboros-network
     name: ouroboros-network
     version: 0.1.0.0
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
-      size: 9704
-      sha256: 56cee1f86ab5c368e2e7b223c9b0d72fd30ddeba7e6bd77f1d2be8fa88b4a750
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      size: 9705
+      sha256: 4cf4f653bd84131b4238fd9ff251995a3de0a4d72e11874be99e44bcb0c6fac4
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: ouroboros-network
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: ouroboros-network-framework
     name: ouroboros-network-framework
     version: 0.1.0.0
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
-      size: 3514
-      sha256: c81f26487826dd0998f0a7d5b72de16fb00b28555d5021fc5cb1328835af2fd8
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      size: 3672
+      sha256: 454e72031d1aa6c5076d97c6fc6e2f3ba29d43caa9ccb6d85d40f85e2ca45d27
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: ouroboros-network-framework
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: Win32-network
     name: Win32-network
@@ -809,38 +822,38 @@ packages:
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
       size: 1802
-      sha256: 36c14669f770cd548a7ebd335930e5387132b76b912c78f4d728d5cbf7416091
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      sha256: f36b6a44badc4d2867891a7d543a4408fbed31f1936a9b298a8dfb949efdcc92
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: Win32-network
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: ouroboros-consensus
     name: ouroboros-consensus
     version: 0.1.0.0
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
-      size: 30657
-      sha256: d50bf23c3bc4ef1cdd04ae27e4029eb00a995e505fd6e72ee97eed72e62ea97a
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      size: 30840
+      sha256: 177578f048070859f56c1c1f635ec012c03886ea3a7e3de5002faf2677fd87fb
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: ouroboros-consensus
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: ouroboros-consensus-byron
     name: ouroboros-consensus-byron
     version: 0.1.0.0
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
-      size: 2000
-      sha256: 047774f8f124b2a2c980c4844c8d2add1f3d16e4c972cead9fe07134d1c3997e
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      size: 2012
+      sha256: 52144937d8ce58159b19c4b14f1f117252f45d5579cb7d59f41bf25182bd643c
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: ouroboros-consensus-byron
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: ouroboros-consensus-byronspec
     name: ouroboros-consensus-byronspec
@@ -848,38 +861,38 @@ packages:
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
       size: 1219
-      sha256: a202e8d2669af2a8d8aaa6741d26f2d982ccb0a6d4b0afc9c9729f41a2f250cc
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      sha256: 968a73e74f3a7cae04057dca80c63bc1ddb2ee721ce5fee267761f807e9f59af
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: ouroboros-consensus-byronspec
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: ouroboros-consensus-shelley
     name: ouroboros-consensus-shelley
     version: 0.1.0.0
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
-      size: 1795
-      sha256: 2f620ce450a732cc6c36536a19915f9f3e35c552c1e32533545dae6f69e2e230
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      size: 1794
+      sha256: f2cffaff5b3c070f864bb068eb4aa98bafdaccad8486bbe672b1de0123d681e9
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: ouroboros-consensus-shelley
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: ouroboros-consensus-cardano
     name: ouroboros-consensus-cardano
     version: 0.1.0.0
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
-      size: 995
-      sha256: b587b27e6ecb78e6e3b0239b515d1570b582baf5cad325b3a049b640d265ecf1
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      size: 12525
+      sha256: 2e48d63cd3a2b727d81eb4eb89ca4344e81a5ee4c20a570500934b5f71b1bdda
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: ouroboros-consensus-cardano
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: typed-protocols
     name: typed-protocols
@@ -887,12 +900,12 @@ packages:
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
       size: 536
-      sha256: af5fd2b3d3937c7f4479e7a7b647bd6f84da34fbd8222960348b32368839be01
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      sha256: ec550226cdfb4cb42ef224a18f4cc51dd76d91aba9f41cf131b2495cc6228ca9
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: typed-protocols
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: typed-protocols-examples
     name: typed-protocols-examples
@@ -900,12 +913,12 @@ packages:
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
       size: 1469
-      sha256: 2a08779fe718bdb2c53fe7d5cc9635bc1323e00417127553ad13901aece16390
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      sha256: a9bf62acb9a1521146e142dd5e9c9dff16cbd3e2aa34df5f44de6f031927831e
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: typed-protocols-examples
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: ouroboros-network-testing
     name: ouroboros-network-testing
@@ -913,12 +926,12 @@ packages:
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
       size: 386
-      sha256: 2eeca1f54af415a0627d1c1d8a72dc9842b04ae179add88a37a35c42ef61d36f
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      sha256: 36a80a531e1fe994883caed0407da9117f27f54af397dfba38f5274a32ec2c84
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: ouroboros-network-testing
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: ouroboros-consensus/ouroboros-consensus-mock
     name: ouroboros-consensus-mock
@@ -926,38 +939,38 @@ packages:
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
       size: 2623
-      sha256: bf9133fc0de0a021fdd541f6dbcaea26fd10fd2c5c300470bfda7be58bc3341e
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      sha256: b913ddd17fdf971e69ebe742509e259d26bf4e35e2e9bd9526cb2f352202ff84
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: ouroboros-consensus/ouroboros-consensus-mock
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: ouroboros-consensus/ouroboros-consensus-test-infra
     name: ouroboros-consensus-test-infra
     version: 0.1.0.0
     git: https://github.com/input-output-hk/ouroboros-network
     pantry-tree:
-      size: 3878
-      sha256: 7fc9147dfa5c24ce98fd92520660257ffafde5c67ba216db0c9f70612e880501
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+      size: 3908
+      sha256: c9a5b9c2d1ab9a3eb69387000bc27cced13477fa47fa0fd452a1b8400940b57f
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
   original:
     subdir: ouroboros-consensus/ouroboros-consensus-test-infra
     git: https://github.com/input-output-hk/ouroboros-network
-    commit: 0022b589ee5fb96a993fe858922b25e210b8f568
+    commit: 11e5609e01f4703870e88b2712e2c14da0338b65
 - completed:
     subdir: cardano-config
     name: cardano-config
     version: 0.1.0.0
     git: https://github.com/input-output-hk/cardano-node
     pantry-tree:
-      size: 3148
-      sha256: e8e33bbfeb94c6d0cad6af4e74b737ace4e7a70fd6db48debfa74ac48e36fcbe
-    commit: 46f296f8a9f3f497d9bd41e20c8398d2b5730c86
+      size: 1661
+      sha256: d4524b4b269e854bff9be7ae98e541588dd11828c96e2473041990e047ce5584
+    commit: 8c72fc00cb75b7e7a2c9423ba50c639f6236c88b
   original:
     subdir: cardano-config
     git: https://github.com/input-output-hk/cardano-node
-    commit: 46f296f8a9f3f497d9bd41e20c8398d2b5730c86
+    commit: 8c72fc00cb75b7e7a2c9423ba50c639f6236c88b
 snapshots:
 - completed:
     size: 432
