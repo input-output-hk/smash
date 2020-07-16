@@ -159,6 +159,13 @@ source-repository-package
   location: https://github.com/input-output-hk/cardano-ledger-specs
   tag: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
   --sha256: 099v20gz86r96jya315bkcwy7imaqfzddvy40b2w1xxqidvymyk4
+  subdir: semantics/small-steps-test
+
+source-repository-package
+  type: git
+  location: https://github.com/input-output-hk/cardano-ledger-specs
+  tag: 4e65f6e3f966659b69865fd6bcfe9caf3008b820
+  --sha256: 099v20gz86r96jya315bkcwy7imaqfzddvy40b2w1xxqidvymyk4
   subdir: byron/ledger/executable-spec
 
 source-repository-package
