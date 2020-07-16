@@ -15,21 +15,21 @@ function die {
 }
 
 function check_pgpass_file {
-  if test -z ${PGPASSFILE+x} ; then
-	echo "Error: The PGPASSFILE env var should be set to the location of the pgpass file."
+  if test -z ${SMASHPGPASSFILE+x} ; then
+	echo "Error: The SMASHPGPASSFILE env var should be set to the location of the pgpass file."
 	echo
 	echo "Eg for mainnet:"
-	echo "export PGPASSFILE=$(pwd)/config/pgpass"
+	echo "export SMASHPGPASSFILE=$(pwd)/config/pgpass"
 	echo
 	exit 1
 	fi
 
-  if test ! -f "${PGPASSFILE}" ; then
-    echo "Error: PostgeSQL password file ${PGPASSFILE} does not exist."
+  if test ! -f "${SMASHPGPASSFILE}" ; then
+    echo "Error: PostgeSQL password file ${SMASHPGPASSFILE} does not exist."
     exit 1
     fi
 
-  databasename=$(cut -d ":" -f 3 "${PGPASSFILE}")
+  databasename=$(cut -d ":" -f 3 "${SMASHPGPASSFILE}")
   export databasename
 }
 

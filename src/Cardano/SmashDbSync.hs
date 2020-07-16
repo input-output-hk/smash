@@ -57,6 +57,7 @@ import           Cardano.DbSync.Types                                  (ConfigFi
                                                                         DbSyncEnv (..),
                                                                         DbSyncNodeParams (..),
                                                                         GenesisFile (..),
+                                                                        ShelleyBlock,
                                                                         SocketPath (..))
 import           Cardano.DbSync.Util
 
@@ -82,7 +83,6 @@ import           Control.Monad.Trans.Except.Exit                       (orDie)
 
 import qualified Data.ByteString.Char8                                 as BS
 import qualified Data.ByteString.Lazy                                  as BSL
-import           Data.Functor.Contravariant                            (contramap)
 import           Data.Text                                             (Text)
 import qualified Data.Text                                             as Text
 import           Data.Time.Clock                                       (UTCTime (..))
@@ -97,20 +97,23 @@ import           Network.Mux.Types                                     (MuxMode 
 import           Network.Socket                                        (SockAddr (..))
 
 import           Network.TypedProtocol.Pipelined                       (Nat (Succ, Zero))
+
 import           Ouroboros.Network.Driver.Simple                       (runPipelinedPeer)
 
 import           Ouroboros.Consensus.Block.Abstract                    (ConvertRawHash (..))
 import           Ouroboros.Consensus.BlockchainTime.WallClock.Types    (mkSlotLength,
                                                                         slotLengthToMillisec)
-import           Ouroboros.Consensus.Byron.Ledger                      (GenTx)
-import           Ouroboros.Consensus.Config                            (TopLevelConfig)
+import           Ouroboros.Consensus.Byron.Ledger                      (CodecConfig,
+                                                                        GenTx,
+                                                                        mkByronCodecConfig)
 import           Ouroboros.Consensus.Network.NodeToClient              (ClientCodecs,
                                                                         cChainSyncCodec,
                                                                         cStateQueryCodec,
                                                                         cTxSubmissionCodec)
 import           Ouroboros.Consensus.Node.ErrorPolicy                  (consensusErrorPolicy)
-import           Ouroboros.Consensus.Node.NetworkProtocolVersion       (BlockNodeToClientVersion)
 import           Ouroboros.Consensus.Node.Run                          (RunNode)
+import           Ouroboros.Consensus.Shelley.Ledger.Config             (CodecConfig (ShelleyCodecConfig))
+
 import qualified Ouroboros.Network.NodeToClient.Version                as Network
 
 import           Ouroboros.Network.Block                               (BlockNo (..),
@@ -120,6 +123,7 @@ import           Ouroboros.Network.Block                               (BlockNo 
                                                                         blockNo,
                                                                         genesisPoint,
                                                                         getTipBlockNo)
+import           Ouroboros.Network.Magic                               (NetworkMagic)
 import           Ouroboros.Network.Mux                                 (MuxPeer (..),
                                                                         RunMiniProtocol (..))
 import           Ouroboros.Network.NodeToClient                        (ClientSubscriptionParams (..),
@@ -134,7 +138,9 @@ import           Ouroboros.Network.NodeToClient                        (ClientSu
                                                                         WithAddr (..),
                                                                         localSnocket,
                                                                         localStateQueryPeerNull,
+                                                                        localTxSubmissionPeerNull,
                                                                         networkErrorPolicies,
+                                                                        networkMagic,
                                                                         withIOManager)
 
 import           Ouroboros.Network.Point                               (withOrigin)
@@ -155,8 +161,7 @@ import           Ouroboros.Network.Protocol.ChainSync.PipelineDecision (MkPipeli
                                                                         runPipelineDecision)
 import           Ouroboros.Network.Protocol.ChainSync.Type             (ChainSync)
 import           Ouroboros.Network.Protocol.LocalTxSubmission.Client   (LocalTxClientStIdle (..),
-                                                                        LocalTxSubmissionClient (..),
-                                                                        localTxSubmissionClientPeer)
+                                                                        LocalTxSubmissionClient (..))
 import           Ouroboros.Network.Protocol.LocalTxSubmission.Type     (SubmitResult (..))
 import qualified Ouroboros.Network.Snocket                             as Snocket
 import           Ouroboros.Network.Subscription                        (SubscriptionTrace)
@@ -213,6 +218,7 @@ runDbSyncNode plugin enp =
       liftIO . logInfo trce $ "Reading genesis config."
 
       genCfg <- readGenesisConfig (convertToNodeParams enp) enc
+
       logProtocolMagic trce $ genesisProtocolMagic genCfg
 
       liftIO . logInfo trce $ "Insert validate genesis distribution."
@@ -231,13 +237,17 @@ runDbSyncNode plugin enp =
         logInfo trce $ "Run DB startup."
         runDbStartup trce plugin
         logInfo trce $ "DB startup complete."
+        let networkMagic = genesisNetworkMagic genCfg
         case genCfg of
           GenesisByron bCfg ->
             runDbSyncNodeNodeClient ByronEnv
-                iomgr trce plugin (mkByronTopLevelConfig bCfg) (senpSocketPath enp)
+                iomgr trce plugin (mkByronCodecConfig bCfg) networkMagic (senpSocketPath enp)
           GenesisShelley sCfg ->
             runDbSyncNodeNodeClient (ShelleyEnv $ Shelley.sgNetworkId sCfg)
-                iomgr trce plugin (mkShelleyTopLevelConfig sCfg) (senpSocketPath enp)
+                iomgr trce plugin shelleyCodecConfig networkMagic (senpSocketPath enp)
+
+shelleyCodecConfig :: CodecConfig ShelleyBlock
+shelleyCodecConfig = ShelleyCodecConfig
 
 -- | Idempotent insert the initial Genesis distribution transactions into the DB.
 -- If these transactions are already in the DB, they are validated.
@@ -365,17 +375,20 @@ roundToMillseconds (UTCTime day picoSecs) =
 
 runDbSyncNodeNodeClient
     :: forall blk. (MkDbAction blk, RunNode blk)
-    => DbSyncEnv -> IOManager -> Trace IO Text -> DbSyncNodePlugin -> TopLevelConfig blk -> SocketPath
+    => DbSyncEnv -> IOManager -> Trace IO Text -> DbSyncNodePlugin -> CodecConfig blk-> NetworkMagic -> SocketPath
     -> IO ()
-runDbSyncNodeNodeClient env iomgr trce plugin topLevelConfig (SocketPath socketPath) = do
+runDbSyncNodeNodeClient env iomgr trce plugin codecConfig magic (SocketPath socketPath) = do
   logInfo trce $ "localInitiatorNetworkApplication: connecting to node via " <> textShow socketPath
-  txv <- newEmptyTMVarM @_ @(GenTx blk)
+  -- TODO(KS): Remove this?
+  _txv <- newEmptyTMVarM @_ @(GenTx blk)
+
   void $ subscribe
     (localSnocket iomgr socketPath)
-    topLevelConfig
+    codecConfig
+    magic
     networkSubscriptionTracers
     clientSubscriptionParams
-    (dbSyncProtocols trce env plugin topLevelConfig txv)
+    (dbSyncProtocols trce env plugin)
   where
     clientSubscriptionParams = ClientSubscriptionParams {
         cspAddress = Snocket.localAddressFromPath socketPath,
@@ -409,16 +422,14 @@ dbSyncProtocols
   => Trace IO Text
   -> DbSyncEnv
   -> DbSyncNodePlugin
-  -> TopLevelConfig blk
-  -> StrictTMVar IO (GenTx blk)
-  -> BlockNodeToClientVersion blk
+  -> Network.NodeToClientVersion
   -> ClientCodecs blk IO
   -> ConnectionId LocalAddress
   -> NodeToClientProtocols 'InitiatorMode BSL.ByteString IO () Void
-dbSyncProtocols trce env plugin _topLevelConfig txv _version codecs _connectionId =
+dbSyncProtocols trce env plugin _version codecs _connectionId =
     NodeToClientProtocols {
           localChainSyncProtocol = localChainSyncProtocol
-        , localTxSubmissionProtocol = localTxSubmissionProtocol
+        , localTxSubmissionProtocol = dummylocalTxSubmit
         , localStateQueryProtocol = dummyLocalQueryProtocol
         }
   where
@@ -450,14 +461,15 @@ dbSyncProtocols trce env plugin _topLevelConfig txv _version codecs _connectionI
         -- would like to restart a protocol on the same mux and thus bearer).
         pure ((), Nothing)
 
-    localTxSubmissionProtocol :: RunMiniProtocol 'InitiatorMode BSL.ByteString IO () Void
-    localTxSubmissionProtocol = InitiatorProtocolOnly $ MuxPeer
-        (contramap (Text.pack . show) . toLogObject $ appendName "db-sync-local-tx" trce)
+    dummylocalTxSubmit :: RunMiniProtocol 'InitiatorMode BSL.ByteString IO () Void
+    dummylocalTxSubmit = InitiatorProtocolOnly $ MuxPeer
+        Logging.nullTracer
         (cTxSubmissionCodec codecs)
-        (localTxSubmissionClientPeer (txSubmissionClient txv))
+        localTxSubmissionPeerNull
 
     dummyLocalQueryProtocol :: RunMiniProtocol 'InitiatorMode BSL.ByteString IO () Void
-    dummyLocalQueryProtocol = InitiatorProtocolOnly $ MuxPeer
+    dummyLocalQueryProtocol =
+      InitiatorProtocolOnly $ MuxPeer
         Logging.nullTracer
         (cStateQueryCodec codecs)
         localStateQueryPeerNull
