@@ -31,20 +31,21 @@ smashSpec = do
                 let newPoolHash :: PoolHash
                     newPoolHash = createPoolHash . show $ pk
 
+                let blacklistedPoolHash :: BlacklistPoolHash
+                    blacklistedPoolHash = BlacklistPoolHash $ getPoolHash newPoolHash
+
                 ioDataMap           <- run $ newIORef stubbedInitialDataMap
                 ioBlacklistedPools  <- run $ newIORef stubbedBlacklistedPools
 
                 let dataLayer :: DataLayer
                     dataLayer = stubbedDataLayer ioDataMap ioBlacklistedPools
 
-                newBlacklistPoolState <- run $ (dlAddBlacklistedPool dataLayer) newPoolHash
+                newBlacklistPoolState <- run $ (dlAddBlacklistedPool dataLayer) blacklistedPoolHash
 
-                newBlacklistedPools   <- run $ dlGetBlacklistedPools dataLayer
+                isBlacklisted <- run $ (dlCheckBlacklistedPool dataLayer) blacklistedPoolHash
 
                 assert $ isRight newBlacklistPoolState
-                assert $ isRight newBlacklistedPools
-
-                assert $ newBlacklistedPools == Right (newPoolHash : stubbedBlacklistedPools)
+                assert $ isBlacklisted
 
         describe "Pool metadata" $ do
             prop "adding a pool metadata and returning the same" $ \(poolOfflineMetadata) -> monadicIO $ do

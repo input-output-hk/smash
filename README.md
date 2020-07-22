@@ -148,6 +148,36 @@ This is an example (we got the hash from Blake2 256):
 stack exec smash-exe -- insert-pool --metadata test_pool.json --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
 ```
 
+## Test blacklisting
+
+If you find some pool hash that has been inserted, like in our example, '93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873'.
+
+You can test the blacklisting by sending a PATCH on the blacklist endpoint.
+```
+curl -X PATCH -v http://localhost:3100/api/v1/blacklist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
+```
+
+Or if you have Basic Auth enabled (replace with you username/pass you have in your DB):
+```
+curl -u ksaric:cirask -X PATCH -v http://localhost:3100/api/v1/blacklist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
+```
+
+Fetching the pool:
+```
+curl -X GET -v http://localhost:3100/api/v1/metadata/93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873 | jq .
+```
+
+## Basic Auth and DB
+
+You need to have the flag for disabling Basic auth not enabled (disabled).
+After you run the migration scripts (see in this README examples), you can simply insert the user with the password in the DB:
+```
+INSERT INTO admin_user (username, password) VALUES ('ksaric', 'test');
+```
+
+That is it, you will now be able to run you SMASH server with user authentification from DB.
+If you change your users/passwords, please restart the application since it takes a full restart for users to reload.
+
 ## Test script
 
 An example of how the whole thing works.

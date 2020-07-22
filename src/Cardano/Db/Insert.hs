@@ -6,6 +6,8 @@ module Cardano.Db.Insert
   , insertMeta
   , insertTxMetadata
   , insertPoolMetaData
+  , insertBlacklistedPool
+  , insertAdminUser
 
   -- Export mainly for testing.
   , insertByReturnKey
@@ -34,6 +36,12 @@ insertTxMetadata = insertByReturnKey
 
 insertPoolMetaData :: (MonadIO m) => PoolMetaData -> ReaderT SqlBackend m PoolMetaDataId
 insertPoolMetaData = insertByReturnKey
+
+insertBlacklistedPool :: (MonadIO m) => BlacklistedPool -> ReaderT SqlBackend m BlacklistedPoolId
+insertBlacklistedPool = insertByReturnKey
+
+insertAdminUser :: (MonadIO m) => AdminUser -> ReaderT SqlBackend m AdminUserId
+insertAdminUser = insertByReturnKey
 
 -------------------------------------------------------------------------------
 
