@@ -22,7 +22,7 @@ import           Data.IORef (IORef, readIORef, modifyIORef)
 
 import           Types
 
-import           Cardano.Db.Insert (insertTxMetadata)
+import           Cardano.Db.Insert (insertTxMetadata, insertBlacklistedPool)
 import           Cardano.Db.Query (DBFail (..), queryTxMetadata)
 
 import           Cardano.Db.Migration as X
@@ -40,8 +40,9 @@ import           Cardano.Db.Error as X
 data DataLayer = DataLayer
     { dlGetPoolMetadata         :: PoolHash -> IO (Either DBFail Text)
     , dlAddPoolMetadata         :: PoolHash -> Text -> IO (Either DBFail Text)
-    , dlGetBlacklistedPools     :: IO (Either DBFail [PoolHash])
-    , dlAddBlacklistedPool      :: PoolHash -> IO (Either DBFail PoolHash)
+    , dlCheckBlacklistedPool    :: BlacklistPoolHash -> IO Bool
+    , dlAddBlacklistedPool      :: BlacklistPoolHash -> IO (Either DBFail BlacklistPoolHash)
+    , dlGetAdminUsers           :: IO (Either DBFail [AdminUser])
     } deriving (Generic)
 
 -- | Simple stubbed @DataLayer@ for an example.
@@ -63,15 +64,19 @@ stubbedDataLayer ioDataMap ioBlacklistedPool = DataLayer
         _ <- modifyIORef ioDataMap (\dataMap -> Map.insert poolHash poolMetadata dataMap)
         return . Right $ poolMetadata
 
-    , dlGetBlacklistedPools = do
-        blacklistedPool <- readIORef ioBlacklistedPool
+    , dlCheckBlacklistedPool = \blacklistedPool -> do
+        let blacklistedPoolHash' = PoolHash $ blacklistPool blacklistedPool
+        blacklistedPool' <- readIORef ioBlacklistedPool
+        return $ blacklistedPoolHash' `elem` blacklistedPool'
+
+    , dlAddBlacklistedPool  = \blacklistedPool -> do
+        let blacklistedPoolHash' = PoolHash $ blacklistPool blacklistedPool
+        _ <- modifyIORef ioBlacklistedPool (\pool -> [blacklistedPoolHash'] ++ pool)
+        -- TODO(KS): Do I even need to query this?
+        _blacklistedPool' <- readIORef ioBlacklistedPool
         return $ Right blacklistedPool
 
-    , dlAddBlacklistedPool  = \poolHash -> do
-        _ <- modifyIORef ioBlacklistedPool (\pool -> [poolHash] ++ pool)
-        -- TODO(KS): Do I even need to query this?
-        _blacklistedPool <- readIORef ioBlacklistedPool
-        return $ Right poolHash
+    , dlGetAdminUsers       = return $ Right []
     }
 
 -- The approximation for the table.
@@ -91,21 +96,21 @@ postgresqlDataLayer = DataLayer
         return (txMetadataMetadata <$> txMetadata)
 
     , dlAddPoolMetadata     = \poolHash poolMetadata -> do
-
         let poolHashBytestring = encodeUtf8 $ getPoolHash poolHash
-
-        runDbAction Nothing $ insertTxMetadata $ TxMetadata poolHashBytestring poolMetadata
+        _ <- runDbAction Nothing $ insertTxMetadata $ TxMetadata poolHashBytestring poolMetadata
         return $ Right poolMetadata
 
+    , dlCheckBlacklistedPool = \blacklistedPool -> do
+        let blacklistPoolHash = encodeUtf8 $ blacklistPool blacklistedPool
+        runDbAction Nothing $ queryBlacklistedPool blacklistPoolHash
 
---        let hashFromMetadata = B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadata)
---        if hashFromMetadata /= poolHashBytestring
---            then return $ Left PoolMetadataHashMismatch
---            else do
---                _poolMetadata <-
---                return $ Right poolMetadata
+    , dlAddBlacklistedPool  = \blacklistedPool -> do
+        _ <- runDbAction Nothing $ insertBlacklistedPool $ BlacklistedPool $ encodeUtf8 $ blacklistPool blacklistedPool
+        return $ Right blacklistedPool
 
-    , dlGetBlacklistedPools = panic "To implement!"
-    , dlAddBlacklistedPool  = \_poolHash -> panic "To implement!"
+    , dlGetAdminUsers       = do
+        adminUsers <- runDbAction Nothing $ queryAdminUsers
+        return $ Right adminUsers
+
     }
 

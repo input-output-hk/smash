@@ -2,13 +2,13 @@
 
 module Types
     ( ApplicationUser (..)
-    , ApplicationUsers
+    , ApplicationUsers (..)
     , stubbedApplicationUsers
     , User
     , UserValidity (..)
     , checkIfUserValid
     -- * Pool info
-    , BlacklistPool
+    , BlacklistPoolHash (..)
     , PoolHash (..)
     , createPoolHash
     -- * Wrapper
@@ -110,14 +110,19 @@ checkIfUserValid (ApplicationUsers applicationUsers) applicationUser@(Applicatio
         then (UserValid (User usernameText))
         else UserInvalid
 
-newtype BlacklistPool = BlacklistPool
+newtype BlacklistPoolHash = BlacklistPoolHash
     { blacklistPool :: Text
     } deriving (Eq, Show, Generic)
 
-instance FromJSON BlacklistPool
-instance ToJSON BlacklistPool
 
-instance ToSchema BlacklistPool
+instance FromJSON BlacklistPoolHash where
+    parseJSON = withObject "BlacklistPoolHash" $ \o -> BlacklistPoolHash <$> o .: "poolHash"
+
+instance ToJSON BlacklistPoolHash where
+    toJSON (BlacklistPoolHash poolHash) =
+        object ["poolHash" .= poolHash]
+
+instance ToSchema BlacklistPoolHash
 
 -- | We use base64 encoding here.
 -- Submissions are identified by the subject's Bech32-encoded Ed25519 public key (all lowercase).
@@ -127,6 +132,8 @@ instance ToSchema BlacklistPool
 newtype PoolHash = PoolHash
     { getPoolHash :: Text
     } deriving (Eq, Show, Ord, Generic)
+
+instance ToJSON PoolHash
 
 instance ToParamSchema PoolHash
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleInstances   #-}
@@ -28,23 +29,27 @@ import           Servant                  (Application, BasicAuth,
                                            BasicAuthData (..),
                                            BasicAuthResult (..), Capture,
                                            Context (..), Get, Handler (..),
-                                           JSON, Post, ReqBody, Server,
-                                           serveWithContext, err404)
+                                           JSON, Patch, ReqBody, Server, err403,
+                                           err404, serveWithContext)
 import           Servant.Swagger
 
 import           DB
 import           Types
-
--- The basic auth.
-type BasicAuthURL = BasicAuth "smash" User
 
 -- | Shortcut for common api result types.
 type ApiRes verb a = verb '[JSON] (ApiResult DBFail a)
 
 -- GET api/v1/metadata/{hash}
 type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "hash" PoolHash :> ApiRes Get PoolMetadataWrapped
--- POST api/v1/blacklist |-> {"blacklistPool" : "pool"}
-type BlacklistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "blacklist" :> ReqBody '[JSON] BlacklistPool :> Post '[JSON] PoolOfflineMetadata
+
+-- POST api/v1/blacklist
+#ifdef DISABLE_BASIC_AUTH
+type BlacklistPoolAPI = "api" :> "v1" :> "blacklist" :> ReqBody '[JSON] BlacklistPoolHash :> ApiRes Patch BlacklistPoolHash
+#else
+-- The basic auth.
+type BasicAuthURL = BasicAuth "smash" User
+type BlacklistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "blacklist" :> ReqBody '[JSON] BlacklistPoolHash :> ApiRes Patch BlacklistPoolHash
+#endif
 
 type SmashAPI = OfflineMetadataAPI :<|> BlacklistPoolAPI
 
@@ -121,10 +126,24 @@ mkApp configuration = do
     let dataLayer :: DataLayer
         dataLayer = postgresqlDataLayer
 
+    -- Fetch the admin users from the DB.
+    let getAdminUsers = dlGetAdminUsers dataLayer
+    adminUsers <- getAdminUsers
+
+    -- This is pretty close to the top and we can't handle this.
+    let adminUsers' =   case adminUsers of
+                            Left err -> panic $ "Error with fetching application users! " <> show err
+                            Right users -> users
+
+    let applicationUsers = ApplicationUsers $ map convertToAppUsers adminUsers'
+
     return $ serveWithContext
         fullAPI
-        (basicAuthServerContext stubbedApplicationUsers)
+        (basicAuthServerContext applicationUsers)
         (server configuration dataLayer)
+  where
+    convertToAppUsers :: AdminUser -> ApplicationUser
+    convertToAppUsers (AdminUser username password) = ApplicationUser username password
 
 --runPoolInsertion poolMetadataJsonPath poolHash
 runPoolInsertion :: FilePath -> Text -> IO (Either DBFail Text)
@@ -171,16 +190,40 @@ server :: Configuration -> DataLayer -> Server API
 server configuration dataLayer
     =       return todoSwagger
     :<|>    getPoolOfflineMetadata dataLayer
-    :<|>    postBlacklistPool
+    :<|>    postBlacklistPool dataLayer
 
-postBlacklistPool :: User -> BlacklistPool -> Handler PoolOfflineMetadata
-postBlacklistPool user blacklistPool = convertIOToHandler $ do
-    putTextLn $ show blacklistPool
-    return examplePoolOfflineMetadata
+
+#ifdef DISABLE_BASIC_AUTH
+postBlacklistPool :: DataLayer -> BlacklistPoolHash -> Handler (ApiResult DBFail BlacklistPoolHash)
+postBlacklistPool dataLayer blacklistPoolHash = convertIOToHandler $ do
+
+    let addBlacklistedPool = dlAddBlacklistedPool dataLayer
+    blacklistedPool' <- addBlacklistedPool blacklistPoolHash
+
+    return . ApiResult $ blacklistedPool'
+#else
+postBlacklistPool :: DataLayer -> User -> BlacklistPoolHash -> Handler (ApiResult DBFail BlacklistPoolHash)
+postBlacklistPool dataLayer user blacklistPoolHash = convertIOToHandler $ do
+
+    let addBlacklistedPool = dlAddBlacklistedPool dataLayer
+    blacklistedPool' <- addBlacklistedPool blacklistPoolHash
+
+    return . ApiResult $ blacklistedPool'
+#endif
 
 -- throwError err404
 getPoolOfflineMetadata :: DataLayer -> PoolHash -> Handler (ApiResult DBFail PoolMetadataWrapped)
 getPoolOfflineMetadata dataLayer poolHash = convertIOToHandler $ do
+
+    let blacklistPoolHash = BlacklistPoolHash $ getPoolHash poolHash
+
+    let checkBlacklistedPool = dlCheckBlacklistedPool dataLayer
+    isBlacklisted <- checkBlacklistedPool blacklistPoolHash
+
+    -- When it is blacklisted, return 403. We don't need any more info.
+    when (isBlacklisted) $
+        throwIO err403
+
     let getPoolMetadataSimple = dlGetPoolMetadata dataLayer
     poolMetadata <- getPoolMetadataSimple poolHash
 

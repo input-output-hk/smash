@@ -19,6 +19,7 @@ data DBFail
   | DbMetaEmpty
   | DbMetaMultipleRows
   | PoolMetadataHashMismatch
+  | PoolBlacklisted
   | UnableToEncodePoolMetadataToJSON !Text
   | UnknownError !Text
   deriving (Eq, Show, Generic)
@@ -61,6 +62,11 @@ instance ToJSON DBFail where
             [ "code"            .= String "PoolMetadataHashMismatch"
             , "description"     .= String (renderLookupFail failure)
             ]
+    toJSON failure@(PoolBlacklisted) =
+        object
+            [ "code"            .= String "PoolBlacklisted"
+            , "description"     .= String (renderLookupFail failure)
+            ]
     toJSON failure@(UnableToEncodePoolMetadataToJSON _err) =
         object
             [ "code"            .= String "UnableToEncodePoolMetadataToJSON"
@@ -81,6 +87,7 @@ renderLookupFail lf =
     DbMetaEmpty -> "The metadata table is empty!"
     DbMetaMultipleRows -> "The metadata table contains multiple rows. Error."
     PoolMetadataHashMismatch -> "The pool metadata does not match!"
+    PoolBlacklisted -> "The pool has been blacklisted!"
     UnableToEncodePoolMetadataToJSON err -> "Unable to encode the content to JSON. " <> err
     UnknownError text -> "Unknown error. Context: " <> text
 

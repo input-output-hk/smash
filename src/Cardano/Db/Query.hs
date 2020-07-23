@@ -13,6 +13,8 @@ module Cardano.Db.Query
   , queryLatestBlock
   , queryLatestBlockNo
   , queryCheckPoints
+  , queryBlacklistedPool
+  , queryAdminUsers
   ) where
 
 import           Cardano.Prelude            hiding (Meta, from, isJust,
@@ -31,7 +33,7 @@ import           Database.Esqueleto         (Entity, PersistField, SqlExpr,
                                              from, isNothing, just, limit, not_,
                                              orderBy, select, unValue, val,
                                              where_, (==.), (^.))
-import           Database.Persist.Sql       (SqlBackend)
+import           Database.Persist.Sql       (SqlBackend, selectList)
 
 import           Cardano.Db.Error
 import           Cardano.Db.Schema
@@ -126,6 +128,19 @@ queryCheckPoints limitCount = do
         then [ end, end - end `div` limitCount .. 1 ]
         else [ end, end - 2 .. 1 ]
 
+-- | Check if the hash is in the table.
+queryBlacklistedPool :: MonadIO m => ByteString -> ReaderT SqlBackend m Bool
+queryBlacklistedPool hash = do
+  res <- select . from $ \(pool :: SqlExpr (Entity BlacklistedPool)) -> do
+            where_ (pool ^. BlacklistedPoolHash ==. val hash)
+            pure pool
+  pure $ maybe False (\_ -> True) (listToMaybe res)
+
+-- | Query all admin users for authentication.
+queryAdminUsers :: MonadIO m => ReaderT SqlBackend m [AdminUser]
+queryAdminUsers = do
+  res <- selectList [] []
+  pure $ entityVal <$> res
 
 ------------------------------------------------------------------------------------
 

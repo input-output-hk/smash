@@ -18,7 +18,15 @@ source-repository head
   type: git
   location: https://github.com/input-output-hk/smash
 
+Flag disable-basic-auth
+  description:         Disable basic authentication scheme for other authentication mechanisms.
+  default:             True
+
 library
+
+  if flag(disable-basic-auth)
+    cpp-options:       -DDISABLE_BASIC_AUTH
+
   exposed-modules:
       Lib
     , Types
