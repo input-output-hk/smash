@@ -66,7 +66,7 @@ extra-deps:
   - quickcheck-state-machine-0.6.0
 
   - git: https://github.com/input-output-hk/cardano-db-sync
-    commit: 95af1c45fe5e8ff5ace2f15c8d86837fc49ce728
+    commit: ac332be5b5fa8411f11401d141de14a37c1aa5a6
     subdirs:
       - cardano-db
       - cardano-db-sync
