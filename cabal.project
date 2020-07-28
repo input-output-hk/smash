@@ -350,6 +350,13 @@ source-repository-package
   --sha256: 1la5nkw6nhfsc7izi28g39phfm4bnfza3srm49c16b9vgwqxl4wm
   subdir: cardano-config
 
+source-repository-package
+  type: git
+  location: https://github.com/input-output-hk/cardano-node
+  tag: 3258fdbb2ce8c56ca175401630aa71d75a4d6ab2
+  --sha256: 1la5nkw6nhfsc7izi28g39phfm4bnfza3srm49c16b9vgwqxl4wm
+  subdir: cardano-api
+
 constraints:
     ip < 1.5
   , hedgehog >= 1.0

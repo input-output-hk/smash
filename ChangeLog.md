@@ -1,5 +1,14 @@
 # Changelog for smash
 
+## 1.0.0
+
+Story
+[CAD-1361] - Servers return `200 OK` when metadata isn't found
+[CAD-1354] - Add blacklisting functionality
+[CAD-1355] - Add a flag for switching Basic Auth off/onn
+[CAD-1360] - Add documentation for third party clients
+[CAD-1371] - Integrate SMASH against HFC
+
 ## 0.1.0
 
 Bug
