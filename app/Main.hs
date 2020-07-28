@@ -6,7 +6,7 @@ import           DB
 import           DbSyncPlugin          (poolMetadataDbSyncNodePlugin)
 import           Lib
 
-import           Cardano.SmashDbSync   (ConfigFile (..), GenesisFile (..),
+import           Cardano.SmashDbSync   (ConfigFile (..),
                                         SmashDbSyncNodeParams (..),
                                         SocketPath (..), runDbSyncNode)
 
@@ -81,7 +81,6 @@ pCommandLine :: Parser SmashDbSyncNodeParams
 pCommandLine =
   SmashDbSyncNodeParams
     <$> pConfigFile
-    <*> pGenesisFile
     <*> pSocketPath
     <*> pMigrationDir
     <*> optional pSlotNo
@@ -91,15 +90,6 @@ pConfigFile =
   ConfigFile <$> Opt.strOption
     ( Opt.long "config"
     <> Opt.help "Path to the db-sync node config file"
-    <> Opt.completer (Opt.bashCompleter "file")
-    <> Opt.metavar "FILEPATH"
-    )
-
-pGenesisFile :: Parser GenesisFile
-pGenesisFile =
-  GenesisFile <$> Opt.strOption
-    ( Opt.long "genesis-file"
-    <> Opt.help "Path to the genesis JSON file"
     <> Opt.completer (Opt.bashCompleter "file")
     <> Opt.metavar "FILEPATH"
     )

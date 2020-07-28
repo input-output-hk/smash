@@ -17,6 +17,7 @@
 module Cardano.Db.Schema where
 
 import Cardano.Prelude hiding (Meta)
+import Prelude (error)
 
 import Data.ByteString.Char8 (ByteString)
 import Data.Text (Text)

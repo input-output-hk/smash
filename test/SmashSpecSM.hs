@@ -147,7 +147,6 @@ smashSM dataLayer = StateMachine
     , shrinker      = mShrinker
     , semantics     = mSemantics
     , mock          = mMock
-    , distribution  = Nothing
     }
   where
     -- | Let's handle ju
