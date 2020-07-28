@@ -11,7 +11,7 @@ SMASH
    Go Back to Cardano Documentation <https://cardano.readthedocs.io>
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 1
    :caption: Getting Started
    :titlesonly:
    :hidden:
