@@ -14,7 +14,6 @@ module Cardano.SmashDbSync
   ( ConfigFile (..)
   , SmashDbSyncNodeParams (..)
   , DbSyncNodePlugin (..)
-  , GenesisFile (..)
   , GenesisHash (..)
   , NetworkName (..)
   , SocketPath (..)
@@ -29,7 +28,8 @@ import qualified Prelude
 import           Cardano.Binary                                        (unAnnotated)
 
 import           Control.Monad.Trans.Except.Extra                      (firstExceptT,
-                                                                        newExceptT)
+                                                                        newExceptT,
+                                                                        hoistEither)
 import           Control.Tracer                                        (Tracer)
 
 import           Cardano.BM.Data.Tracer                                (ToLogObject (..))
@@ -51,14 +51,13 @@ import           Cardano.DbSync.Error
 import           Cardano.DbSync.Metrics
 import           Cardano.DbSync.Plugin                                 (DbSyncNodePlugin (..))
 import           Cardano.DbSync.Plugin.Default                         (defDbSyncNodePlugin)
-import           Cardano.DbSync.Plugin.Default.Rollback                (unsafeRollback)
 import           Cardano.DbSync.Tracing.ToObjectOrphans                ()
 import           Cardano.DbSync.Types                                  (ConfigFile (..),
                                                                         DbSyncEnv (..),
                                                                         DbSyncNodeParams (..),
-                                                                        GenesisFile (..),
-                                                                        ShelleyBlock,
-                                                                        SocketPath (..))
+                                                                        SocketPath (..),
+                                                                        SlotDetails(..),
+                                                                        EpochSlot(..))
 import           Cardano.DbSync.Util
 
 import           Cardano.Prelude                                       hiding
@@ -85,8 +84,8 @@ import qualified Data.ByteString.Char8                                 as BS
 import qualified Data.ByteString.Lazy                                  as BSL
 import           Data.Text                                             (Text)
 import qualified Data.Text                                             as Text
-import           Data.Time.Clock                                       (UTCTime (..))
-import qualified Data.Time.Clock                                       as Time
+import           Data.Time                                             (UTCTime (..))
+import qualified Data.Time                                             as Time
 import           Data.Void                                             (Void)
 
 import           Database.Persist.Sql                                  (SqlBackend)
@@ -122,7 +121,8 @@ import           Ouroboros.Network.Block                               (BlockNo 
                                                                         Tip,
                                                                         blockNo,
                                                                         genesisPoint,
-                                                                        getTipBlockNo)
+                                                                        getTipBlockNo,
+                                                                        getTipSlotNo)
 import           Ouroboros.Network.Magic                               (NetworkMagic)
 import           Ouroboros.Network.Mux                                 (MuxPeer (..),
                                                                         RunMiniProtocol (..))
@@ -168,6 +168,7 @@ import           Ouroboros.Network.Subscription                        (Subscrip
 
 import           Ouroboros.Consensus.Shelley.Node                      (ShelleyGenesis (..))
 import           Ouroboros.Consensus.Shelley.Protocol                  (TPraosStandardCrypto)
+import           Ouroboros.Consensus.Cardano.Block
 
 import qualified Shelley.Spec.Ledger.Genesis                           as Shelley
 
@@ -182,7 +183,6 @@ data Peer = Peer SockAddr SockAddr deriving Show
 -- | The product type of all command line arguments
 data SmashDbSyncNodeParams = SmashDbSyncNodeParams
   { senpConfigFile    :: !ConfigFile
-  , senpGenesisFile   :: !GenesisFile
   , senpSocketPath    :: !SocketPath
   , senpMigrationDir  :: !DB.SmashMigrationDir
   , senpMaybeRollback :: !(Maybe SlotNo)
@@ -190,8 +190,8 @@ data SmashDbSyncNodeParams = SmashDbSyncNodeParams
 
 
 convertToNodeParams :: SmashDbSyncNodeParams -> DbSyncNodeParams
-convertToNodeParams (SmashDbSyncNodeParams configFile genesisFile socketPath (DB.SmashMigrationDir migrationDir) maybeRollback) =
-    DbSyncNodeParams configFile genesisFile socketPath (MigrationDir migrationDir) maybeRollback
+convertToNodeParams (SmashDbSyncNodeParams configFile socketPath (DB.SmashMigrationDir migrationDir) maybeRollback) =
+    DbSyncNodeParams configFile socketPath (MigrationDir migrationDir) maybeRollback
 
 runDbSyncNode :: DbSyncNodePlugin -> SmashDbSyncNodeParams -> IO ()
 runDbSyncNode plugin enp =
@@ -209,26 +209,11 @@ runDbSyncNode plugin enp =
 
     logInfo trce $ "Migrations complete."
 
-    -- For testing and debugging.
-    case senpMaybeRollback enp of
-      Just slotNo -> void $ unsafeRollback trce slotNo
-      Nothing     -> pure ()
-
     orDie renderDbSyncNodeError $ do
       liftIO . logInfo trce $ "Reading genesis config."
 
-      genCfg <- readGenesisConfig (convertToNodeParams enp) enc
-
-      logProtocolMagic trce $ genesisProtocolMagic genCfg
-
-      liftIO . logInfo trce $ "Insert validate genesis distribution."
-
-      -- TODO(KS): We currently don't need this!
-      -- If the DB is empty it will be inserted, otherwise it will be validated (to make
-      -- sure we are on the right chain).
-      case genCfg of
-          GenesisByron _ -> panic "We currently don't support Byron at all."
-          GenesisShelley genSh -> insertValidateGenesisDistSmash trce (encNetworkName enc) genSh
+      genCfg <- readGenesisConfig enc
+      genesisEnv <- hoistEither $ genesisConfigToEnv genCfg
 
       liftIO . logInfo trce $ "Starting DB."
 
@@ -239,15 +224,15 @@ runDbSyncNode plugin enp =
         logInfo trce $ "DB startup complete."
         let networkMagic = genesisNetworkMagic genCfg
         case genCfg of
-          GenesisByron bCfg ->
-            runDbSyncNodeNodeClient ByronEnv
-                iomgr trce plugin (mkByronCodecConfig bCfg) networkMagic (senpSocketPath enp)
-          GenesisShelley sCfg ->
-            runDbSyncNodeNodeClient (ShelleyEnv $ Shelley.sgNetworkId sCfg)
-                iomgr trce plugin shelleyCodecConfig networkMagic (senpSocketPath enp)
-
-shelleyCodecConfig :: CodecConfig ShelleyBlock
-shelleyCodecConfig = ShelleyCodecConfig
+          GenesisCardano bCfg sCfg -> do
+            orDie renderDbSyncNodeError $ insertValidateGenesisDistSmash trce (encNetworkName enc) sCfg
+            runDbSyncNodeNodeClient genesisEnv
+                iomgr trce plugin cardanoCodecConfig (senpSocketPath enp)
+            where
+              cardanoCodecConfig :: CardanoCodecConfig TPraosStandardCrypto
+              cardanoCodecConfig =
+                CardanoCodecConfig (mkByronCodecConfig bCfg)
+                                   ShelleyCodecConfig
 
 -- | Idempotent insert the initial Genesis distribution transactions into the DB.
 -- If these transactions are already in the DB, they are validated.
@@ -287,7 +272,6 @@ insertValidateGenesisDistSmash tracer (NetworkName networkName) cfg =
                         }
 
             pure ()
-
 
 -- | Validate that the initial Genesis distribution in the DB matches the Genesis data.
 validateGenesisDistribution
@@ -375,17 +359,15 @@ roundToMillseconds (UTCTime day picoSecs) =
 
 runDbSyncNodeNodeClient
     :: forall blk. (MkDbAction blk, RunNode blk)
-    => DbSyncEnv -> IOManager -> Trace IO Text -> DbSyncNodePlugin -> CodecConfig blk-> NetworkMagic -> SocketPath
+    => DbSyncEnv -> IOManager -> Trace IO Text -> DbSyncNodePlugin -> CodecConfig blk-> SocketPath
     -> IO ()
-runDbSyncNodeNodeClient env iomgr trce plugin codecConfig magic (SocketPath socketPath) = do
+runDbSyncNodeNodeClient env iomgr trce plugin codecConfig (SocketPath socketPath) = do
   logInfo trce $ "localInitiatorNetworkApplication: connecting to node via " <> textShow socketPath
-  -- TODO(KS): Remove this?
-  _txv <- newEmptyTMVarM @_ @(GenTx blk)
 
   void $ subscribe
     (localSnocket iomgr socketPath)
     codecConfig
-    magic
+    (envNetworkMagic env)
     networkSubscriptionTracers
     clientSubscriptionParams
     (dbSyncProtocols trce env plugin)
@@ -597,8 +579,15 @@ chainSyncClient trce metrics latestPoints currentTip actionQueue =
               logException trce "recvMsgRollForward: " $ do
                 Gauge.set (withOrigin 0 (fromIntegral . unBlockNo) (getTipBlockNo tip))
                           (mNodeHeight metrics)
+                let dummySlotDetails =
+                      SlotDetails {
+                        sdTime      = UTCTime (Time.fromGregorian 1970 1 1) 0
+                      , sdEpochNo   = 0
+                      , sdEpochSlot = EpochSlot 0
+                      , sdEpochSize = 0
+                      }
                 newSize <- atomically $ do
-                  writeDbActionQueue actionQueue $ mkDbApply blk tip
+                  writeDbActionQueue actionQueue $ mkDbApply blk dummySlotDetails
                   lengthDbActionQueue actionQueue
                 Gauge.set (fromIntegral newSize) $ mQueuePostWrite metrics
                 pure $ finish (At (blockNo blk)) tip
@@ -611,10 +600,3 @@ chainSyncClient trce metrics latestPoints currentTip actionQueue =
                 newTip <- getCurrentTipBlockNo
                 pure $ finish newTip tip
         }
-
-logProtocolMagic :: Trace IO Text -> Crypto.ProtocolMagic -> ExceptT DbSyncNodeError IO ()
-logProtocolMagic tracer pm =
-  liftIO . logInfo tracer $ mconcat
-    [ "NetworkMagic: ", textShow (Crypto.getRequiresNetworkMagic pm), " "
-    , textShow (Crypto.unProtocolMagicId . unAnnotated $ Crypto.getAProtocolMagicId pm)
-    ]

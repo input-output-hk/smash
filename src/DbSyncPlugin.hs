@@ -35,7 +35,7 @@ import qualified Cardano.Db.Query as DB
 import qualified Cardano.Db.Insert as DB
 
 import           Cardano.DbSync.Error
-import           Cardano.DbSync.Types
+import           Cardano.DbSync.Types as DbSync
 
 import           Cardano.DbSync (DbSyncNodePlugin (..), defDbSyncNodePlugin)
 
@@ -46,9 +46,8 @@ import qualified Shelley.Spec.Ledger.BaseTypes as Shelley
 import qualified Shelley.Spec.Ledger.Tx as Shelley
 import qualified Shelley.Spec.Ledger.TxData as Shelley
 
-import           Ouroboros.Network.Block (Tip)
-
-
+import           Ouroboros.Consensus.Shelley.Protocol.Crypto (TPraosStandardCrypto)
+import           Ouroboros.Consensus.Shelley.Ledger (ShelleyBlock)
 
 
 poolMetadataDbSyncNodePlugin :: DbSyncNodePlugin
@@ -65,12 +64,14 @@ poolMetadataDbSyncNodePlugin =
     }
 
 insertCardanoBlock
-    :: Trace IO Text -> DbSyncEnv -> CardanoBlockTip
+    :: Trace IO Text
+    -> DbSyncEnv
+    -> DbSync.BlockDetails
     -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
-insertCardanoBlock tracer _env blkTip = do
-  case blkTip of
-    ByronBlockTip _blk _tip -> pure $ Right ()  --insertByronBlock tracer blk tip
-    ShelleyBlockTip blk tip -> insertShelleyBlock tracer blk tip
+insertCardanoBlock _tracer _env ByronBlockDetails{} =
+    pure $ Right ()  -- we do nothing for Byron era blocks
+insertCardanoBlock tracer _env (ShelleyBlockDetails blk _) =
+    insertShelleyBlock tracer blk
 
 -- We don't care about Byron, no pools there
 --insertByronBlock
@@ -91,9 +92,10 @@ insertCardanoBlock tracer _env blkTip = do
 --  firstExceptT (DbLookupBlockHash loc) . newExceptT
 
 insertShelleyBlock
-    :: Trace IO Text -> ShelleyBlock -> Tip ShelleyBlock
+    :: Trace IO Text
+    -> ShelleyBlock TPraosStandardCrypto
     -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
-insertShelleyBlock tracer blk _tip = do
+insertShelleyBlock tracer blk = do
   runExceptT $ do
 
     meta <- firstExceptT (\(e :: DBFail) -> NEError $ show e) . newExceptT $ DB.queryMeta
