@@ -42,16 +42,16 @@ type ApiRes verb a = verb '[JSON] (ApiResult DBFail a)
 -- GET api/v1/metadata/{hash}
 type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "hash" PoolHash :> ApiRes Get PoolMetadataWrapped
 
--- POST api/v1/blacklist
+-- POST api/v1/delist
 #ifdef DISABLE_BASIC_AUTH
-type BlacklistPoolAPI = "api" :> "v1" :> "blacklist" :> ReqBody '[JSON] BlacklistPoolHash :> ApiRes Patch BlacklistPoolHash
+type DelistPoolAPI = "api" :> "v1" :> "delist" :> ReqBody '[JSON] DelistPoolHash :> ApiRes Patch DelistPoolHash
 #else
 -- The basic auth.
 type BasicAuthURL = BasicAuth "smash" User
-type BlacklistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "blacklist" :> ReqBody '[JSON] BlacklistPoolHash :> ApiRes Patch BlacklistPoolHash
+type DelistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "delist" :> ReqBody '[JSON] DelistPoolHash :> ApiRes Patch DelistPoolHash
 #endif
 
-type SmashAPI = OfflineMetadataAPI :<|> BlacklistPoolAPI
+type SmashAPI = OfflineMetadataAPI :<|> DelistPoolAPI
 
 -- | Swagger spec for Todo API.
 todoSwagger :: Swagger
@@ -82,7 +82,7 @@ fullAPI = Proxy
 smashApi :: Proxy SmashAPI
 smashApi = Proxy
 
--- 403 if it is blacklisted
+-- 403 if it is delisted
 -- 404 if it is not available (e.g. it could not be downloaded, or was invalid)
 -- 200 with the JSON content. Note that this must be the original content with the expected hash, not a re-rendering of the original.
 
@@ -110,10 +110,10 @@ mkAppStubbed :: Configuration -> IO Application
 mkAppStubbed configuration = do
 
     ioDataMap           <- newIORef stubbedInitialDataMap
-    ioBlacklistedPools  <- newIORef stubbedBlacklistedPools
+    ioDelistedPools  <- newIORef stubbedDelistedPools
 
     let dataLayer :: DataLayer
-        dataLayer = stubbedDataLayer ioDataMap ioBlacklistedPools
+        dataLayer = stubbedDataLayer ioDataMap ioDelistedPools
 
     return $ serveWithContext
         fullAPI
@@ -190,38 +190,38 @@ server :: Configuration -> DataLayer -> Server API
 server configuration dataLayer
     =       return todoSwagger
     :<|>    getPoolOfflineMetadata dataLayer
-    :<|>    postBlacklistPool dataLayer
+    :<|>    postDelistPool dataLayer
 
 
 #ifdef DISABLE_BASIC_AUTH
-postBlacklistPool :: DataLayer -> BlacklistPoolHash -> Handler (ApiResult DBFail BlacklistPoolHash)
-postBlacklistPool dataLayer blacklistPoolHash = convertIOToHandler $ do
+postDelistPool :: DataLayer -> DelistPoolHash -> Handler (ApiResult DBFail DelistPoolHash)
+postDelistPool dataLayer delistPoolHash = convertIOToHandler $ do
 
-    let addBlacklistedPool = dlAddBlacklistedPool dataLayer
-    blacklistedPool' <- addBlacklistedPool blacklistPoolHash
+    let addDelistedPool = dlAddDelistedPool dataLayer
+    delistedPool' <- addDelistedPool delistPoolHash
 
-    return . ApiResult $ blacklistedPool'
+    return . ApiResult $ delistedPool'
 #else
-postBlacklistPool :: DataLayer -> User -> BlacklistPoolHash -> Handler (ApiResult DBFail BlacklistPoolHash)
-postBlacklistPool dataLayer user blacklistPoolHash = convertIOToHandler $ do
+postDelistPool :: DataLayer -> User -> DelistPoolHash -> Handler (ApiResult DBFail DelistPoolHash)
+postDelistPool dataLayer user delistPoolHash = convertIOToHandler $ do
 
-    let addBlacklistedPool = dlAddBlacklistedPool dataLayer
-    blacklistedPool' <- addBlacklistedPool blacklistPoolHash
+    let addDelistedPool = dlAddDelistedPool dataLayer
+    delistedPool' <- addDelistedPool delistPoolHash
 
-    return . ApiResult $ blacklistedPool'
+    return . ApiResult $ delistedPool'
 #endif
 
 -- throwError err404
 getPoolOfflineMetadata :: DataLayer -> PoolHash -> Handler (ApiResult DBFail PoolMetadataWrapped)
 getPoolOfflineMetadata dataLayer poolHash = convertIOToHandler $ do
 
-    let blacklistPoolHash = BlacklistPoolHash $ getPoolHash poolHash
+    let delistPoolHash = DelistPoolHash $ getPoolHash poolHash
 
-    let checkBlacklistedPool = dlCheckBlacklistedPool dataLayer
-    isBlacklisted <- checkBlacklistedPool blacklistPoolHash
+    let checkDelistedPool = dlCheckDelistedPool dataLayer
+    isDelisted <- checkDelistedPool delistPoolHash
 
-    -- When it is blacklisted, return 403. We don't need any more info.
-    when (isBlacklisted) $
+    -- When it is delisted, return 403. We don't need any more info.
+    when (isDelisted) $
         throwIO err403
 
     let getPoolMetadataSimple = dlGetPoolMetadata dataLayer

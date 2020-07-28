@@ -8,7 +8,7 @@ module Types
     , UserValidity (..)
     , checkIfUserValid
     -- * Pool info
-    , BlacklistPoolHash (..)
+    , DelistPoolHash (..)
     , PoolHash (..)
     , createPoolHash
     -- * Wrapper
@@ -110,19 +110,19 @@ checkIfUserValid (ApplicationUsers applicationUsers) applicationUser@(Applicatio
         then (UserValid (User usernameText))
         else UserInvalid
 
-newtype BlacklistPoolHash = BlacklistPoolHash
-    { blacklistPool :: Text
+newtype DelistPoolHash = DelistPoolHash
+    { delistPool :: Text
     } deriving (Eq, Show, Generic)
 
 
-instance FromJSON BlacklistPoolHash where
-    parseJSON = withObject "BlacklistPoolHash" $ \o -> BlacklistPoolHash <$> o .: "poolHash"
+instance FromJSON DelistPoolHash where
+    parseJSON = withObject "DelistPoolHash" $ \o -> DelistPoolHash <$> o .: "poolHash"
 
-instance ToJSON BlacklistPoolHash where
-    toJSON (BlacklistPoolHash poolHash) =
+instance ToJSON DelistPoolHash where
+    toJSON (DelistPoolHash poolHash) =
         object ["poolHash" .= poolHash]
 
-instance ToSchema BlacklistPoolHash
+instance ToSchema DelistPoolHash
 
 -- | We use base64 encoding here.
 -- Submissions are identified by the subject's Bech32-encoded Ed25519 public key (all lowercase).

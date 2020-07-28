@@ -23,7 +23,7 @@ import           Types
 smashSpec :: Spec
 smashSpec = do
     describe "DataLayer" $ do
-        describe "Blacklisted pool" $
+        describe "Delisted pool" $
             prop "adding a pool hash adds it to the data layer" $ monadicIO $ do
 
                 (pk, _)             <- run $ createKeypair
@@ -31,21 +31,21 @@ smashSpec = do
                 let newPoolHash :: PoolHash
                     newPoolHash = createPoolHash . show $ pk
 
-                let blacklistedPoolHash :: BlacklistPoolHash
-                    blacklistedPoolHash = BlacklistPoolHash $ getPoolHash newPoolHash
+                let delistedPoolHash :: DelistPoolHash
+                    delistedPoolHash = DelistPoolHash $ getPoolHash newPoolHash
 
                 ioDataMap           <- run $ newIORef stubbedInitialDataMap
-                ioBlacklistedPools  <- run $ newIORef stubbedBlacklistedPools
+                ioDelistedPools  <- run $ newIORef stubbedDelistedPools
 
                 let dataLayer :: DataLayer
-                    dataLayer = stubbedDataLayer ioDataMap ioBlacklistedPools
+                    dataLayer = stubbedDataLayer ioDataMap ioDelistedPools
 
-                newBlacklistPoolState <- run $ (dlAddBlacklistedPool dataLayer) blacklistedPoolHash
+                newDelistPoolState <- run $ (dlAddDelistedPool dataLayer) delistedPoolHash
 
-                isBlacklisted <- run $ (dlCheckBlacklistedPool dataLayer) blacklistedPoolHash
+                isDelisted <- run $ (dlCheckDelistedPool dataLayer) delistedPoolHash
 
-                assert $ isRight newBlacklistPoolState
-                assert $ isBlacklisted
+                assert $ isRight newDelistPoolState
+                assert $ isDelisted
 
         describe "Pool metadata" $ do
             prop "adding a pool metadata and returning the same" $ \(poolOfflineMetadata) -> monadicIO $ do
@@ -56,10 +56,10 @@ smashSpec = do
                     newPoolHash = createPoolHash . show $ pk
 
                 ioDataMap           <- run $ newIORef stubbedInitialDataMap
-                ioBlacklistedPools  <- run $ newIORef stubbedBlacklistedPools
+                ioDelistedPools  <- run $ newIORef stubbedDelistedPools
 
                 let dataLayer :: DataLayer
-                    dataLayer = stubbedDataLayer ioDataMap ioBlacklistedPools
+                    dataLayer = stubbedDataLayer ioDataMap ioDelistedPools
 
                 newPoolOfflineMetadata  <- run $ (dlAddPoolMetadata dataLayer) newPoolHash poolOfflineMetadata
 
@@ -78,10 +78,10 @@ smashSpec = do
                     newPoolHash = createPoolHash . show $ pk
 
                 ioDataMap           <- run $ newIORef stubbedInitialDataMap
-                ioBlacklistedPools  <- run $ newIORef stubbedBlacklistedPools
+                ioDelistedPools  <- run $ newIORef stubbedDelistedPools
 
                 let dataLayer :: DataLayer
-                    dataLayer = stubbedDataLayer ioDataMap ioBlacklistedPools
+                    dataLayer = stubbedDataLayer ioDataMap ioDelistedPools
 
                 newPoolOfflineMetadata <- run $ (dlGetPoolMetadata dataLayer) newPoolHash
 

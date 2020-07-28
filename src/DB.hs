@@ -12,7 +12,7 @@ module DB
     , postgresqlDataLayer
     -- * Examples
     , stubbedInitialDataMap
-    , stubbedBlacklistedPools
+    , stubbedDelistedPools
     ) where
 
 import           Cardano.Prelude
@@ -22,7 +22,7 @@ import           Data.IORef (IORef, readIORef, modifyIORef)
 
 import           Types
 
-import           Cardano.Db.Insert (insertTxMetadata, insertBlacklistedPool)
+import           Cardano.Db.Insert (insertTxMetadata, insertDelistedPool)
 import           Cardano.Db.Query (DBFail (..), queryTxMetadata)
 
 import           Cardano.Db.Migration as X
@@ -40,8 +40,8 @@ import           Cardano.Db.Error as X
 data DataLayer = DataLayer
     { dlGetPoolMetadata         :: PoolHash -> IO (Either DBFail Text)
     , dlAddPoolMetadata         :: PoolHash -> Text -> IO (Either DBFail Text)
-    , dlCheckBlacklistedPool    :: BlacklistPoolHash -> IO Bool
-    , dlAddBlacklistedPool      :: BlacklistPoolHash -> IO (Either DBFail BlacklistPoolHash)
+    , dlCheckDelistedPool    :: DelistPoolHash -> IO Bool
+    , dlAddDelistedPool      :: DelistPoolHash -> IO (Either DBFail DelistPoolHash)
     , dlGetAdminUsers           :: IO (Either DBFail [AdminUser])
     } deriving (Generic)
 
@@ -52,7 +52,7 @@ stubbedDataLayer
     :: IORef (Map PoolHash Text)
     -> IORef [PoolHash]
     -> DataLayer
-stubbedDataLayer ioDataMap ioBlacklistedPool = DataLayer
+stubbedDataLayer ioDataMap ioDelistedPool = DataLayer
     { dlGetPoolMetadata     = \poolHash -> do
         ioDataMap' <- readIORef ioDataMap
         case (Map.lookup poolHash ioDataMap') of
@@ -64,17 +64,17 @@ stubbedDataLayer ioDataMap ioBlacklistedPool = DataLayer
         _ <- modifyIORef ioDataMap (\dataMap -> Map.insert poolHash poolMetadata dataMap)
         return . Right $ poolMetadata
 
-    , dlCheckBlacklistedPool = \blacklistedPool -> do
-        let blacklistedPoolHash' = PoolHash $ blacklistPool blacklistedPool
-        blacklistedPool' <- readIORef ioBlacklistedPool
-        return $ blacklistedPoolHash' `elem` blacklistedPool'
+    , dlCheckDelistedPool = \delistedPool -> do
+        let delistedPoolHash' = PoolHash $ delistPool delistedPool
+        delistedPool' <- readIORef ioDelistedPool
+        return $ delistedPoolHash' `elem` delistedPool'
 
-    , dlAddBlacklistedPool  = \blacklistedPool -> do
-        let blacklistedPoolHash' = PoolHash $ blacklistPool blacklistedPool
-        _ <- modifyIORef ioBlacklistedPool (\pool -> [blacklistedPoolHash'] ++ pool)
+    , dlAddDelistedPool  = \delistedPool -> do
+        let delistedPoolHash' = PoolHash $ delistPool delistedPool
+        _ <- modifyIORef ioDelistedPool (\pool -> [delistedPoolHash'] ++ pool)
         -- TODO(KS): Do I even need to query this?
-        _blacklistedPool' <- readIORef ioBlacklistedPool
-        return $ Right blacklistedPool
+        _delistedPool' <- readIORef ioDelistedPool
+        return $ Right delistedPool
 
     , dlGetAdminUsers       = return $ Right []
     }
@@ -86,8 +86,8 @@ stubbedInitialDataMap = Map.fromList
     ]
 
 -- The approximation for the table.
-stubbedBlacklistedPools :: [PoolHash]
-stubbedBlacklistedPools = []
+stubbedDelistedPools :: [PoolHash]
+stubbedDelistedPools = []
 
 postgresqlDataLayer :: DataLayer
 postgresqlDataLayer = DataLayer
@@ -100,13 +100,13 @@ postgresqlDataLayer = DataLayer
         _ <- runDbAction Nothing $ insertTxMetadata $ TxMetadata poolHashBytestring poolMetadata
         return $ Right poolMetadata
 
-    , dlCheckBlacklistedPool = \blacklistedPool -> do
-        let blacklistPoolHash = encodeUtf8 $ blacklistPool blacklistedPool
-        runDbAction Nothing $ queryBlacklistedPool blacklistPoolHash
+    , dlCheckDelistedPool = \delistedPool -> do
+        let delistPoolHash = encodeUtf8 $ delistPool delistedPool
+        runDbAction Nothing $ queryDelistedPool delistPoolHash
 
-    , dlAddBlacklistedPool  = \blacklistedPool -> do
-        _ <- runDbAction Nothing $ insertBlacklistedPool $ BlacklistedPool $ encodeUtf8 $ blacklistPool blacklistedPool
-        return $ Right blacklistedPool
+    , dlAddDelistedPool  = \delistedPool -> do
+        _ <- runDbAction Nothing $ insertDelistedPool $ DelistedPool $ encodeUtf8 $ delistPool delistedPool
+        return $ Right delistedPool
 
     , dlGetAdminUsers       = do
         adminUsers <- runDbAction Nothing $ queryAdminUsers

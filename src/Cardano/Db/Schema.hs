@@ -87,10 +87,10 @@ share
     networkName         Text Maybe
     UniqueMeta          startTime
 
-  -- A table containing a list of blacklisted pools.
-  BlacklistedPool
+  -- A table containing a list of delisted pools.
+  DelistedPool
     hash                ByteString          sqltype=base16type
-    UniqueBlacklistedPool hash
+    UniqueDelistedPool hash
 
   -- A table containin a list of administrator users that can be used to access the secure API endpoints.
   -- Yes, we don't have any hash check mechanisms here, if they get to the database, game over anyway.
