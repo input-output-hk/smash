@@ -16,5 +16,5 @@ SMASH
    :titlesonly:
    :hidden:
 
-   getting-started/how-to-setup-SMASH
-   getting-started/how-to-run-SMASH
+   getting-started/how-to-setup-smash
+   getting-started/how-to-run-smash
