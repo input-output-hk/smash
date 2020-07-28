@@ -1,10 +1,19 @@
 # Explorer DB Node configuration
 
 NetworkName: mainnet
-RequiresNetworkMagic: RequiresNoMagic
-GenesisHash: 5f20df933584822601f9e3f8c024eb5eb252fe8cefb24d1317dc3d432e940ebb
 EnableLogMetrics: False
 EnableLogging: True
+
+Protocol: Cardano
+
+RequiresNetworkMagic: RequiresNoMagic
+
+ByronGenesisFile: /nix/store/2fgv0a6d00f3gic5p7kycgk5r30nnrxy-mainnet_candidate_4-byron-genesis.json
+ByronGenesisHash: 406bd7edfa14db46edb367d18f5b3dba8d0c626b7c1c19f283867a70d05945c9
+
+# Shelley genesis is not actully used but to specify Protocol Cardano, we need to sepcify one.
+ShelleyGenesisFile: /nix/store/2bj52wchrv4w2h84hx27id63w8v640qc-mainnet_candidate_4-shelley-genesis.json
+ShelleyGenesisHash: ef8a74ab8587db4c95a7b98cd15406faf7044d9ff47b977f54053f7ad4fd9e59
 
 # ------------------------------------------------------------------------------
 # Logging configuration follows.

@@ -224,7 +224,8 @@ runDbSyncNode plugin enp =
         logInfo trce $ "DB startup complete."
         let networkMagic = genesisNetworkMagic genCfg
         case genCfg of
-          GenesisCardano bCfg sCfg ->
+          GenesisCardano bCfg sCfg -> do
+            orDie renderDbSyncNodeError $ insertValidateGenesisDistSmash trce (encNetworkName enc) sCfg
             runDbSyncNodeNodeClient genesisEnv
                 iomgr trce plugin cardanoCodecConfig (senpSocketPath enp)
             where
@@ -232,6 +233,45 @@ runDbSyncNode plugin enp =
               cardanoCodecConfig =
                 CardanoCodecConfig (mkByronCodecConfig bCfg)
                                    ShelleyCodecConfig
+
+-- | Idempotent insert the initial Genesis distribution transactions into the DB.
+-- If these transactions are already in the DB, they are validated.
+insertValidateGenesisDistSmash
+    :: Trace IO Text -> NetworkName -> ShelleyGenesis TPraosStandardCrypto
+    -> ExceptT DbSyncNodeError IO ()
+insertValidateGenesisDistSmash tracer (NetworkName networkName) cfg =
+    newExceptT $ DB.runDbIohkLogging tracer insertAction
+  where
+    insertAction :: (MonadIO m) => ReaderT SqlBackend m (Either DbSyncNodeError ())
+    insertAction = do
+      ebid <- DB.queryBlockId (configGenesisHash cfg)
+      case ebid of
+        Right bid -> validateGenesisDistribution tracer networkName cfg bid
+        Left _ ->
+          runExceptT $ do
+            liftIO $ logInfo tracer "Inserting Genesis distribution"
+            count <- lift DB.queryBlockCount
+
+            when (count > 0) $
+              dbSyncNodeError "Shelley.insertValidateGenesisDist: Genesis data mismatch."
+            void . lift . DB.insertMeta
+                $ DB.Meta
+                    (protocolConstant cfg)
+                    (configSlotDuration cfg)
+                    (configStartTime cfg)
+                    (configSlotsPerEpoch cfg)
+                    (Just networkName)
+            -- Insert an 'artificial' Genesis block (with a genesis specific slot leader). We
+            -- need this block to attach the genesis distribution transactions to.
+            _blockId <- lift . DB.insertBlock $
+                      DB.Block
+                        { DB.blockHash = configGenesisHash cfg
+                        , DB.blockEpochNo = Nothing
+                        , DB.blockSlotNo = Nothing
+                        , DB.blockBlockNo = Nothing
+                        }
+
+            pure ()
 
 -- | Validate that the initial Genesis distribution in the DB matches the Genesis data.
 validateGenesisDistribution

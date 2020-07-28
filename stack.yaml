@@ -60,6 +60,9 @@ extra-deps:
   - http-api-data-0.4.1.1
   - time-compat-1.9.2.2
   - quiet-0.2
+  - base64-0.4.2.2
+  - bech32-1.1.0
+  - ghc-byteorder-4.11.0.0.10
   - quickcheck-state-machine-0.6.0
 
   - git: https://github.com/input-output-hk/cardano-db-sync
@@ -147,6 +150,7 @@ extra-deps:
     commit: 3258fdbb2ce8c56ca175401630aa71d75a4d6ab2
     subdirs:
       - cardano-config
+      - cardano-api
 
 nix:
   shell-file: nix/stack-shell.nix
