@@ -15,7 +15,7 @@ import           Data.ByteString.Char8 (ByteString)
 -- | Errors, not exceptions.
 data DBFail
   = DbLookupBlockHash !ByteString
-  | DbLookupTxMetadataHash !ByteString
+  | DbLookupPoolMetadataHash !ByteString
   | DbMetaEmpty
   | DbMetaMultipleRows
   | PoolMetadataHashMismatch
@@ -42,9 +42,9 @@ instance ToJSON DBFail where
             [ "code"            .= String "DbLookupBlockHash"
             , "description"     .= String (renderLookupFail failure)
             ]
-    toJSON failure@(DbLookupTxMetadataHash _hash) =
+    toJSON failure@(DbLookupPoolMetadataHash _hash) =
         object
-            [ "code"            .= String "DbLookupTxMetadataHash"
+            [ "code"            .= String "DbLookupPoolMetadataHash"
             , "description"     .= String (renderLookupFail failure)
             ]
     toJSON failure@DbMetaEmpty =
@@ -83,7 +83,7 @@ renderLookupFail :: DBFail -> Text
 renderLookupFail lf =
   case lf of
     DbLookupBlockHash hash -> "The block hash " <> decodeUtf8 hash <> " is missing from the DB."
-    DbLookupTxMetadataHash hash -> "The tx hash " <> decodeUtf8 hash <> " is missing from the DB."
+    DbLookupPoolMetadataHash hash -> "The tx hash " <> decodeUtf8 hash <> " is missing from the DB."
     DbMetaEmpty -> "The metadata table is empty!"
     DbMetaMultipleRows -> "The metadata table contains multiple rows. Error."
     PoolMetadataHashMismatch -> "The pool metadata does not match!"

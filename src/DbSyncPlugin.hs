@@ -43,7 +43,6 @@ import qualified Cardano.DbSync.Era.Shelley.Util as Shelley
 
 import           Shelley.Spec.Ledger.BaseTypes (strictMaybeToMaybe)
 import qualified Shelley.Spec.Ledger.BaseTypes as Shelley
-import qualified Shelley.Spec.Ledger.Tx as Shelley
 import qualified Shelley.Spec.Ledger.TxData as Shelley
 
 import           Ouroboros.Consensus.Shelley.Protocol.Crypto (TPraosStandardCrypto)
@@ -141,7 +140,7 @@ insertPoolCert tracer pCert =
 insertPoolRegister
     :: forall m. (MonadIO m)
     => Trace IO Text -> ShelleyPoolParams
-    -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) (Maybe DB.PoolMetaDataId)
+    -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) (Maybe DB.PoolMetadataReferenceId)
 insertPoolRegister tracer params = do
   liftIO . logInfo tracer $ "Inserting pool register."
   poolMetadataId <- case strictMaybeToMaybe $ Shelley._poolMD params of
@@ -155,7 +154,7 @@ insertPoolRegister tracer params = do
                 Right response -> logInfo tracer (decodeUtf8 . BL.toStrict $ responseBody response)
 
         liftIO . logInfo tracer $ "Inserting metadata."
-        pmId <- Just <$> insertMetaData tracer md
+        pmId <- Just <$> insertMetaDataReference tracer md
         liftIO . logInfo tracer $ "Metadata inserted."
 
         return pmId
@@ -241,15 +240,15 @@ fetchInsertPoolMetadata tracer md = do
 
     pure response
 
-insertMetaData
+insertMetaDataReference
     :: (MonadIO m)
     => Trace IO Text -> Shelley.PoolMetaData
-    -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) DB.PoolMetaDataId
-insertMetaData _tracer md =
-  lift . DB.insertPoolMetaData $
-    DB.PoolMetaData
-      { DB.poolMetaDataUrl = Shelley.urlToText (Shelley._poolMDUrl md)
-      , DB.poolMetaDataHash = Shelley._poolMDHash md
+    -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) DB.PoolMetadataReferenceId
+insertMetaDataReference _tracer md =
+  lift . DB.insertPoolMetadataReference $
+    DB.PoolMetadataReference
+      { DB.poolMetadataReferenceUrl = Shelley.urlToText (Shelley._poolMDUrl md)
+      , DB.poolMetadataReferenceHash = Shelley._poolMDHash md
       }
 
 --insertPoolRetire

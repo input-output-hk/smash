@@ -22,8 +22,8 @@ import           Data.IORef (IORef, readIORef, modifyIORef)
 
 import           Types
 
-import           Cardano.Db.Insert (insertTxMetadata, insertBlacklistedPool)
-import           Cardano.Db.Query (DBFail (..), queryTxMetadata)
+import           Cardano.Db.Insert (insertPoolMetadata, insertBlacklistedPool)
+import           Cardano.Db.Query (DBFail (..), queryPoolMetadata)
 
 import           Cardano.Db.Migration as X
 import           Cardano.Db.Migration.Version as X
@@ -57,7 +57,7 @@ stubbedDataLayer ioDataMap ioBlacklistedPool = DataLayer
         ioDataMap' <- readIORef ioDataMap
         case (Map.lookup poolHash ioDataMap') of
             Just poolOfflineMetadata'   -> return . Right $ poolOfflineMetadata'
-            Nothing                     -> return $ Left (DbLookupTxMetadataHash (encodeUtf8 $ getPoolHash poolHash))
+            Nothing                     -> return $ Left (DbLookupPoolMetadataHash (encodeUtf8 $ getPoolHash poolHash))
 
     , dlAddPoolMetadata     = \poolHash poolMetadata -> do
         -- TODO(KS): What if the pool metadata already exists?
@@ -92,12 +92,12 @@ stubbedBlacklistedPools = []
 postgresqlDataLayer :: DataLayer
 postgresqlDataLayer = DataLayer
     { dlGetPoolMetadata = \poolHash -> do
-        txMetadata <- runDbAction Nothing $ queryTxMetadata (encodeUtf8 $ getPoolHash poolHash)
-        return (txMetadataMetadata <$> txMetadata)
+        poolMetadata <- runDbAction Nothing $ queryPoolMetadata (encodeUtf8 $ getPoolHash poolHash)
+        return (poolMetadataMetadata <$> poolMetadata)
 
     , dlAddPoolMetadata     = \poolHash poolMetadata -> do
         let poolHashBytestring = encodeUtf8 $ getPoolHash poolHash
-        _ <- runDbAction Nothing $ insertTxMetadata $ TxMetadata poolHashBytestring poolMetadata
+        _ <- runDbAction Nothing $ insertPoolMetadata $ PoolMetadata poolHashBytestring poolMetadata
         return $ Right poolMetadata
 
     , dlCheckBlacklistedPool = \blacklistedPool -> do
