@@ -2,6 +2,7 @@
 
 let
   cfg = config.services.smash;
+  configFile = __toFile "config.json" (__toJSON (cfg.explorerConfig // cfg.logConfig));
 in {
 
   options = {
@@ -15,13 +16,9 @@ in {
         type = lib.types.package;
         default = pkgs.smashHaskellPackages.smash.components.exes.smash-exe or (import ../. {}).smashHaskellPackages.smash.components.exes.smash-exe;
       };
-      configFile = lib.mkOption {
-        type = lib.types.path;
-        default = builtins.toFile "config.json" (builtins.toJSON ({
-          NetworkName = cfg.environmentName;
-          GenesisHash = "";
-          inherit (cfg.environment.nodeConfig) RequiresNetworkMagic;
-        } // cfg.logConfig));
+      explorerConfig = lib.mkOption {
+        type = lib.types.attrs;
+        default = cfg.environment.explorerConfig;
       };
       environment = lib.mkOption {
         type = lib.types.attrs;
@@ -81,8 +78,7 @@ in {
 
       ${cfg.package}/bin/smash-exe run-migrations --mdir ${../../schema}
       exec ${cfg.package}/bin/smash-exe run-app-with-db-sync \
-        --config ${cfg.configFile} \
-        --genesis-file ${cfg.environment.genesisFile} \
+        --config ${configFile} \
         --socket-path ${cfg.socketPath} \
         --schema-dir ${../../schema}
     '';
