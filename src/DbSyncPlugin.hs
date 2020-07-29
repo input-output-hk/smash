@@ -37,7 +37,7 @@ import qualified Cardano.Db.Insert as DB
 import           Cardano.DbSync.Error
 import           Cardano.DbSync.Types as DbSync
 
-import           Cardano.DbSync (DbSyncNodePlugin (..), defDbSyncNodePlugin)
+import           Cardano.DbSync (DbSyncNodePlugin (..))
 
 import qualified Cardano.DbSync.Era.Shelley.Util as Shelley
 
@@ -51,7 +51,7 @@ import           Ouroboros.Consensus.Shelley.Ledger (ShelleyBlock)
 
 poolMetadataDbSyncNodePlugin :: DbSyncNodePlugin
 poolMetadataDbSyncNodePlugin =
-  defDbSyncNodePlugin
+  DbSyncNodePlugin
     { plugOnStartup = []
     , plugInsertBlock = [insertCardanoBlock]
     , plugRollbackBlock = []
