@@ -53,13 +53,8 @@ poolMetadataDbSyncNodePlugin :: DbSyncNodePlugin
 poolMetadataDbSyncNodePlugin =
   defDbSyncNodePlugin
     { plugOnStartup = []
-        --plugOnStartup defDbSyncNodePlugin ++ [epochPluginOnStartup] ++ []
-
     , plugInsertBlock = [insertCardanoBlock]
-        --plugInsertBlock defDbSyncNodePlugin ++ [epochPluginInsertBlock] ++ [insertCardanoBlock]
-
     , plugRollbackBlock = []
-        --plugRollbackBlock defDbSyncNodePlugin ++ [epochPluginRollbackBlock] ++ []
     }
 
 insertCardanoBlock
@@ -71,24 +66,6 @@ insertCardanoBlock _tracer _env ByronBlockDetails{} =
     pure $ Right ()  -- we do nothing for Byron era blocks
 insertCardanoBlock tracer _env (ShelleyBlockDetails blk _) =
     insertShelleyBlock tracer blk
-
--- We don't care about Byron, no pools there
---insertByronBlock
---    :: Trace IO Text -> ByronBlock -> Tip ByronBlock
---    -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
---insertByronBlock tracer blk tip = do
---  runExceptT $
---    liftIO $ do
---      let epoch = Byron.slotNumber blk `div` 5000
---      logInfo tracer $ mconcat
---        [ "insertByronBlock: epoch ", show epoch
---        , ", slot ", show (Byron.slotNumber blk)
---        , ", block ", show (Byron.blockNumber blk)
---        ]
-
---liftLookupFail :: Monad m => Text -> m (Either LookupFail a) -> ExceptT DbFail m a
---liftLookupFail loc =
---  firstExceptT (DbLookupBlockHash loc) . newExceptT
 
 insertShelleyBlock
     :: Trace IO Text
@@ -250,16 +227,4 @@ insertMetaDataReference _tracer md =
       { DB.poolMetadataReferenceUrl = Shelley.urlToText (Shelley._poolMDUrl md)
       , DB.poolMetadataReferenceHash = Shelley._poolMDHash md
       }
-
---insertPoolRetire
---    :: (MonadIO m)
---    => EpochNo -> ShelleyStakePoolKeyHash
---    -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
---insertPoolRetire epochNum keyHash = do
---  poolId <- firstExceptT (NELookup "insertPoolRetire") . newExceptT $ queryStakePoolKeyHash keyHash
---  void . lift . DB.insertPoolRetire $
---    DB.PoolRetire
---      { DB.poolRetirePoolId = poolId
---      , DB.poolRetireRetiringEpoch = unEpochNo epochNum
---      }
 
