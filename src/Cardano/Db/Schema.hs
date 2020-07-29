@@ -101,8 +101,8 @@ share
     networkName         Text Maybe
     UniqueMeta          startTime
 
-  -- A table containing a list of blacklisted pools.
-  BlacklistedPool
+  -- A table containing a list of delisted pools.
+  DelistedPool
     poolId              Types.PoolId        sqltype=hash28type
     UniqueBlacklistedPool poolId
 

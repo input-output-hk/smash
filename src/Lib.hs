@@ -45,16 +45,16 @@ type ApiRes verb a = verb '[JSON] (ApiResult DBFail a)
 -- GET api/v1/metadata/{hash}
 type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> ApiRes Get PoolMetadataWrapped
 
--- POST api/v1/blacklist
+-- POST api/v1/delist
 #ifdef DISABLE_BASIC_AUTH
-type BlacklistPoolAPI = "api" :> "v1" :> "blacklist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+type DelistPoolAPI = "api" :> "v1" :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 #else
 -- The basic auth.
 type BasicAuthURL = BasicAuth "smash" User
-type BlacklistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "blacklist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+type DelistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 #endif
 
-type SmashAPI = OfflineMetadataAPI :<|> BlacklistPoolAPI
+type SmashAPI = OfflineMetadataAPI :<|> DelistPoolAPI
 
 -- | Swagger spec for Todo API.
 todoSwagger :: Swagger
@@ -85,7 +85,7 @@ fullAPI = Proxy
 smashApi :: Proxy SmashAPI
 smashApi = Proxy
 
--- 403 if it is blacklisted
+-- 403 if it is delisted
 -- 404 if it is not available (e.g. it could not be downloaded, or was invalid)
 -- 200 with the JSON content. Note that this must be the original content with the expected hash, not a re-rendering of the original.
 
@@ -113,10 +113,10 @@ mkAppStubbed :: Configuration -> IO Application
 mkAppStubbed configuration = do
 
     ioDataMap           <- newIORef stubbedInitialDataMap
-    ioBlacklistedPools  <- newIORef stubbedBlacklistedPools
+    ioDelistedPools  <- newIORef stubbedDelistedPools
 
     let dataLayer :: DataLayer
-        dataLayer = stubbedDataLayer ioDataMap ioBlacklistedPools
+        dataLayer = stubbedDataLayer ioDataMap ioDelistedPools
 
     return $ serveWithContext
         fullAPI
@@ -211,35 +211,35 @@ server :: Configuration -> DataLayer -> Server API
 server configuration dataLayer
     =       return todoSwagger
     :<|>    getPoolOfflineMetadata dataLayer
-    :<|>    postBlacklistPool dataLayer
+    :<|>    postDelistPool dataLayer
 
 #ifdef DISABLE_BASIC_AUTH
-postBlacklistPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
-postBlacklistPool dataLayer poolId = convertIOToHandler $ do
+postDelistPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
+postDelistPool dataLayer poolId = convertIOToHandler $ do
 
-    let addBlacklistedPool = dlAddBlacklistedPool dataLayer
-    blacklistedPool' <- addBlacklistedPool poolId
+    let addDelistedPool = dlAddDelistedPool dataLayer
+    delistedPool' <- addDelistedPool poolId
 
-    return . ApiResult $ blacklistedPool'
+    return . ApiResult $ delistedPool'
 #else
-postBlacklistPool :: DataLayer -> User -> PoolId -> Handler (ApiResult DBFail PoolId)
-postBlacklistPool dataLayer user poolId = convertIOToHandler $ do
+postDelistPool :: DataLayer -> User -> PoolId -> Handler (ApiResult DBFail PoolId)
+postDelistPool dataLayer user poolId = convertIOToHandler $ do
 
-    let addBlacklistedPool = dlAddBlacklistedPool dataLayer
-    blacklistedPool' <- addBlacklistedPool poolId
+    let addDelistedPool = dlAddDelistedPool dataLayer
+    delistedPool' <- addDelistedPool poolId
 
-    return . ApiResult $ blacklistedPool'
+    return . ApiResult $ delistedPool'
 #endif
 
 -- throwError err404
 getPoolOfflineMetadata :: DataLayer -> PoolId -> PoolMetadataHash -> Handler (ApiResult DBFail PoolMetadataWrapped)
 getPoolOfflineMetadata dataLayer poolId poolHash = convertIOToHandler $ do
 
-    let checkBlacklistedPool = dlCheckBlacklistedPool dataLayer
-    isBlacklisted <- checkBlacklistedPool poolId
+    let checkDelistedPool = dlCheckDelistedPool dataLayer
+    isDelisted <- checkDelistedPool poolId
 
-    -- When it is blacklisted, return 403. We don't need any more info.
-    when (isBlacklisted) $
+    -- When it is delisted, return 403. We don't need any more info.
+    when (isDelisted) $
         throwIO err403
 
     let getPoolMetadata = dlGetPoolMetadata dataLayer

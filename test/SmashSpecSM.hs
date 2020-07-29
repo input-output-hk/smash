@@ -55,16 +55,16 @@ prop_smash = do
     -- Placeholder
     let testdDL =   stubbedDataLayer
                         (unsafePerformIO $ newIORef stubbedInitialDataMap)
-                        (unsafePerformIO $ newIORef stubbedBlacklistedPools)
+                        (unsafePerformIO $ newIORef stubbedDelistedPools)
 
     forAllCommands (smUnused testdDL) (Just 100) $ \cmds -> monadicIO $ do
 
         --TODO(KS): Initialize the REAL DB!
         ioDataMap           <- run $ newIORef stubbedInitialDataMap
-        ioBlacklistedPools  <- run $ newIORef stubbedBlacklistedPools
+        ioDelistedPools  <- run $ newIORef stubbedDelistedPools
 
         let dataLayer :: DataLayer
-            dataLayer = stubbedDataLayer ioDataMap ioBlacklistedPools
+            dataLayer = stubbedDataLayer ioDataMap ioDelistedPools
 
         -- Run the actual commands
         (hist, _model, res) <- runCommands (smashSM dataLayer) cmds

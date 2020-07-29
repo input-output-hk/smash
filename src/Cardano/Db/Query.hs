@@ -13,7 +13,7 @@ module Cardano.Db.Query
   , queryLatestBlock
   , queryLatestBlockNo
   , queryCheckPoints
-  , queryBlacklistedPool
+  , queryDelistedPool
   , queryReservedTicker
   , queryAdminUsers
   ) where
@@ -132,10 +132,10 @@ queryCheckPoints limitCount = do
         else [ end, end - 2 .. 1 ]
 
 -- | Check if the hash is in the table.
-queryBlacklistedPool :: MonadIO m => Types.PoolId -> ReaderT SqlBackend m Bool
-queryBlacklistedPool poolId = do
-  res <- select . from $ \(pool :: SqlExpr (Entity BlacklistedPool)) -> do
-            where_ (pool ^. BlacklistedPoolPoolId ==. val poolId)
+queryDelistedPool :: MonadIO m => Types.PoolId -> ReaderT SqlBackend m Bool
+queryDelistedPool poolId = do
+  res <- select . from $ \(pool :: SqlExpr (Entity DelistedPool)) -> do
+            where_ (pool ^. DelistedPoolPoolId ==. val poolId)
             pure pool
   pure $ maybe False (\_ -> True) (listToMaybe res)
 
