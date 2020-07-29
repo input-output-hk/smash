@@ -30,7 +30,7 @@ import           Cardano.Db.Migration.Version as X
 import           Cardano.Db.PGConfig as X
 import           Cardano.Db.Run as X
 import           Cardano.Db.Query as X
-import           Cardano.Db.Schema as X
+import           Cardano.Db.Schema as X (AdminUser)
 import           Cardano.Db.Error as X
 
 -- | This is the data layer for the DB.
@@ -38,10 +38,10 @@ import           Cardano.Db.Error as X
 -- but currently there is no complexity involved for that to be a sane choice.
 -- TODO(KS): Newtype wrapper around @Text@ for the metadata.
 data DataLayer = DataLayer
-    { dlGetPoolMetadata         :: PoolHash -> IO (Either DBFail Text)
-    , dlAddPoolMetadata         :: PoolHash -> Text -> IO (Either DBFail Text)
-    , dlCheckBlacklistedPool    :: BlacklistPoolHash -> IO Bool
-    , dlAddBlacklistedPool      :: BlacklistPoolHash -> IO (Either DBFail BlacklistPoolHash)
+    { dlGetPoolMetadata         :: PoolId -> PoolMetadataHash -> IO (Either DBFail Text)
+    , dlAddPoolMetadata         :: PoolId -> PoolMetadataHash -> Text -> IO (Either DBFail Text)
+    , dlCheckBlacklistedPool    :: PoolId -> IO Bool
+    , dlAddBlacklistedPool      :: PoolId -> IO (Either DBFail PoolId)
     , dlGetAdminUsers           :: IO (Either DBFail [AdminUser])
     } deriving (Generic)
 
@@ -49,19 +49,19 @@ data DataLayer = DataLayer
 -- We do need state here. _This is thread safe._
 -- __This is really our model here.__
 stubbedDataLayer
-    :: IORef (Map PoolHash Text)
-    -> IORef [PoolHash]
+    :: IORef (Map (PoolId, PoolMetadataHash) Text)
+    -> IORef [PoolId]
     -> DataLayer
 stubbedDataLayer ioDataMap ioBlacklistedPool = DataLayer
-    { dlGetPoolMetadata     = \poolHash -> do
+    { dlGetPoolMetadata     = \poolId poolmdHash -> do
         ioDataMap' <- readIORef ioDataMap
-        case (Map.lookup poolHash ioDataMap') of
+        case (Map.lookup (poolId, poolmdHash) ioDataMap') of
             Just poolOfflineMetadata'   -> return . Right $ poolOfflineMetadata'
-            Nothing                     -> return $ Left (DbLookupPoolMetadataHash (encodeUtf8 $ getPoolHash poolHash))
+            Nothing                     -> return $ Left (DbLookupPoolMetadataHash poolId poolmdHash)
 
-    , dlAddPoolMetadata     = \poolHash poolMetadata -> do
+    , dlAddPoolMetadata     = \poolId poolmdHash poolMetadata -> do
         -- TODO(KS): What if the pool metadata already exists?
-        _ <- modifyIORef ioDataMap (\dataMap -> Map.insert poolHash poolMetadata dataMap)
+        _ <- modifyIORef ioDataMap (Map.insert (poolId, poolmdHash) poolMetadata)
         return . Right $ poolMetadata
 
     , dlCheckBlacklistedPool = \blacklistedPool -> do
@@ -80,13 +80,13 @@ stubbedDataLayer ioDataMap ioBlacklistedPool = DataLayer
     }
 
 -- The approximation for the table.
-stubbedInitialDataMap :: Map PoolHash Text
+stubbedInitialDataMap :: Map PoolId Text
 stubbedInitialDataMap = Map.fromList
-    [ (createPoolHash "AAAAC3NzaC1lZDI1NTE5AAAAIKFx4CnxqX9mCaUeqp/4EI1+Ly9SfL23/Uxd0Ieegspc", show examplePoolOfflineMetadata)
+    [ (PoolId "AAAAC3NzaC1lZDI1NTE5AAAAIKFx4CnxqX9mCaUeqp/4EI1+Ly9SfL23/Uxd0Ieegspc", show examplePoolOfflineMetadata)
     ]
 
 -- The approximation for the table.
-stubbedBlacklistedPools :: [PoolHash]
+stubbedBlacklistedPools :: [PoolId]
 stubbedBlacklistedPools = []
 
 postgresqlDataLayer :: DataLayer

@@ -8,9 +8,8 @@ module Types
     , UserValidity (..)
     , checkIfUserValid
     -- * Pool info
-    , BlacklistPoolHash (..)
-    , PoolHash (..)
-    , createPoolHash
+    , PoolId (..)
+    , PoolMetadataHash (..)
     -- * Wrapper
     , PoolMetadataWrapped (..)
     -- * Pool offline metadata
@@ -45,6 +44,7 @@ import           Data.Text.Encoding  (encodeUtf8Builder)
 import           Servant             (FromHttpApiData (..))
 
 import           Cardano.Db.Error
+import           Cardano.Db.Types
 
 -- | The basic @Configuration@.
 data Configuration = Configuration
@@ -99,44 +99,20 @@ checkIfUserValid (ApplicationUsers applicationUsers) applicationUser@(Applicatio
         then (UserValid (User usernameText))
         else UserInvalid
 
-newtype BlacklistPoolHash = BlacklistPoolHash
-    { blacklistPool :: Text
-    } deriving (Eq, Show, Generic)
-
-
-instance FromJSON BlacklistPoolHash where
-    parseJSON = withObject "BlacklistPoolHash" $ \o -> BlacklistPoolHash <$> o .: "poolHash"
-
-instance ToJSON BlacklistPoolHash where
-    toJSON (BlacklistPoolHash poolHash) =
-        object ["poolHash" .= poolHash]
-
-instance ToSchema BlacklistPoolHash
-
--- | We use base64 encoding here.
--- Submissions are identified by the subject's Bech32-encoded Ed25519 public key (all lowercase).
--- An Ed25519 public key is a 64-byte string. We'll typically show such string in base16.
--- base64 is fine too, more concise. But bech32 is definitely overkill here.
--- This might be a synonym for @PoolOwner@.
-newtype PoolHash = PoolHash
-    { getPoolHash :: Text
-    } deriving (Eq, Show, Ord, Generic)
-
-instance ToJSON PoolHash
-
-instance ToParamSchema PoolHash
-
--- | Should be an @Either@.
-createPoolHash :: Text -> PoolHash
-createPoolHash hash = PoolHash hash
+instance ToParamSchema PoolId
 
 -- TODO(KS): Temporarily, validation!?
-instance FromHttpApiData PoolHash where
-    parseUrlPiece poolHashText = Right $ PoolHash poolHashText
+instance FromHttpApiData PoolId where
+    parseUrlPiece t = Right $ PoolId t
+    --TODO: parse hex or bech32
 
---        if (isPrefixOf "ed25519_" (toS poolHashText))
---            then Right $ PoolHash poolHashText
---            else Left "PoolHash not starting with 'ed25519_'!"
+instance ToParamSchema PoolMetadataHash
+
+-- TODO(KS): Temporarily, validation!?
+instance FromHttpApiData PoolMetadataHash where
+    parseUrlPiece t = Right $ PoolMetadataHash t
+    --TODO: parse hex or bech32
+
 
 newtype PoolName = PoolName
     { getPoolName :: Text

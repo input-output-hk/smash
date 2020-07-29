@@ -12,10 +12,13 @@ import           Data.Aeson (ToJSON (..), (.=), object, Value (..))
 
 import           Data.ByteString.Char8 (ByteString)
 
+import           Cardano.Db.Types
+
+
 -- | Errors, not exceptions.
 data DBFail
   = DbLookupBlockHash !ByteString
-  | DbLookupPoolMetadataHash !ByteString
+  | DbLookupPoolMetadataHash !PoolId !PoolMetadataHash
   | DbMetaEmpty
   | DbMetaMultipleRows
   | PoolMetadataHashMismatch
@@ -42,7 +45,7 @@ instance ToJSON DBFail where
             [ "code"            .= String "DbLookupBlockHash"
             , "description"     .= String (renderLookupFail failure)
             ]
-    toJSON failure@(DbLookupPoolMetadataHash _hash) =
+    toJSON failure@(DbLookupPoolMetadataHash _poolId _poolMDHash) =
         object
             [ "code"            .= String "DbLookupPoolMetadataHash"
             , "description"     .= String (renderLookupFail failure)
@@ -83,7 +86,7 @@ renderLookupFail :: DBFail -> Text
 renderLookupFail lf =
   case lf of
     DbLookupBlockHash hash -> "The block hash " <> decodeUtf8 hash <> " is missing from the DB."
-    DbLookupPoolMetadataHash hash -> "The tx hash " <> decodeUtf8 hash <> " is missing from the DB."
+    DbLookupPoolMetadataHash poolId poolMDHash -> "The metadata with hash " <> show poolId <> " for pool " <> show poolMDHash <> " is missing from the DB."
     DbMetaEmpty -> "The metadata table is empty!"
     DbMetaMultipleRows -> "The metadata table contains multiple rows. Error."
     PoolMetadataHashMismatch -> "The pool metadata does not match!"
