@@ -18,14 +18,11 @@ module Cardano.SmashDbSync
   , NetworkName (..)
   , SocketPath (..)
 
-  , defDbSyncNodePlugin
   , runDbSyncNode
   ) where
 
 import           Prelude                                               (String)
 import qualified Prelude
-
-import           Cardano.Binary                                        (unAnnotated)
 
 import           Control.Monad.Trans.Except.Extra                      (firstExceptT,
                                                                         newExceptT,
@@ -39,22 +36,18 @@ import           Cardano.BM.Trace                                      (Trace, a
 import qualified Cardano.BM.Trace                                      as Logging
 
 import           Cardano.Client.Subscription                           (subscribe)
-import qualified Cardano.Crypto                                        as Crypto
 
 import qualified DB                                                    as DB
 
 import           Cardano.Db.Database
-import           Cardano.DbSync                                        (MigrationDir (..))
 import           Cardano.DbSync.Config
 import           Cardano.DbSync.Era
 import           Cardano.DbSync.Error
 import           Cardano.DbSync.Metrics
 import           Cardano.DbSync.Plugin                                 (DbSyncNodePlugin (..))
-import           Cardano.DbSync.Plugin.Default                         (defDbSyncNodePlugin)
 import           Cardano.DbSync.Tracing.ToObjectOrphans                ()
 import           Cardano.DbSync.Types                                  (ConfigFile (..),
                                                                         DbSyncEnv (..),
-                                                                        DbSyncNodeParams (..),
                                                                         SocketPath (..),
                                                                         SlotDetails(..),
                                                                         EpochSlot(..))
@@ -62,7 +55,6 @@ import           Cardano.DbSync.Util
 
 import           Cardano.Prelude                                       hiding
                                                                         (Nat,
-                                                                        atomically,
                                                                         option,
                                                                         (%))
 
@@ -71,11 +63,6 @@ import           Cardano.Slotting.Slot                                 (SlotNo (
                                                                         unEpochSize)
 
 import qualified Codec.CBOR.Term                                       as CBOR
-import           Control.Monad.Class.MonadSTM.Strict                   (MonadSTM,
-                                                                        StrictTMVar,
-                                                                        atomically,
-                                                                        newEmptyTMVarM,
-                                                                        readTMVar)
 import           Control.Monad.Class.MonadTimer                        (MonadTimer)
 import           Control.Monad.IO.Class                                (liftIO)
 import           Control.Monad.Trans.Except.Exit                       (orDie)
@@ -103,7 +90,6 @@ import           Ouroboros.Consensus.Block.Abstract                    (ConvertR
 import           Ouroboros.Consensus.BlockchainTime.WallClock.Types    (mkSlotLength,
                                                                         slotLengthToMillisec)
 import           Ouroboros.Consensus.Byron.Ledger                      (CodecConfig,
-                                                                        GenTx,
                                                                         mkByronCodecConfig)
 import           Ouroboros.Consensus.Network.NodeToClient              (ClientCodecs,
                                                                         cChainSyncCodec,
@@ -121,9 +107,7 @@ import           Ouroboros.Network.Block                               (BlockNo 
                                                                         Tip,
                                                                         blockNo,
                                                                         genesisPoint,
-                                                                        getTipBlockNo,
-                                                                        getTipSlotNo)
-import           Ouroboros.Network.Magic                               (NetworkMagic)
+                                                                        getTipBlockNo)
 import           Ouroboros.Network.Mux                                 (MuxPeer (..),
                                                                         RunMiniProtocol (..))
 import           Ouroboros.Network.NodeToClient                        (ClientSubscriptionParams (..),
@@ -140,7 +124,6 @@ import           Ouroboros.Network.NodeToClient                        (ClientSu
                                                                         localStateQueryPeerNull,
                                                                         localTxSubmissionPeerNull,
                                                                         networkErrorPolicies,
-                                                                        networkMagic,
                                                                         withIOManager)
 
 import           Ouroboros.Network.Point                               (withOrigin)
@@ -160,9 +143,6 @@ import           Ouroboros.Network.Protocol.ChainSync.PipelineDecision (MkPipeli
                                                                         pipelineDecisionLowHighMark,
                                                                         runPipelineDecision)
 import           Ouroboros.Network.Protocol.ChainSync.Type             (ChainSync)
-import           Ouroboros.Network.Protocol.LocalTxSubmission.Client   (LocalTxClientStIdle (..),
-                                                                        LocalTxSubmissionClient (..))
-import           Ouroboros.Network.Protocol.LocalTxSubmission.Type     (SubmitResult (..))
 import qualified Ouroboros.Network.Snocket                             as Snocket
 import           Ouroboros.Network.Subscription                        (SubscriptionTrace)
 
@@ -188,10 +168,6 @@ data SmashDbSyncNodeParams = SmashDbSyncNodeParams
   , senpMaybeRollback :: !(Maybe SlotNo)
   }
 
-
-convertToNodeParams :: SmashDbSyncNodeParams -> DbSyncNodeParams
-convertToNodeParams (SmashDbSyncNodeParams configFile socketPath (DB.SmashMigrationDir migrationDir) maybeRollback) =
-    DbSyncNodeParams configFile socketPath (MigrationDir migrationDir) maybeRollback
 
 runDbSyncNode :: DbSyncNodePlugin -> SmashDbSyncNodeParams -> IO ()
 runDbSyncNode plugin enp =
@@ -222,7 +198,6 @@ runDbSyncNode plugin enp =
         logInfo trce $ "Run DB startup."
         runDbStartup trce plugin
         logInfo trce $ "DB startup complete."
-        let networkMagic = genesisNetworkMagic genCfg
         case genCfg of
           GenesisCardano bCfg sCfg -> do
             orDie renderDbSyncNodeError $ insertValidateGenesisDistSmash trce (encNetworkName enc) sCfg
@@ -503,26 +478,6 @@ getCurrentTipBlockNo = do
       case DB.blockBlockNo blk of
         Just blockno -> At (BlockNo blockno)
         Nothing      -> Origin
-
--- | A 'LocalTxSubmissionClient' that submits transactions reading them from
--- a 'StrictTMVar'.  A real implementation should use a better synchronisation
--- primitive.  This demo creates and empty 'TMVar' in
--- 'muxLocalInitiatorNetworkApplication' above and never fills it with a tx.
---
-txSubmissionClient
-  :: forall tx reject m. (Monad m, MonadSTM m)
-  => StrictTMVar m tx -> LocalTxSubmissionClient tx reject m ()
-txSubmissionClient txv = LocalTxSubmissionClient $
-    atomically (readTMVar txv) >>= pure . client
-  where
-    client :: tx -> LocalTxClientStIdle tx reject m ()
-    client tx =
-      SendMsgSubmitTx tx $ \mbreject -> do
-        case mbreject of
-          SubmitSuccess -> return ()
-          SubmitFail _r -> return ()
-        tx' <- atomically $ readTMVar txv
-        pure $ client tx'
 
 -- | 'ChainSyncClient' which traces received blocks and ignores when it
 -- receives a request to rollbackwar.  A real wallet client should:
