@@ -9,11 +9,8 @@
 ``smash`` Overview
 *************************
 
-This repository contains the source code for the Cardano Stakepool
-Metadata Aggregation Server (SMASH). The purpose of SMASH is to
-aggregate common metadata about stakepools that are registered on the
-Cardano blockchain, including the name of the stakepool, its "ticker"
-name etc. This metadata can be curated and provided as a service to
-delegators, stake pool operators, exchanges etc., enabling independent
-validation and/or disambiguation of stakepool "ticker" names, for
-example.
+This repository contains the source code for the Cardano Stakepool Metadata Aggregation Server (SMASH).
+The purpose of SMASH is to aggregate common metadata about stakepools that are registered
+on the Cardano blockchain, including the name of the stakepool, its "ticker" name etc.
+This metadata can be curated and provided as a service to delegators, stake pool operators,
+exchanges etc., enabling independent validation and/or disambiguation of stakepool "ticker" names, for example.
