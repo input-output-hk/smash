@@ -1,72 +1,83 @@
-## How to run
+# Running the SMASH server
 
-### Create DB
+There is an order of how to run the SMASH service.
+It requires the node to be run first, since it fetches the blocks and online info from the blockchain 
+in the node.
+It also requires the Postgresql database to be running.
+After the Postgresql database is installed, this guide can be used to run the SMASH service.
 
-You first need to create the database. You can provide your own path, the example will use the default location. We need the PostgreSQL database and we create it with:
+## Running the node
+
+We simply clone the node and use Nix to build it.
+For example, if we want to use a specific version of the node, we can simply download it from the release page,
+which is found here https://github.com/input-output-hk/cardano-node/releases.
+Or you can clone the repository and simply use a specific tag from the release (for example, let us use a `1.14.2`):
+```
+git clone git@github.com:input-output-hk/cardano-node.git
+
+git checkout 1.14.2 -b tag-1.14.2
+```
+
+### Testnet
+
+In any case, after you have the version you require, you simply build the node using Nix:
+```
+nix-build -A scripts.shelley_testnet.node -o shelley-testnet-node
+```
+
+After that you can run the node by simply running:
+```
+./shelley-testnet-node
+```
+
+### Mainnet
+
+In any case, after you have the version you require, you simply build the node using Nix:
+```
+nix-build -A scripts.mainnet.node -o mainnet-node-local
+```
+
+After that you can run the node by simply running:
+```
+./mainnet-node-local
+```
+
+## Building SMASH
+
+You can download the version from https://github.com/input-output-hk/smash/releases.
+
+After that, you can simply build the project using Stack, Cabal or Nix:
+```
+nix-build -o smash-local
+```
+
+And now we can setup the DB schema.
+
+## DB setup using SMASH
+
+Create a schema to your choosing and you can use SMASH to populate it.
+What we need is a connection string.
+
+For example, this is the content for `config/pgpass` which we use to connect to the database:
+```
+/var/run/postgresql:5432:smash:*:*
+```
+
+We simply create a schema, point the schema name and port number to the correct values and we store that
+information, like above in a file somewhere. We will later use the location of that file to use it to
+connect to that database and populate it.
+
+Like this:
 ```
 SMASHPGPASSFILE=config/pgpass ./scripts/postgresql-setup.sh --createdb
 ```
-Or if it needs to be recreated:
+
+After this we need to run the migration required for SMASH to work. Again, we use the database config file:
 ```
-SMASHPGPASSFILE=config/pgpass ./scripts/postgresql-setup.sh --recreatedb
+SMASHPGPASSFILE=config/pgpass ./smash-local run-migrations --mdir ./schema
 ```
 
-After that we need to run the migrations (if there are any):
-```
-SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
-```
-
-And after that we can run additional migration scripts if they need to be created:
-```
-SMASHPGPASSFILE=config/pgpass stack run smash-exe -- create-migration --mdir ./schema
-```
-
-To show all tables:
-```
-\dt
-```
-
-To show details about specific table:
-```
-\d+ TABLE_NAME
-```
-
-For example:
-```
-\d+ block
-```
-
-Dumping the schema:
-```
-pg_dump -c -s --no-owner cexplorer > cexplorer.sql
-```
-
-## Inserting pool metadata
-
-
-This is an example (we got the hash from Blake2 256):
-```
-stack exec smash-exe -- insert-pool --metadata test_pool.json --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
-```
-
-## Test delisting
-
-If you find some pool hash that has been inserted, like in our example, '93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873'.
-
-You can test the delisting by sending a PATCH on the delist endpoint.
-```
-curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
-```
-
-Or if you have Basic Auth enabled (replace with the username/pass for your DB):
-```
-curl -u ksaric:cirask -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
-```
-
-Fetching the pool:
-```
-curl -X GET -v http://localhost:3100/api/v1/metadata/93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873 | jq .
-```
+After that is completed, we should have a valid schema and should be able to run SMASH!
 
 ## Basic Auth and DB
 
@@ -79,38 +90,35 @@ INSERT INTO admin_user (username, password) VALUES ('ksaric', 'test');
 That is it, you will now be able to run you SMASH server with user authentification from DB.
 If you change your users/passwords, please restart the application since it takes a full restart for users to reload.
 
-## Test script
+## Running SMASH
 
-An example of how SMASH works.
+Finally, we have one thing left.
+We first run the node, like mentioned above and in another terminal session/service we simply run SMASH.
+
+We need to run it using appropriate parameters, since running it requires it to be in sync with the node.
+This example is running it using the testnet and using the shelley genesis found when running the node.
+The socket path is just pointing to a socket that will be used for communication with the node.
+The example:
 ```
-SMASHPGPASSFILE=config/pgpass ./scripts/postgresql-setup.sh --recreatedb
-SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
-SMASHPGPASSFILE=config/pgpass stack run smash-exe -- create-migration --mdir ./schema
-SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
-
-SMASHPGPASSFILE=config/pgpass stack run smash-exe -- insert-pool --metadata test_pool.json --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
-
-SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-app
-```
-
-After the server is running, you can check the hash on http://localhost:3100/api/v1/metadata/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f to see it return the JSON metadata.
-
-## How to figure out the JSON hash?
-
-You can do it inside GHCi.
-```
-ghci
+SMASHPGPASSFILE=config/pgpass ./smash-local run-app-with-db-sync --config config/testnet-config.yaml --genesis-file /nix/store/hih30xck46bw2l4mlz6b36dsdnd2cwh4-shelley-testnet-genesis.json --socket-path ../cardano-node/state-node-shelley_testnet/node.socket --schema-dir schema/
 ```
 
-```
-Prelude> import qualified Cardano.Crypto.Hash.Class as Crypto
-Prelude> import qualified Cardano.Crypto.Hash.Blake2b as Crypto
-Prelude> import qualified Data.ByteString.Base16 as B16
+After this, the SMASH application should start syncing blocks and picking up pools.
 
-Prelude> poolMetadata <- readFile "test_pool.json"
-Prelude> B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadata)
+## Checking if it works
+
+For example, after seeing that a pool has be registered, you can try to get it's info by running it's hash (the example here is `93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873`):
+```
+curl -X GET -v http://localhost:3100/api/v1/metadata/93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873
 ```
 
-This assumes that you have a file called "test_pool.json" in your current directory that contains the JSON
-metadata for the stake pool.
+You can test the delisting by sending a PATCH on the delist endpoint.
+```
+curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
+```
+
+Or if you have Basic Auth enabled (replace with you username/pass you have in your DB):
+```
+curl -u ksaric:cirask -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
+```
 
