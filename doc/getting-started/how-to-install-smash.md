@@ -117,7 +117,7 @@ You need an HTTP server to serve it from and simply point to the application por
 Run the application, go to the local port http://localhost:3000/swagger.json and copy the content into https://editor.swagger.io/
 Voila! You got it, the spec is there.
 
-## How to run
+## How to use SMASH
 
 ### Create DB
 
