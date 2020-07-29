@@ -349,42 +349,42 @@ packages:
 - completed:
     subdir: cardano-db
     name: cardano-db
-    version: 3.0.0
+    version: 3.1.0
     git: https://github.com/input-output-hk/cardano-db-sync
     pantry-tree:
-      size: 2614
-      sha256: 6c43eb15f4ad2ae8c2ce929194ba49a1bfd32a41895ebee06b6cefb8696c1c7b
-    commit: 95af1c45fe5e8ff5ace2f15c8d86837fc49ce728
+      size: 2615
+      sha256: a7c8a918a6507b9103030d147fb3346b7b9dcec6662cb9cd564d6a4e4107c463
+    commit: 7f9959c9a0746d44d331cffcf7abb0ef4f4fb948
   original:
     subdir: cardano-db
     git: https://github.com/input-output-hk/cardano-db-sync
-    commit: 95af1c45fe5e8ff5ace2f15c8d86837fc49ce728
+    commit: 7f9959c9a0746d44d331cffcf7abb0ef4f4fb948
 - completed:
     subdir: cardano-db-sync
     name: cardano-db-sync
-    version: 3.0.0
+    version: 3.1.0
     git: https://github.com/input-output-hk/cardano-db-sync
     pantry-tree:
       size: 1945
-      sha256: 172401e18906e5b103b3198379568a320ff7525d7f07d9dd014268f1ae008fed
-    commit: 95af1c45fe5e8ff5ace2f15c8d86837fc49ce728
+      sha256: ca8758aaa3b75df35ecd2bfabd89f242f3461c1bde4014cb33d5be33449e9aad
+    commit: 7f9959c9a0746d44d331cffcf7abb0ef4f4fb948
   original:
     subdir: cardano-db-sync
     git: https://github.com/input-output-hk/cardano-db-sync
-    commit: 95af1c45fe5e8ff5ace2f15c8d86837fc49ce728
+    commit: 7f9959c9a0746d44d331cffcf7abb0ef4f4fb948
 - completed:
     subdir: cardano-db-sync-extended
     name: cardano-db-sync-extended
-    version: 3.0.0
+    version: 3.1.0
     git: https://github.com/input-output-hk/cardano-db-sync
     pantry-tree:
-      size: 415
-      sha256: bf0f4401e1b2a6e8b705c768fa3f30378ab11881cb631de09d940e31d3b5fb5d
-    commit: 95af1c45fe5e8ff5ace2f15c8d86837fc49ce728
+      size: 416
+      sha256: f93d442f08cf116fed6f625e5dc5ee4e812da8f875c91e31c4d533514a786057
+    commit: 7f9959c9a0746d44d331cffcf7abb0ef4f4fb948
   original:
     subdir: cardano-db-sync-extended
     git: https://github.com/input-output-hk/cardano-db-sync
-    commit: 95af1c45fe5e8ff5ace2f15c8d86837fc49ce728
+    commit: 7f9959c9a0746d44d331cffcf7abb0ef4f4fb948
 - completed:
     subdir: cardano-shell
     name: cardano-shell

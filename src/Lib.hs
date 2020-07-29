@@ -15,7 +15,7 @@ module Lib
     , runPoolInsertion
     ) where
 
-import           Cardano.Prelude hiding (Handler)
+import           Cardano.Prelude hiding   (Handler)
 
 import           Data.IORef               (newIORef)
 import           Data.Swagger             (Info (..), Swagger (..))
