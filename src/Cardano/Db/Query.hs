@@ -5,7 +5,7 @@
 
 module Cardano.Db.Query
   ( DBFail (..)
-  , queryTxMetadata
+  , queryPoolMetadata
   , queryBlockCount
   , queryBlockNo
   , queryBlockId
@@ -39,12 +39,12 @@ import           Cardano.Db.Error
 import           Cardano.Db.Schema
 
 -- | Get the 'Block' associated with the given hash.
-queryTxMetadata :: MonadIO m => ByteString -> ReaderT SqlBackend m (Either DBFail TxMetadata)
-queryTxMetadata hash = do
+queryPoolMetadata :: MonadIO m => ByteString -> ReaderT SqlBackend m (Either DBFail PoolMetadata)
+queryPoolMetadata hash = do
   res <- select . from $ \ blk -> do
-            where_ (blk ^. TxMetadataHash ==. val hash)
+            where_ (blk ^. PoolMetadataHash ==. val hash)
             pure blk
-  pure $ maybeToEither (DbLookupTxMetadataHash hash) entityVal (listToMaybe res)
+  pure $ maybeToEither (DbLookupPoolMetadataHash hash) entityVal (listToMaybe res)
 
 -- | Count the number of blocks in the Block table.
 queryBlockCount :: MonadIO m => ReaderT SqlBackend m Word

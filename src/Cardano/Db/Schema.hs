@@ -54,15 +54,15 @@ share
 
   -- The table containing the metadata.
 
-  TxMetadata
+  PoolMetadata
     hash                ByteString          sqltype=base16type
     metadata            Text                sqltype=json
-    UniqueTxMetadata    hash
+    UniquePoolMetadata  hash
 
-  PoolMetaData
+  PoolMetadataReference
     url                 Text
     hash                ByteString          sqltype=hash32type
-    UniquePoolMetaData  hash
+    UniquePoolMetadataReference  hash
 
   -- We actually need the block table to be able to persist sync data
 
