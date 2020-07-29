@@ -21,11 +21,6 @@ module Types
     , PoolOfflineMetadata
     , createPoolOfflineMetadata
     , examplePoolOfflineMetadata
-    -- * Pool online data
-    , PoolOnlineData
-    , PoolOwner
-    , PoolPledgeAddress
-    , examplePoolOnlineData
     -- * Configuration
     , Configuration (..)
     , defaultConfiguration
@@ -70,12 +65,6 @@ examplePoolOfflineMetadata =
         (PoolDescription "This is a pool for testing")
         (PoolTicker "testp")
         (PoolHomepage "https://iohk.io")
-
-examplePoolOnlineData :: PoolOnlineData
-examplePoolOnlineData =
-    PoolOnlineData
-        (PoolOwner "AAAAC3NzaC1lZDI1NTE5AAAAIKFx4CnxqX9mCaUeqp/4EI1+Ly9SfL23/Uxd0Ieegspc")
-        (PoolPledgeAddress "e8080fd3b5b5c9fcd62eb9cccbef9892dd74dacf62d79a9e9e67a79afa3b1207")
 
 -- A data type we use to store user credentials.
 data ApplicationUser = ApplicationUser
@@ -189,21 +178,6 @@ createPoolOfflineMetadata
     -> PoolHomepage
     -> PoolOfflineMetadata
 createPoolOfflineMetadata = PoolOfflineMetadata
-
-newtype PoolOwner = PoolOwner
-    { getPoolOwner :: Text
-    } deriving (Eq, Show, Ord, Generic)
-
-newtype PoolPledgeAddress = PoolPledgeAddress
-    { getPoolPledgeAddress :: Text
-    } deriving (Eq, Show, Ord, Generic)
-
--- | The bit of the pool data on the chain.
--- This doesn't leave the internal database.
-data PoolOnlineData = PoolOnlineData
-    { podOwner         :: !PoolOwner
-    , podPledgeAddress :: !PoolPledgeAddress
-    } deriving (Eq, Show, Ord, Generic)
 
 -- Required instances
 instance FromJSON PoolOfflineMetadata where
