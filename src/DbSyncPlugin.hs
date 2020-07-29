@@ -125,7 +125,7 @@ insertTx
     => Trace IO Text -> Word64 -> ShelleyTx
     -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
 insertTx tracer _blockIndex tx =
-    mapM_ (insertPoolCert tracer) (Shelley.txPoolCertificates $ Shelley._body tx)
+    mapM_ (insertPoolCert tracer) (Shelley.txPoolCertificates tx)
 
 insertPoolCert
     :: (MonadIO m)
