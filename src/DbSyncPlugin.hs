@@ -29,8 +29,10 @@ import           Types                                       (PoolId (..), PoolM
 import           Data.Aeson                                  (eitherDecode')
 import qualified Data.ByteString.Lazy                        as BL
 
-import qualified Cardano.Crypto.Hash.Blake2b                 as Crypto
-import qualified Cardano.Crypto.Hash.Class                   as Crypto
+import qualified Cardano.Chain.Block as Byron
+
+import qualified Cardano.Crypto.Hash.Class as Crypto
+import qualified Cardano.Crypto.Hash.Blake2b as Crypto
 
 import qualified Data.ByteString.Base16                      as B16
 
@@ -52,13 +54,13 @@ import           Cardano.DbSync                              (DbSyncNodePlugin (
 
 import qualified Cardano.DbSync.Era.Shelley.Util             as Shelley
 
-import           Shelley.Spec.Ledger.BaseTypes               (strictMaybeToMaybe)
-import qualified Shelley.Spec.Ledger.BaseTypes               as Shelley
-import qualified Shelley.Spec.Ledger.TxData                  as Shelley
+import           Shelley.Spec.Ledger.BaseTypes (strictMaybeToMaybe)
+import qualified Shelley.Spec.Ledger.BaseTypes as Shelley
+import qualified Shelley.Spec.Ledger.TxData as Shelley
 
-import           Ouroboros.Consensus.Shelley.Ledger          (ShelleyBlock)
+import           Ouroboros.Consensus.Byron.Ledger (ByronBlock (..))
+import           Ouroboros.Consensus.Shelley.Ledger.Block (ShelleyBlock)
 import           Ouroboros.Consensus.Shelley.Protocol.Crypto (TPraosStandardCrypto)
-
 
 poolMetadataDbSyncNodePlugin :: DbSyncNodePlugin
 poolMetadataDbSyncNodePlugin =
@@ -73,10 +75,20 @@ insertCardanoBlock
     -> DbSyncEnv
     -> DbSync.BlockDetails
     -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
-insertCardanoBlock _tracer _env ByronBlockDetails{} =
-    pure $ Right ()  -- we do nothing for Byron era blocks
-insertCardanoBlock tracer _env (ShelleyBlockDetails blk _) =
-    insertShelleyBlock tracer blk
+insertCardanoBlock tracer _env block =
+  case block of
+    ByronBlockDetails blk _details -> Right <$> insertByronBlock tracer blk
+    ShelleyBlockDetails blk _details -> insertShelleyBlock tracer blk
+
+-- We don't care about Byron, no pools there
+insertByronBlock
+    :: Trace IO Text -> ByronBlock
+    -> ReaderT SqlBackend (LoggingT IO) ()
+insertByronBlock tracer blk = do
+  case byronBlockRaw blk of
+    Byron.ABOBBlock {} -> pure ()
+    Byron.ABOBBoundary {} -> liftIO $ logInfo tracer "Byron EBB"
+
 
 insertShelleyBlock
     :: Trace IO Text
@@ -100,7 +112,6 @@ insertShelleyBlock tracer blk = do
     zipWithM_ (insertTx tracer) [0 .. ] (Shelley.blockTxs blk)
 
     liftIO $ do
-      let epoch = Shelley.slotNumber blk `div` 5000
       logInfo tracer $ mconcat
         [ "insertShelleyBlock pool info: slot ", show (Shelley.slotNumber blk)
         , ", block ", show (Shelley.blockNumber blk)
@@ -221,10 +232,6 @@ fetchInsertPoolMetadata tracer poolId md = do
 
     liftIO . logInfo tracer $ "Inserting pool with hash: " <> poolHash
 
-    -- Pass this in, not create it here.
-    let dataLayer :: DataLayer
-        dataLayer = postgresqlDataLayer
-
     -- Let us try to decode the contents to JSON.
     let decodedPoolMetadataJSON :: Either DBFail PoolOfflineMetadata
         decodedPoolMetadataJSON = case (eitherDecode' (Http.responseBody response)) of
@@ -243,7 +250,7 @@ fetchInsertPoolMetadata tracer poolId md = do
 
     liftIO . logInfo tracer $ "Inserting JSON offline metadata."
 
-    let addPoolMetadata = dlAddPoolMetadata dataLayer
+    let addPoolMetadata = dlAddPoolMetadata postgresqlDataLayer
     _ <- liftIO $ addPoolMetadata
         poolId
         (PoolMetadataHash poolHashBytestring)
