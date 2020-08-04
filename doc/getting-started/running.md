@@ -107,9 +107,9 @@ After this, the SMASH application should start syncing blocks and picking up poo
 
 ## Checking if it works
 
-For example, after seeing that a pool has be registered, you can try to get it's info by running it's hash (the example here is `93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873`):
+For example, after seeing that a pool has be registered, you can try to get it's info by running it's poolid and hash (the example of the hash here is `93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873`):
 ```
-curl -X GET -v http://localhost:3100/api/v1/metadata/93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873
+curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873
 ```
 
 You can test the blacklisting by sending a PATCH on the blacklist endpoint.

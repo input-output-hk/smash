@@ -4,8 +4,9 @@
 module Cardano.Db.Insert
   ( insertBlock
   , insertMeta
-  , insertTxMetadata
-  , insertPoolMetaData
+  , insertPoolMetadata
+  , insertPoolMetadataReference
+  , insertReservedTicker
   , insertBlacklistedPool
   , insertAdminUser
 
@@ -31,11 +32,17 @@ insertBlock = insertByReturnKey
 insertMeta :: (MonadIO m) => Meta -> ReaderT SqlBackend m MetaId
 insertMeta = insertByReturnKey
 
-insertTxMetadata :: (MonadIO m) => TxMetadata -> ReaderT SqlBackend m TxMetadataId
-insertTxMetadata = insertByReturnKey
+insertPoolMetadata :: (MonadIO m) => PoolMetadata -> ReaderT SqlBackend m PoolMetadataId
+insertPoolMetadata = insertByReturnKey
 
-insertPoolMetaData :: (MonadIO m) => PoolMetaData -> ReaderT SqlBackend m PoolMetaDataId
-insertPoolMetaData = insertByReturnKey
+insertPoolMetadataReference
+    :: MonadIO m
+    => PoolMetadataReference
+    -> ReaderT SqlBackend m PoolMetadataReferenceId
+insertPoolMetadataReference = insertByReturnKey
+
+insertReservedTicker :: (MonadIO m) => ReservedTicker -> ReaderT SqlBackend m ReservedTickerId
+insertReservedTicker = insertByReturnKey
 
 insertBlacklistedPool :: (MonadIO m) => BlacklistedPool -> ReaderT SqlBackend m BlacklistedPoolId
 insertBlacklistedPool = insertByReturnKey

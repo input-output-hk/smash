@@ -221,7 +221,7 @@ insertValidateGenesisDistSmash tracer (NetworkName networkName) cfg =
     insertAction = do
       ebid <- DB.queryBlockId (configGenesisHash cfg)
       case ebid of
-        Right bid -> validateGenesisDistribution tracer networkName cfg bid
+        Right _bid -> validateGenesisDistribution tracer networkName cfg
         Left _ ->
           runExceptT $ do
             liftIO $ logInfo tracer "Inserting Genesis distribution"
@@ -251,9 +251,9 @@ insertValidateGenesisDistSmash tracer (NetworkName networkName) cfg =
 -- | Validate that the initial Genesis distribution in the DB matches the Genesis data.
 validateGenesisDistribution
     :: (MonadIO m)
-    => Trace IO Text -> Text -> ShelleyGenesis TPraosStandardCrypto -> DB.BlockId
+    => Trace IO Text -> Text -> ShelleyGenesis TPraosStandardCrypto
     -> ReaderT SqlBackend m (Either DbSyncNodeError ())
-validateGenesisDistribution tracer networkName cfg _bid =
+validateGenesisDistribution tracer networkName cfg =
   runExceptT $ do
     liftIO $ logInfo tracer "Validating Genesis distribution"
     meta <- firstExceptT (\(e :: DB.DBFail) -> NEError $ show e) . newExceptT $ DB.queryMeta

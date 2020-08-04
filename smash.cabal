@@ -47,6 +47,7 @@ library
     , Cardano.Db.Error
     , Cardano.Db.Insert
     , Cardano.Db.Query
+    , Cardano.Db.Types
 
 
   other-modules:

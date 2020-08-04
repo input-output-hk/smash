@@ -27,6 +27,9 @@ import Data.Word (Word64)
 -- from version to version due to changes to the TH code in Persistent.
 import Database.Persist.TH
 
+import qualified Cardano.Db.Types as Types
+
+
 -- In the schema definition we need to match Haskell types with with the
 -- custom type defined in PostgreSQL (via 'DOMAIN' statements). For the
 -- time being the Haskell types will be simple Haskell types like
@@ -54,15 +57,26 @@ share
 
   -- The table containing the metadata.
 
-  TxMetadata
-    hash                ByteString          sqltype=base16type
-    metadata            Text                sqltype=json
-    UniqueTxMetadata    hash
+  PoolMetadata
+    poolId              Types.PoolId              sqltype=text
+    tickerName          Types.TickerName          sqltype=text
+    hash                Types.PoolMetadataHash    sqltype=base16type
+    metadata            Types.PoolMetadataRaw     sqltype=text
+    UniquePoolMetadata  poolId hash
 
-  PoolMetaData
-    url                 Text
-    hash                ByteString          sqltype=hash32type
-    UniquePoolMetaData  hash
+  -- The table containing pools' on-chain reference to its off-chain metadata.
+
+  PoolMetadataReference
+    poolId              Types.PoolId              sqltype=text
+    url                 Types.PoolUrl             sqltype=text
+    hash                Types.PoolMetadataHash    sqltype=base16type
+    UniquePoolMetadataReference  poolId hash
+
+  -- The pools themselves (identified by the owner vkey hash)
+
+  Pool
+    poolId              PoolId                    sqltype=text
+    UniquePoolId poolId
 
   -- We actually need the block table to be able to persist sync data
 
@@ -88,8 +102,15 @@ share
 
   -- A table containing a list of blacklisted pools.
   BlacklistedPool
-    hash                ByteString          sqltype=base16type
-    UniqueBlacklistedPool hash
+    poolId              Types.PoolId        sqltype=hash28type
+    UniqueBlacklistedPool poolId
+
+  -- A table containing a managed list of reserved ticker names.
+  -- For now they are grouped under the specific hash of the pool.
+  ReservedTicker
+    name                Text                    sqltype=text
+    poolHash            Types.PoolMetadataHash  sqltype=base16type
+    UniqueReservedTicker name
 
   -- A table containin a list of administrator users that can be used to access the secure API endpoints.
   -- Yes, we don't have any hash check mechanisms here, if they get to the database, game over anyway.

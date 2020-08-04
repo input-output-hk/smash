@@ -13,10 +13,13 @@ module Lib
     , runApp
     , runAppStubbed
     , runPoolInsertion
+    , runTickerNameInsertion
     ) where
 
-import           Cardano.Prelude hiding   (Handler)
+import           Cardano.Prelude          hiding (Handler)
 
+import           Data.Aeson               (eitherDecode')
+import qualified Data.ByteString.Lazy     as BL
 import           Data.IORef               (newIORef)
 import           Data.Swagger             (Info (..), Swagger (..))
 
@@ -40,15 +43,15 @@ import           Types
 type ApiRes verb a = verb '[JSON] (ApiResult DBFail a)
 
 -- GET api/v1/metadata/{hash}
-type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "hash" PoolHash :> ApiRes Get PoolMetadataWrapped
+type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> ApiRes Get PoolMetadataWrapped
 
 -- POST api/v1/blacklist
 #ifdef DISABLE_BASIC_AUTH
-type BlacklistPoolAPI = "api" :> "v1" :> "blacklist" :> ReqBody '[JSON] BlacklistPoolHash :> ApiRes Patch BlacklistPoolHash
+type BlacklistPoolAPI = "api" :> "v1" :> "blacklist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 #else
 -- The basic auth.
 type BasicAuthURL = BasicAuth "smash" User
-type BlacklistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "blacklist" :> ReqBody '[JSON] BlacklistPoolHash :> ApiRes Patch BlacklistPoolHash
+type BlacklistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "blacklist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 #endif
 
 type SmashAPI = OfflineMetadataAPI :<|> BlacklistPoolAPI
@@ -146,9 +149,9 @@ mkApp configuration = do
     convertToAppUsers (AdminUser username password) = ApplicationUser username password
 
 --runPoolInsertion poolMetadataJsonPath poolHash
-runPoolInsertion :: FilePath -> Text -> IO (Either DBFail Text)
-runPoolInsertion poolMetadataJsonPath poolHash = do
-    putTextLn $ "Inserting pool! " <> (toS poolMetadataJsonPath) <> " " <> poolHash
+runPoolInsertion :: FilePath -> PoolId -> PoolMetadataHash -> IO (Either DBFail Text)
+runPoolInsertion poolMetadataJsonPath poolId poolHash = do
+    putTextLn $ "Inserting pool! " <> (toS poolMetadataJsonPath) <> " " <> (show poolId)
 
     let dataLayer :: DataLayer
         dataLayer = postgresqlDataLayer
@@ -156,7 +159,25 @@ runPoolInsertion poolMetadataJsonPath poolHash = do
     --PoolHash -> ByteString -> IO (Either DBFail PoolHash)
     poolMetadataJson <- readFile poolMetadataJsonPath
 
-    (dlAddPoolMetadata dataLayer) (PoolHash poolHash) poolMetadataJson
+    -- Let us try to decode the contents to JSON.
+    decodedMetadata <-  case (eitherDecode' $ BL.fromStrict (encodeUtf8 poolMetadataJson)) of
+                            Left err     -> panic $ toS err
+                            Right result -> return result
+
+    let addPoolMetadata = dlAddPoolMetadata dataLayer
+
+    addPoolMetadata poolId poolHash poolMetadataJson (pomTicker decodedMetadata)
+
+runTickerNameInsertion :: Text -> PoolMetadataHash -> IO (Either DBFail ReservedTickerId)
+runTickerNameInsertion tickerName poolMetadataHash = do
+
+    let dataLayer :: DataLayer
+        dataLayer = postgresqlDataLayer
+
+    let addReservedTicker = dlAddReservedTicker dataLayer
+    putTextLn $ "Adding reserved ticker '" <> tickerName <> "' with hash: " <> show poolMetadataHash
+
+    addReservedTicker tickerName poolMetadataHash
 
 -- | We need to supply our handlers with the right Context.
 basicAuthServerContext :: ApplicationUsers -> Context (BasicAuthCheck User ': '[])
@@ -192,51 +213,53 @@ server configuration dataLayer
     :<|>    getPoolOfflineMetadata dataLayer
     :<|>    postBlacklistPool dataLayer
 
-
 #ifdef DISABLE_BASIC_AUTH
-postBlacklistPool :: DataLayer -> BlacklistPoolHash -> Handler (ApiResult DBFail BlacklistPoolHash)
-postBlacklistPool dataLayer blacklistPoolHash = convertIOToHandler $ do
+postBlacklistPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
+postBlacklistPool dataLayer poolId = convertIOToHandler $ do
 
     let addBlacklistedPool = dlAddBlacklistedPool dataLayer
-    blacklistedPool' <- addBlacklistedPool blacklistPoolHash
+    blacklistedPool' <- addBlacklistedPool poolId
 
     return . ApiResult $ blacklistedPool'
 #else
-postBlacklistPool :: DataLayer -> User -> BlacklistPoolHash -> Handler (ApiResult DBFail BlacklistPoolHash)
-postBlacklistPool dataLayer user blacklistPoolHash = convertIOToHandler $ do
+postBlacklistPool :: DataLayer -> User -> PoolId -> Handler (ApiResult DBFail PoolId)
+postBlacklistPool dataLayer user poolId = convertIOToHandler $ do
 
     let addBlacklistedPool = dlAddBlacklistedPool dataLayer
-    blacklistedPool' <- addBlacklistedPool blacklistPoolHash
+    blacklistedPool' <- addBlacklistedPool poolId
 
     return . ApiResult $ blacklistedPool'
 #endif
 
 -- throwError err404
-getPoolOfflineMetadata :: DataLayer -> PoolHash -> Handler (ApiResult DBFail PoolMetadataWrapped)
-getPoolOfflineMetadata dataLayer poolHash = convertIOToHandler $ do
-
-    let blacklistPoolHash = BlacklistPoolHash $ getPoolHash poolHash
+getPoolOfflineMetadata :: DataLayer -> PoolId -> PoolMetadataHash -> Handler (ApiResult DBFail PoolMetadataWrapped)
+getPoolOfflineMetadata dataLayer poolId poolHash = convertIOToHandler $ do
 
     let checkBlacklistedPool = dlCheckBlacklistedPool dataLayer
-    isBlacklisted <- checkBlacklistedPool blacklistPoolHash
+    isBlacklisted <- checkBlacklistedPool poolId
 
     -- When it is blacklisted, return 403. We don't need any more info.
     when (isBlacklisted) $
         throwIO err403
 
-    let getPoolMetadataSimple = dlGetPoolMetadata dataLayer
-    poolMetadata <- getPoolMetadataSimple poolHash
+    let getPoolMetadata = dlGetPoolMetadata dataLayer
+    poolRecord <- getPoolMetadata poolId poolHash
 
-    -- We return 404 when the hash is not found.
-    case poolMetadata of
+    case poolRecord of
+        -- We return 404 when the hash is not found.
         Left err -> throwIO err404
-        Right value -> return . ApiResult $ PoolMetadataWrapped <$> poolMetadata
+        Right (tickerName, poolMetadata) -> do
+            let checkReservedTicker = dlCheckReservedTicker dataLayer
 
--- | Here for checking the validity of the data type.
---isValidPoolOfflineMetadata :: PoolOfflineMetadata -> Bool
---isValidPoolOfflineMetadata poolOfflineMetadata =
---    poolOfflineMetadata
--- TODO(KS): Validation!?
+            -- We now check whether the reserved ticker name has been reserved for the specific
+            -- pool hash.
+            reservedTicker <- checkReservedTicker tickerName
+            case reservedTicker of
+                Nothing -> return . ApiResult . Right $ PoolMetadataWrapped poolMetadata
+                Just foundReservedTicker ->
+                    if (reservedTickerPoolHash foundReservedTicker) == poolHash
+                        then return . ApiResult . Right $ PoolMetadataWrapped poolMetadata
+                        else throwIO err404
 
 -- For now, we just ignore the @BasicAuth@ definition.
 instance (HasSwagger api) => HasSwagger (BasicAuth name typo :> api) where

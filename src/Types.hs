@@ -8,9 +8,10 @@ module Types
     , UserValidity (..)
     , checkIfUserValid
     -- * Pool info
-    , BlacklistPoolHash (..)
-    , PoolHash (..)
-    , createPoolHash
+    , PoolId (..)
+    , PoolUrl (..)
+    , PoolMetadataHash (..)
+    , PoolMetadataRaw (..)
     -- * Wrapper
     , PoolMetadataWrapped (..)
     -- * Pool offline metadata
@@ -18,14 +19,9 @@ module Types
     , PoolDescription (..)
     , PoolTicker (..)
     , PoolHomepage (..)
-    , PoolOfflineMetadata
+    , PoolOfflineMetadata (..)
     , createPoolOfflineMetadata
     , examplePoolOfflineMetadata
-    -- * Pool online data
-    , PoolOnlineData
-    , PoolOwner
-    , PoolPledgeAddress
-    , examplePoolOnlineData
     -- * Configuration
     , Configuration (..)
     , defaultConfiguration
@@ -50,6 +46,7 @@ import           Data.Text.Encoding  (encodeUtf8Builder)
 import           Servant             (FromHttpApiData (..))
 
 import           Cardano.Db.Error
+import           Cardano.Db.Types
 
 -- | The basic @Configuration@.
 data Configuration = Configuration
@@ -71,11 +68,15 @@ examplePoolOfflineMetadata =
         (PoolTicker "testp")
         (PoolHomepage "https://iohk.io")
 
-examplePoolOnlineData :: PoolOnlineData
-examplePoolOnlineData =
-    PoolOnlineData
-        (PoolOwner "AAAAC3NzaC1lZDI1NTE5AAAAIKFx4CnxqX9mCaUeqp/4EI1+Ly9SfL23/Uxd0Ieegspc")
-        (PoolPledgeAddress "e8080fd3b5b5c9fcd62eb9cccbef9892dd74dacf62d79a9e9e67a79afa3b1207")
+instance ToParamSchema PoolId where
+  toParamSchema _ = mempty
+
+instance ToSchema PoolId where
+  declareNamedSchema _ =
+    return $ NamedSchema (Just "PoolId") $ mempty
+
+instance ToParamSchema PoolMetadataHash where
+  toParamSchema _ = mempty
 
 -- A data type we use to store user credentials.
 data ApplicationUser = ApplicationUser
@@ -110,44 +111,19 @@ checkIfUserValid (ApplicationUsers applicationUsers) applicationUser@(Applicatio
         then (UserValid (User usernameText))
         else UserInvalid
 
-newtype BlacklistPoolHash = BlacklistPoolHash
-    { blacklistPool :: Text
-    } deriving (Eq, Show, Generic)
+-- TODO(KS): Temporarily, validation!?
+instance FromHttpApiData PoolId where
+    parseUrlPiece poolId = Right $ PoolId (encodeUtf8 poolId)
+    --TODO: parse hex or bech32
 
-
-instance FromJSON BlacklistPoolHash where
-    parseJSON = withObject "BlacklistPoolHash" $ \o -> BlacklistPoolHash <$> o .: "poolHash"
-
-instance ToJSON BlacklistPoolHash where
-    toJSON (BlacklistPoolHash poolHash) =
-        object ["poolHash" .= poolHash]
-
-instance ToSchema BlacklistPoolHash
-
--- | We use base64 encoding here.
--- Submissions are identified by the subject's Bech32-encoded Ed25519 public key (all lowercase).
--- An Ed25519 public key is a 64-byte string. We'll typically show such string in base16.
--- base64 is fine too, more concise. But bech32 is definitely overkill here.
--- This might be a synonym for @PoolOwner@.
-newtype PoolHash = PoolHash
-    { getPoolHash :: Text
-    } deriving (Eq, Show, Ord, Generic)
-
-instance ToJSON PoolHash
-
-instance ToParamSchema PoolHash
-
--- | Should be an @Either@.
-createPoolHash :: Text -> PoolHash
-createPoolHash hash = PoolHash hash
+instance ToSchema PoolMetadataHash where
+  declareNamedSchema _ =
+    return $ NamedSchema (Just "PoolMetadataHash") $ mempty
 
 -- TODO(KS): Temporarily, validation!?
-instance FromHttpApiData PoolHash where
-    parseUrlPiece poolHashText = Right $ PoolHash poolHashText
-
---        if (isPrefixOf "ed25519_" (toS poolHashText))
---            then Right $ PoolHash poolHashText
---            else Left "PoolHash not starting with 'ed25519_'!"
+instance FromHttpApiData PoolMetadataHash where
+    parseUrlPiece poolMetadataHash = Right $ PoolMetadataHash (encodeUtf8 poolMetadataHash)
+    --TODO: parse hex or bech32
 
 newtype PoolName = PoolName
     { getPoolName :: Text
@@ -189,21 +165,6 @@ createPoolOfflineMetadata
     -> PoolHomepage
     -> PoolOfflineMetadata
 createPoolOfflineMetadata = PoolOfflineMetadata
-
-newtype PoolOwner = PoolOwner
-    { getPoolOwner :: Text
-    } deriving (Eq, Show, Ord, Generic)
-
-newtype PoolPledgeAddress = PoolPledgeAddress
-    { getPoolPledgeAddress :: Text
-    } deriving (Eq, Show, Ord, Generic)
-
--- | The bit of the pool data on the chain.
--- This doesn't leave the internal database.
-data PoolOnlineData = PoolOnlineData
-    { podOwner         :: !PoolOwner
-    , podPledgeAddress :: !PoolPledgeAddress
-    } deriving (Eq, Show, Ord, Generic)
 
 -- Required instances
 instance FromJSON PoolOfflineMetadata where
