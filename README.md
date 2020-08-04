@@ -83,7 +83,7 @@ SMASHPGPASSFILE=./config/pgpass stack run smash-exe -- run-app-with-db-sync --co
 
 You can run the provided example and try out these commands (presuming you know what CURL is and how to use it).
 ```
-curl --verbose --header "Content-Type: application/json" --request GET http://localhost:3000/api/v1/metadata/ed25519_pk1z2ffur59cq7t806nc9y2g64wa60pg5m6e9cmrhxz9phppaxk5d4sn8nsqg
+curl --verbose --header "Content-Type: application/json" --request GET http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524
 
 curl --verbose --user ksaric:test --header "Content-Type: application/json" --request POST --data '{"blacklistPool":"xyz"}' http://localhost:3000/api/v1/blacklist
 ```
@@ -148,7 +148,7 @@ pg_dump -c -s --no-owner cexplorer > cexplorer.sql
 
 This is an example (we got the hash from Blake2 256):
 ```
-stack exec smash-exe -- insert-pool --metadata test_pool.json --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
+stack exec smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
 ```
 
 ## Test blacklisting
@@ -167,7 +167,7 @@ curl -u ksaric:test -X PATCH -v http://localhost:3100/api/v1/blacklist -H 'conte
 
 Fetching the pool:
 ```
-curl -X GET -v http://localhost:3100/api/v1/metadata/93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873 | jq .
+curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873 | jq .
 ```
 
 ## Basic Auth and DB
@@ -190,12 +190,12 @@ SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./sch
 SMASHPGPASSFILE=config/pgpass stack run smash-exe -- create-migration --mdir ./schema
 SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
 
-SMASHPGPASSFILE=config/pgpass stack run smash-exe -- insert-pool --metadata test_pool.json --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
 
 SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-app
 ```
 
-After the server is running, you can check the hash on http://localhost:3100/api/v1/metadata/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f to see it return the JSON metadata.
+After the server is running, you can check the hash on http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f to see it return the JSON metadata.
 
 ## How to figure out the JSON hash?
 
@@ -211,4 +211,18 @@ B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolM
 ```
 
 This presumes that you have a file containing the JSON in your path called "test_pool.json".
+
+## How to insert the reserved ticker name?
+
+Currently, the SMASH service works by allowing superusers to insert the ticker name and the hash of the pool they want to be reserved _for that ticker name_.
+
+There is a CLI utility for doing exactly that. If you want to reserve the ticker name "SALAD" for the specific metadata hash "2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524", then you would reserve it like this:
+```
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- insert-ticker-name --tickerName "SALAD" --poolhash "2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524"
+```
+
+If somebody adds the ticker name that exists there, it will not be returned, but it will return 404.
+
+
+
 

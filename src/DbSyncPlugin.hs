@@ -1,5 +1,5 @@
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE LambdaCase #-}
 
 module DbSyncPlugin
   ( poolMetadataDbSyncNodePlugin
@@ -7,46 +7,56 @@ module DbSyncPlugin
 
 import           Cardano.Prelude
 
-import           Cardano.BM.Trace (Trace, logInfo, logError)
+import           Cardano.BM.Trace                            (Trace, logError,
+                                                              logInfo)
 
-import           Control.Monad.Logger (LoggingT)
-import           Control.Monad.Trans.Reader (ReaderT)
-import           Control.Monad.Trans.Except.Extra (firstExceptT, newExceptT, runExceptT, handleExceptT, left)
+import           Control.Monad.Logger                        (LoggingT)
+import           Control.Monad.Trans.Except.Extra            (firstExceptT,
+                                                              handleExceptT,
+                                                              left, newExceptT,
+                                                              runExceptT)
+import           Control.Monad.Trans.Reader                  (ReaderT)
 
-import           DB (DataLayer (..), DBFail (..), postgresqlDataLayer)
-import           Types (PoolHash (..), PoolOfflineMetadata)
+import           DB                                          (DBFail (..),
+                                                              DataLayer (..),
+                                                              postgresqlDataLayer,
+                                                              runDbAction)
+import           Types                                       (PoolId (..), PoolMetadataHash (..),
+                                                              PoolMetadataRaw (..),
+                                                              PoolOfflineMetadata (..),
+                                                              PoolUrl (..))
 
-import           Data.Aeson (eitherDecode')
-import qualified Data.ByteString.Lazy as BL
+import           Data.Aeson                                  (eitherDecode')
+import qualified Data.ByteString.Lazy                        as BL
 
-import qualified Cardano.Crypto.Hash.Class as Crypto
-import qualified Cardano.Crypto.Hash.Blake2b as Crypto
+import qualified Cardano.Crypto.Hash.Blake2b                 as Crypto
+import qualified Cardano.Crypto.Hash.Class                   as Crypto
 
-import qualified Data.ByteString.Base16 as B16
+import qualified Data.ByteString.Base16                      as B16
 
-import           Network.HTTP.Client hiding (Proxy)
-import           Network.HTTP.Client.TLS (tlsManagerSettings)
-import           Network.HTTP.Types.Status (statusCode)
+import           Network.HTTP.Client                         hiding (Proxy)
+import           Network.HTTP.Client.TLS                     (tlsManagerSettings)
+import           Network.HTTP.Types.Status                   (statusCode)
 
-import           Database.Persist.Sql (SqlBackend)
+import           Database.Persist.Sql                        (SqlBackend)
 
-import qualified Cardano.Db.Schema as DB
-import qualified Cardano.Db.Query as DB
-import qualified Cardano.Db.Insert as DB
+import qualified Cardano.Db.Insert                           as DB
+import qualified Cardano.Db.Query                            as DB
+import qualified Cardano.Db.Schema                           as DB
 
 import           Cardano.DbSync.Error
-import           Cardano.DbSync.Types as DbSync
+import           Cardano.DbSync.Types                        as DbSync
 
-import           Cardano.DbSync (DbSyncNodePlugin (..))
+import           Cardano.DbSync                              (DbSyncNodePlugin (..))
 
-import qualified Cardano.DbSync.Era.Shelley.Util as Shelley
+import qualified Cardano.DbSync.Era.Shelley.Util             as Shelley
 
-import           Shelley.Spec.Ledger.BaseTypes (strictMaybeToMaybe)
-import qualified Shelley.Spec.Ledger.BaseTypes as Shelley
-import qualified Shelley.Spec.Ledger.TxData as Shelley
+import           Shelley.Spec.Ledger.BaseTypes               (strictMaybeToMaybe)
+import qualified Shelley.Spec.Ledger.BaseTypes               as Shelley
+import qualified Shelley.Spec.Ledger.TxData                  as Shelley
 
+import           Ouroboros.Consensus.Shelley.Ledger          (ShelleyBlock)
 import           Ouroboros.Consensus.Shelley.Protocol.Crypto (TPraosStandardCrypto)
-import           Ouroboros.Consensus.Shelley.Ledger (ShelleyBlock)
 
 
 poolMetadataDbSyncNodePlugin :: DbSyncNodePlugin
@@ -116,22 +126,39 @@ insertPoolCert tracer pCert =
 
 insertPoolRegister
     :: forall m. (MonadIO m)
-    => Trace IO Text -> ShelleyPoolParams
+    => Trace IO Text
+    -> ShelleyPoolParams
     -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) (Maybe DB.PoolMetadataReferenceId)
 insertPoolRegister tracer params = do
-  liftIO . logInfo tracer $ "Inserting pool register."
+  let poolIdHash = B16.encode . Shelley.unKeyHashBS $ Shelley._poolPubKey params
+  let poolId = PoolId poolIdHash
+
+
+  liftIO . logInfo tracer $ "Inserting pool register with pool id: " <> decodeUtf8 poolIdHash
   poolMetadataId <- case strictMaybeToMaybe $ Shelley._poolMD params of
     Just md -> do
 
         let eitherPoolMetadata :: IO (Either DbSyncNodeError (Response BL.ByteString))
-            eitherPoolMetadata = runExceptT (fetchInsertPoolMetadata tracer md)
+            eitherPoolMetadata = runExceptT (fetchInsertPoolMetadata tracer poolId md)
 
         liftIO $ eitherPoolMetadata >>= \case
                 Left err -> logError tracer $ renderDbSyncNodeError err
                 Right response -> logInfo tracer (decodeUtf8 . BL.toStrict $ responseBody response)
 
         liftIO . logInfo tracer $ "Inserting metadata."
-        pmId <- Just <$> insertMetaDataReference tracer md
+
+        let metadataUrl = PoolUrl . Shelley.urlToText $ Shelley._poolMDUrl md
+        let metadataHash = PoolMetadataHash . B16.encode $ Shelley._poolMDHash md
+
+        -- Move this upward, this doesn't make sense here. Kills any testing efforts here.
+        let dataLayer :: DataLayer
+            dataLayer = postgresqlDataLayer
+
+        let addMetaDataReference = dlAddMetaDataReference dataLayer
+
+        -- Ah. We can see there is garbage all over the code. Needs refactoring.
+        pmId <- lift . liftIO $ rightToMaybe <$> addMetaDataReference poolId metadataUrl metadataHash
+
         liftIO . logInfo tracer $ "Metadata inserted."
 
         return pmId
@@ -143,9 +170,10 @@ insertPoolRegister tracer params = do
 
 fetchInsertPoolMetadata
     :: Trace IO Text
+    -> PoolId
     -> Shelley.PoolMetaData
     -> ExceptT DbSyncNodeError IO (Response BL.ByteString)
-fetchInsertPoolMetadata tracer md = do
+fetchInsertPoolMetadata tracer poolId md = do
     -- Fetch the JSON info!
     liftIO . logInfo tracer $ "Fetching JSON metadata."
 
@@ -193,38 +221,34 @@ fetchInsertPoolMetadata tracer md = do
 
     liftIO . logInfo tracer $ "Inserting pool with hash: " <> poolHash
 
+    -- Pass this in, not create it here.
     let dataLayer :: DataLayer
         dataLayer = postgresqlDataLayer
 
     -- Let us try to decode the contents to JSON.
     let decodedPoolMetadataJSON :: Either DBFail PoolOfflineMetadata
         decodedPoolMetadataJSON = case (eitherDecode' (responseBody response)) of
-            Left err -> Left $ UnableToEncodePoolMetadataToJSON $ toS err
+            Left err     -> Left $ UnableToEncodePoolMetadataToJSON $ toS err
             Right result -> return result
 
-    _exceptDecodedMetadata <- firstExceptT (\e -> NEError $ show e) (newExceptT $ pure decodedPoolMetadataJSON)
+    decodedMetadata <- firstExceptT (\e -> NEError $ show e) (newExceptT $ pure decodedPoolMetadataJSON)
 
     -- Let's check the hash
     let poolHashBytestring = encodeUtf8 poolHash
-    let hashFromMetadata = B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadataJson)
+    let poolMetadataBytestring = encodeUtf8 poolMetadataJson
+    let hashFromMetadata = B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) poolMetadataBytestring
 
     when (hashFromMetadata /= poolHashBytestring) $
-        left $ NEError ("The pool hash does not match. '" <> poolHash <> "'")
-
+        left . NEError $ "The pool hash does not match: " <> poolHash
 
     liftIO . logInfo tracer $ "Inserting JSON offline metadata."
-    _ <- liftIO $ (dlAddPoolMetadata dataLayer) (PoolHash poolHash) poolMetadataJson
+
+    let addPoolMetadata = dlAddPoolMetadata dataLayer
+    _ <- liftIO $ addPoolMetadata
+        poolId
+        (PoolMetadataHash poolHashBytestring)
+        poolMetadataJson
+        (pomTicker decodedMetadata)
 
     pure response
-
-insertMetaDataReference
-    :: (MonadIO m)
-    => Trace IO Text -> Shelley.PoolMetaData
-    -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) DB.PoolMetadataReferenceId
-insertMetaDataReference _tracer md =
-  lift . DB.insertPoolMetadataReference $
-    DB.PoolMetadataReference
-      { DB.poolMetadataReferenceUrl = Shelley.urlToText (Shelley._poolMDUrl md)
-      , DB.poolMetadataReferenceHash = Shelley._poolMDHash md
-      }
 

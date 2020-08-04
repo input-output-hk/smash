@@ -58,23 +58,24 @@ share
   -- The table containing the metadata.
 
   PoolMetadata
-    poolId              Types.PoolId              sqltype=hash32type
-    hash                Types.PoolMetadataHash    sqltype=hash32type
-    metadata            Types.PoolMetadataRaw     sqltype=json
+    poolId              Types.PoolId              sqltype=text
+    tickerName          Types.TickerName          sqltype=text
+    hash                Types.PoolMetadataHash    sqltype=base16type
+    metadata            Types.PoolMetadataRaw     sqltype=text
     UniquePoolMetadata  poolId hash
 
   -- The table containing pools' on-chain reference to its off-chain metadata.
 
   PoolMetadataReference
-    poolId              Types.PoolId              sqltype=hash32type
-    url                 Text
-    hash                Types.PoolMetadataHash    sqltype=hash32type
+    poolId              Types.PoolId              sqltype=text
+    url                 Types.PoolUrl             sqltype=text
+    hash                Types.PoolMetadataHash    sqltype=base16type
     UniquePoolMetadataReference  poolId hash
 
   -- The pools themselves (identified by the owner vkey hash)
 
   Pool
-    poolId              PoolId              sqltype=hash32type
+    poolId              PoolId                    sqltype=text
     UniquePoolId poolId
 
   -- We actually need the block table to be able to persist sync data
@@ -101,8 +102,15 @@ share
 
   -- A table containing a list of blacklisted pools.
   BlacklistedPool
-    poolId              PoolId             sqltype=hash32type
+    poolId              Types.PoolId        sqltype=hash28type
     UniqueBlacklistedPool poolId
+
+  -- A table containing a managed list of reserved ticker names.
+  -- For now they are grouped under the specific hash of the pool.
+  ReservedTicker
+    name                Text                    sqltype=text
+    poolHash            Types.PoolMetadataHash  sqltype=base16type
+    UniqueReservedTicker name
 
   -- A table containin a list of administrator users that can be used to access the secure API endpoints.
   -- Yes, we don't have any hash check mechanisms here, if they get to the database, game over anyway.

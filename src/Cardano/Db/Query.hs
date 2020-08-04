@@ -14,6 +14,7 @@ module Cardano.Db.Query
   , queryLatestBlockNo
   , queryCheckPoints
   , queryBlacklistedPool
+  , queryReservedTicker
   , queryAdminUsers
   ) where
 
@@ -37,14 +38,16 @@ import           Database.Persist.Sql       (SqlBackend, selectList)
 
 import           Cardano.Db.Error
 import           Cardano.Db.Schema
+import qualified Cardano.Db.Types           as Types
 
 -- | Get the 'Block' associated with the given hash.
-queryPoolMetadata :: MonadIO m => ByteString -> ReaderT SqlBackend m (Either DBFail PoolMetadata)
-queryPoolMetadata hash = do
-  res <- select . from $ \ blk -> do
-            where_ (blk ^. PoolMetadataHash ==. val hash)
-            pure blk
-  pure $ maybeToEither (DbLookupPoolMetadataHash hash) entityVal (listToMaybe res)
+-- We use the @Types.PoolId@ to get the nice error message out.
+queryPoolMetadata :: MonadIO m => Types.PoolId -> Types.PoolMetadataHash -> ReaderT SqlBackend m (Either DBFail PoolMetadata)
+queryPoolMetadata poolId poolMetadataHash = do
+  res <- select . from $ \ poolMetadata -> do
+            where_ (poolMetadata ^. PoolMetadataHash ==. val poolMetadataHash)
+            pure poolMetadata
+  pure $ maybeToEither (DbLookupPoolMetadataHash poolId poolMetadataHash) entityVal (listToMaybe res)
 
 -- | Count the number of blocks in the Block table.
 queryBlockCount :: MonadIO m => ReaderT SqlBackend m Word
@@ -129,12 +132,21 @@ queryCheckPoints limitCount = do
         else [ end, end - 2 .. 1 ]
 
 -- | Check if the hash is in the table.
-queryBlacklistedPool :: MonadIO m => ByteString -> ReaderT SqlBackend m Bool
-queryBlacklistedPool hash = do
+queryBlacklistedPool :: MonadIO m => Types.PoolId -> ReaderT SqlBackend m Bool
+queryBlacklistedPool poolId = do
   res <- select . from $ \(pool :: SqlExpr (Entity BlacklistedPool)) -> do
-            where_ (pool ^. BlacklistedPoolHash ==. val hash)
+            where_ (pool ^. BlacklistedPoolPoolId ==. val poolId)
             pure pool
   pure $ maybe False (\_ -> True) (listToMaybe res)
+
+-- | Check if the ticker is in the table.
+queryReservedTicker :: MonadIO m => Text -> ReaderT SqlBackend m (Maybe ReservedTicker)
+queryReservedTicker reservedTickerName = do
+  res <- select . from $ \(reservedTicker :: SqlExpr (Entity ReservedTicker)) -> do
+            where_ (reservedTicker ^. ReservedTickerName ==. val reservedTickerName)
+            limit 1
+            pure $ reservedTicker
+  pure $ fmap entityVal (listToMaybe res)
 
 -- | Query all admin users for authentication.
 queryAdminUsers :: MonadIO m => ReaderT SqlBackend m [AdminUser]
@@ -151,7 +163,4 @@ maybeToEither e f =
 -- Filter out 'Nothing' from a 'Maybe a'.
 isJust :: PersistField a => SqlExpr (Value (Maybe a)) -> SqlExpr (Value Bool)
 isJust = not_ . isNothing
-
-
-
 

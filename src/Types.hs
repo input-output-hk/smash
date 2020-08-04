@@ -9,7 +9,9 @@ module Types
     , checkIfUserValid
     -- * Pool info
     , PoolId (..)
+    , PoolUrl (..)
     , PoolMetadataHash (..)
+    , PoolMetadataRaw (..)
     -- * Wrapper
     , PoolMetadataWrapped (..)
     -- * Pool offline metadata
@@ -17,7 +19,7 @@ module Types
     , PoolDescription (..)
     , PoolTicker (..)
     , PoolHomepage (..)
-    , PoolOfflineMetadata
+    , PoolOfflineMetadata (..)
     , createPoolOfflineMetadata
     , examplePoolOfflineMetadata
     -- * Configuration
@@ -66,6 +68,16 @@ examplePoolOfflineMetadata =
         (PoolTicker "testp")
         (PoolHomepage "https://iohk.io")
 
+instance ToParamSchema PoolId where
+  toParamSchema _ = mempty
+
+instance ToSchema PoolId where
+  declareNamedSchema _ =
+    return $ NamedSchema (Just "PoolId") $ mempty
+
+instance ToParamSchema PoolMetadataHash where
+  toParamSchema _ = mempty
+
 -- A data type we use to store user credentials.
 data ApplicationUser = ApplicationUser
     { username :: !Text
@@ -99,20 +111,19 @@ checkIfUserValid (ApplicationUsers applicationUsers) applicationUser@(Applicatio
         then (UserValid (User usernameText))
         else UserInvalid
 
-instance ToParamSchema PoolId
-
 -- TODO(KS): Temporarily, validation!?
 instance FromHttpApiData PoolId where
-    parseUrlPiece t = Right $ PoolId t
+    parseUrlPiece poolId = Right $ PoolId (encodeUtf8 poolId)
     --TODO: parse hex or bech32
 
-instance ToParamSchema PoolMetadataHash
+instance ToSchema PoolMetadataHash where
+  declareNamedSchema _ =
+    return $ NamedSchema (Just "PoolMetadataHash") $ mempty
 
 -- TODO(KS): Temporarily, validation!?
 instance FromHttpApiData PoolMetadataHash where
-    parseUrlPiece t = Right $ PoolMetadataHash t
+    parseUrlPiece poolMetadataHash = Right $ PoolMetadataHash (encodeUtf8 poolMetadataHash)
     --TODO: parse hex or bech32
-
 
 newtype PoolName = PoolName
     { getPoolName :: Text
