@@ -102,8 +102,7 @@ insertShelleyBlock tracer blk = do
     liftIO $ do
       let epoch = Shelley.slotNumber blk `div` 5000
       logInfo tracer $ mconcat
-        [ "insertShelleyBlock pool info: epoch ", show epoch
-        , ", slot ", show (Shelley.slotNumber blk)
+        [ "insertShelleyBlock pool info: slot ", show (Shelley.slotNumber blk)
         , ", block ", show (Shelley.blockNumber blk)
         ]
 
