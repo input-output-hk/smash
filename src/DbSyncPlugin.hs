@@ -34,9 +34,10 @@ import qualified Cardano.Crypto.Hash.Class                   as Crypto
 
 import qualified Data.ByteString.Base16                      as B16
 
-import           Network.HTTP.Client                         hiding (Proxy)
-import           Network.HTTP.Client.TLS                     (tlsManagerSettings)
-import           Network.HTTP.Types.Status                   (statusCode)
+import           Network.HTTP.Client (HttpExceptionContent (..), HttpException (..), Request, Response)
+import qualified Network.HTTP.Client as Http
+import           Network.HTTP.Client.TLS (tlsManagerSettings)
+import           Network.HTTP.Types.Status (statusCode)
 
 import           Database.Persist.Sql                        (SqlBackend)
 
@@ -143,7 +144,7 @@ insertPoolRegister tracer params = do
 
         liftIO $ eitherPoolMetadata >>= \case
                 Left err -> logError tracer $ renderDbSyncNodeError err
-                Right response -> logInfo tracer (decodeUtf8 . BL.toStrict $ responseBody response)
+                Right response -> logInfo tracer (decodeUtf8 . BL.toStrict $ Http.responseBody response)
 
         liftIO . logInfo tracer $ "Inserting metadata."
 
@@ -180,38 +181,38 @@ fetchInsertPoolMetadata tracer poolId md = do
     let poolUrl = Shelley.urlToText (Shelley._poolMDUrl md)
 
     -- This is a bit bad to do each time, but good enough for now.
-    manager <- liftIO $ newManager tlsManagerSettings
+    manager <- liftIO $ Http.newManager tlsManagerSettings
 
     liftIO . logInfo tracer $ "Request created with URL '" <> poolUrl <> "'."
 
     let exceptRequest :: ExceptT DbSyncNodeError IO Request
-        exceptRequest = handleExceptT (\(e :: HttpException) -> NEError $ show e) (parseRequest $ toS poolUrl)
+        exceptRequest = handleExceptT (\(e :: HttpException) -> NEError $ show e) (Http.parseRequest $ toS poolUrl)
 
     request <- exceptRequest
 
     liftIO . logInfo tracer $ "HTTP Client GET request."
 
     -- The response size check.
-    _responseRaw <- handleExceptT (\(e :: HttpException) -> NEError $ show e) $ withResponse request manager $ \responseBR -> do
+    _responseRaw <- handleExceptT (\(e :: HttpException) -> NEError $ show e) $ Http.withResponse request manager $ \responseBR -> do
         -- We read the first chunk that should contain all the bytes from the reponse.
-        responseBSFirstChunk <- brReadSome (responseBody responseBR) 512
+        responseBSFirstChunk <- Http.brReadSome (Http.responseBody responseBR) 512
         -- If there are more bytes in the second chunk, we don't go any further since that
         -- violates the size constraint.
-        responseBSSecondChunk <- brReadSome (responseBody responseBR) 512
+        responseBSSecondChunk <- Http.brReadSome (Http.responseBody responseBR) 512
         if BL.null responseBSSecondChunk
            then pure responseBSFirstChunk
            else throwIO $ HttpExceptionRequest request NoResponseDataReceived
 
     -- The request for fetching the full content strictly.
     let httpRequest :: MonadIO n => n (Response BL.ByteString)
-        httpRequest = liftIO $ httpLbs request manager
+        httpRequest = liftIO $ Http.httpLbs request manager
 
     response <- handleExceptT (\(e :: HttpException) -> NEError $ show e) httpRequest
 
     liftIO . logInfo tracer $ "HTTP GET request complete."
-    liftIO . logInfo tracer $ "The status code was: " <> (show $ statusCode $ responseStatus response)
+    liftIO . logInfo tracer $ "The status code was: " <> (show $ statusCode $ Http.responseStatus response)
 
-    let poolMetadataJson = decodeUtf8 . BL.toStrict $ responseBody response
+    let poolMetadataJson = decodeUtf8 . BL.toStrict $ Http.responseBody response
 
     let mdHash :: ByteString
         mdHash = Shelley._poolMDHash md
@@ -227,8 +228,8 @@ fetchInsertPoolMetadata tracer poolId md = do
 
     -- Let us try to decode the contents to JSON.
     let decodedPoolMetadataJSON :: Either DBFail PoolOfflineMetadata
-        decodedPoolMetadataJSON = case (eitherDecode' (responseBody response)) of
-            Left err     -> Left $ UnableToEncodePoolMetadataToJSON $ toS err
+        decodedPoolMetadataJSON = case (eitherDecode' (Http.responseBody response)) of
+            Left err -> Left $ UnableToEncodePoolMetadataToJSON $ toS err
             Right result -> return result
 
     decodedMetadata <- firstExceptT (\e -> NEError $ show e) (newExceptT $ pure decodedPoolMetadataJSON)

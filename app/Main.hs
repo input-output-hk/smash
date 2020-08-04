@@ -75,14 +75,6 @@ doCreateMigration mdir = do
 
 -------------------------------------------------------------------------------
 
-opts :: ParserInfo SmashDbSyncNodeParams
-opts =
-  Opt.info (pCommandLine <**> Opt.helper)
-    ( Opt.fullDesc
-    <> Opt.progDesc "Extended Cardano POstgreSQL sync node."
-    )
-
-
 pCommandLine :: Parser SmashDbSyncNodeParams
 pCommandLine =
   SmashDbSyncNodeParams
