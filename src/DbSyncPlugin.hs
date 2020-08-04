@@ -26,8 +26,9 @@ import           Types                                       (PoolId (..), PoolM
                                                               PoolOfflineMetadata (..),
                                                               PoolUrl (..))
 
-import           Data.Aeson                                  (eitherDecode')
-import qualified Data.ByteString.Lazy                        as BL
+import           Data.Aeson (eitherDecode')
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.Text.Encoding as Text
 
 import qualified Cardano.Chain.Block as Byron
 
@@ -241,21 +242,25 @@ fetchInsertPoolMetadata tracer poolId md = do
     decodedMetadata <- firstExceptT (\e -> NEError $ show e) (newExceptT $ pure decodedPoolMetadataJSON)
 
     -- Let's check the hash
-    let poolHashBytestring = encodeUtf8 poolHash
-    let poolMetadataBytestring = encodeUtf8 poolMetadataJson
-    let hashFromMetadata = B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) poolMetadataBytestring
+    let hashFromMetadata = Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadataJson)
 
-    when (hashFromMetadata /= poolHashBytestring) $
-        left . NEError $ "The pool hash does not match: " <> poolHash
+    when (hashFromMetadata /= mdHash) $
+        left . NEError $
+          mconcat
+            [ "Pool hash mismatch. Expected ", renderByteStringHex mdHash
+            , " but got ", renderByteStringHex hashFromMetadata
+            ]
 
     liftIO . logInfo tracer $ "Inserting JSON offline metadata."
 
     let addPoolMetadata = dlAddPoolMetadata postgresqlDataLayer
     _ <- liftIO $ addPoolMetadata
         poolId
-        (PoolMetadataHash poolHashBytestring)
+        (PoolMetadataHash $ Shelley._poolMDHash md)
         poolMetadataJson
         (pomTicker decodedMetadata)
 
     pure response
 
+renderByteStringHex :: ByteString -> Text
+renderByteStringHex = Text.decodeUtf8 . B16.encode
