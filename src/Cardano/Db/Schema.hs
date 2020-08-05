@@ -55,15 +55,6 @@ share
     stageTwo Int
     stageThree Int
 
-  -- The table containing the metadata.
-
-  PoolMetadata
-    poolId              Types.PoolId              sqltype=text
-    tickerName          Types.TickerName          sqltype=text
-    hash                Types.PoolMetadataHash    sqltype=base16type
-    metadata            Types.PoolMetadataRaw     sqltype=text
-    UniquePoolMetadata  poolId hash
-
   -- The table containing pools' on-chain reference to its off-chain metadata.
 
   PoolMetadataReference
@@ -71,6 +62,16 @@ share
     url                 Types.PoolUrl             sqltype=text
     hash                Types.PoolMetadataHash    sqltype=base16type
     UniquePoolMetadataReference  poolId hash
+
+  -- The table containing the metadata.
+
+  PoolMetadata
+    poolId              Types.PoolId              sqltype=text
+    tickerName          Types.TickerName          sqltype=text
+    hash                Types.PoolMetadataHash    sqltype=base16type
+    metadata            Types.PoolMetadataRaw     sqltype=text
+    pmrId               PoolMetadataReferenceId
+    UniquePoolMetadata  poolId hash
 
   -- The pools themselves (identified by the owner vkey hash)
 

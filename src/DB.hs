@@ -51,8 +51,8 @@ import qualified Cardano.Db.Types             as Types
 -- TODO(KS): Newtype wrapper around @Text@ for the metadata.
 data DataLayer = DataLayer
     { dlGetPoolMetadata         :: PoolId -> PoolMetadataHash -> IO (Either DBFail (Text, Text))
-    , dlAddPoolMetadata         :: PoolId -> PoolMetadataHash -> Text -> PoolTicker -> IO (Either DBFail Text)
-    , dlAddMetaDataReference    :: PoolId -> PoolUrl -> PoolMetadataHash -> IO (Either DBFail PoolMetadataReferenceId)
+    , dlAddPoolMetadata         :: PoolMetadataReferenceId -> PoolId -> PoolMetadataHash -> Text -> PoolTicker -> IO (Either DBFail Text)
+    , dlAddMetaDataReference    :: PoolId -> PoolUrl -> PoolMetadataHash -> IO PoolMetadataReferenceId
     , dlAddReservedTicker       :: Text -> PoolMetadataHash -> IO (Either DBFail ReservedTickerId)
     , dlCheckReservedTicker     :: Text -> IO (Maybe ReservedTicker)
     , dlCheckBlacklistedPool    :: PoolId -> IO Bool
@@ -74,7 +74,7 @@ stubbedDataLayer ioDataMap ioBlacklistedPool = DataLayer
             Just poolOfflineMetadata'   -> return . Right $ ("Test", poolOfflineMetadata')
             Nothing                     -> return $ Left (DbLookupPoolMetadataHash poolId poolmdHash)
 
-    , dlAddPoolMetadata     = \poolId poolmdHash poolMetadata poolTicker -> do
+    , dlAddPoolMetadata     = \ _ poolId poolmdHash poolMetadata poolTicker -> do
         -- TODO(KS): What if the pool metadata already exists?
         _ <- modifyIORef ioDataMap (Map.insert (poolId, poolmdHash) poolMetadata)
         return . Right $ poolMetadata
@@ -117,9 +117,9 @@ postgresqlDataLayer = DataLayer
         -- Ugh. Very sorry about this.
         return $ (,) <$> poolTickerName <*> poolMetadata'
 
-    , dlAddPoolMetadata     = \poolId poolHash poolMetadata poolTicker -> do
+    , dlAddPoolMetadata     = \ refId poolId poolHash poolMetadata poolTicker -> do
         let poolTickerName = Types.TickerName $ getPoolTicker poolTicker
-        _ <- runDbAction Nothing $ insertPoolMetadata $ PoolMetadata poolId poolTickerName poolHash (Types.PoolMetadataRaw poolMetadata)
+        _ <- runDbAction Nothing $ insertPoolMetadata $ PoolMetadata poolId poolTickerName poolHash (Types.PoolMetadataRaw poolMetadata) refId
         return $ Right poolMetadata
 
     , dlAddMetaDataReference = \poolId poolUrl poolMetadataHash -> do
@@ -129,7 +129,7 @@ postgresqlDataLayer = DataLayer
                 , poolMetadataReferenceHash = poolMetadataHash
                 , poolMetadataReferencePoolId = poolId
                 }
-        return $ Right poolMetadataRefId
+        return poolMetadataRefId
 
     , dlAddReservedTicker = \tickerName poolMetadataHash -> do
         reservedTickerId <- runDbAction Nothing $ insertReservedTicker $ ReservedTicker tickerName poolMetadataHash

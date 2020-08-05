@@ -179,7 +179,7 @@ smashSM dataLayer = StateMachine
     mSemantics (InsertPool poolId poolHash poolOfflineMeta) = do
         let addPoolMetadata = dlAddPoolMetadata dataLayer
         -- TODO(KS): Fix this.
-        result <- addPoolMetadata poolId poolHash poolOfflineMeta (PoolTicker "tickerName")
+        result <- addPoolMetadata (panic "smashSM") poolId poolHash poolOfflineMeta (PoolTicker "tickerName")
         case result of
             Left err -> return $ MissingPoolHash poolId poolHash
             Right poolOfflineMeta' -> return $ PoolInserted poolId poolHash poolOfflineMeta'

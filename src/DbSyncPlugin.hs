@@ -130,7 +130,7 @@ insertPoolCert
     -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
 insertPoolCert tracer pCert =
   case pCert of
-    Shelley.RegPool pParams -> void $ insertPoolRegister tracer pParams
+    Shelley.RegPool pParams -> insertPoolRegister tracer pParams
     Shelley.RetirePool _keyHash _epochNum -> pure ()
         -- Currently we just maintain the data for the pool, we might not want to
         -- know whether it's registered
@@ -139,103 +139,85 @@ insertPoolRegister
     :: forall m. (MonadIO m)
     => Trace IO Text
     -> ShelleyPoolParams
-    -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) (Maybe DB.PoolMetadataReferenceId)
+    -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
 insertPoolRegister tracer params = do
   let poolIdHash = B16.encode . Shelley.unKeyHashBS $ Shelley._poolPubKey params
   let poolId = PoolId poolIdHash
 
-
   liftIO . logInfo tracer $ "Inserting pool register with pool id: " <> decodeUtf8 poolIdHash
-  poolMetadataId <- case strictMaybeToMaybe $ Shelley._poolMD params of
+  case strictMaybeToMaybe $ Shelley._poolMD params of
     Just md -> do
-
-        liftIO $ fetchInsertPoolMetadataWrap tracer poolId md
 
         liftIO . logInfo tracer $ "Inserting metadata."
         let metadataUrl = PoolUrl . Shelley.urlToText $ Shelley._poolMDUrl md
         let metadataHash = PoolMetadataHash . B16.encode $ Shelley._poolMDHash md
 
-        -- Move this upward, this doesn't make sense here. Kills any testing efforts here.
-        let dataLayer :: DataLayer
-            dataLayer = postgresqlDataLayer
-
-        let addMetaDataReference = dlAddMetaDataReference dataLayer
-
         -- Ah. We can see there is garbage all over the code. Needs refactoring.
-        pmId <- lift . liftIO $ rightToMaybe <$> addMetaDataReference poolId metadataUrl metadataHash
+        refId <- lift . liftIO $ (dlAddMetaDataReference postgresqlDataLayer) poolId metadataUrl metadataHash
+
+        liftIO $ fetchInsertPoolMetadata tracer refId poolId md
 
         liftIO . logInfo tracer $ "Metadata inserted."
 
-        return pmId
-
-    Nothing -> pure Nothing
+    Nothing -> pure ()
 
   liftIO . logInfo tracer $ "Inserted pool register."
-  return poolMetadataId
-
-fetchInsertPoolMetadataWrap
-    :: Trace IO Text
-    -> PoolId
-    -> Shelley.PoolMetaData
-    -> IO ()
-fetchInsertPoolMetadataWrap tracer poolId md = do
-    res <- runExceptT $ fetchInsertPoolMetadata tracer poolId md
-    case res of
-        Left err -> logError tracer $ renderDbSyncNodeError err
-        Right response -> logInfo tracer (decodeUtf8 response)
-
+  pure ()
 
 fetchInsertPoolMetadata
     :: Trace IO Text
+    -> DB.PoolMetadataReferenceId
     -> PoolId
     -> Shelley.PoolMetaData
-    -> ExceptT DbSyncNodeError IO ByteString
-fetchInsertPoolMetadata tracer poolId md = do
-    -- Fetch the JSON info!
-    liftIO . logInfo tracer $ "Fetching JSON metadata."
+    -> IO ()
+fetchInsertPoolMetadata tracer refId poolId md = do
+    res <- runExceptT fetchInsert
+    case res of
+        Left err -> logError tracer $ renderDbSyncNodeError err
+        Right response -> logInfo tracer (decodeUtf8 response)
+  where
+    fetchInsert :: ExceptT DbSyncNodeError IO ByteString
+    fetchInsert = do
+        liftIO . logInfo tracer $ "Fetching JSON metadata."
 
-    let poolUrl = Shelley.urlToText (Shelley._poolMDUrl md)
+        let poolUrl = Shelley.urlToText (Shelley._poolMDUrl md)
 
-    -- This is a bit bad to do each time, but good enough for now.
-    manager <- liftIO $ Http.newManager tlsManagerSettings
+        -- This is a bit bad to do each time, but good enough for now.
+        manager <- liftIO $ Http.newManager tlsManagerSettings
 
-    liftIO . logInfo tracer $ "Request created with URL '" <> poolUrl <> "'."
+        liftIO . logInfo tracer $ "Request created with URL '" <> poolUrl <> "'."
 
-    request <- handleExceptT (\(e :: HttpException) -> NEError $ show e) (Http.parseRequest $ toS poolUrl)
+        request <- handleExceptT (\(e :: HttpException) -> NEError $ show e) (Http.parseRequest $ toS poolUrl)
 
-    liftIO . logInfo tracer $ "HTTP Client GET request."
+        liftIO . logInfo tracer $ "HTTP Client GET request."
 
-    (respBS, status) <- liftIO $ httpGetMax512Bytes request manager
+        (respBS, status) <- liftIO $ httpGetMax512Bytes request manager
 
-    liftIO . logInfo tracer $ "HTTP GET request response: " <> show status
+        liftIO . logInfo tracer $ "HTTP GET request response: " <> show status
 
-    liftIO . logInfo tracer $ "Inserting pool with hash: " <> renderByteStringHex (Shelley._poolMDHash md)
+        liftIO . logInfo tracer $ "Inserting pool with hash: " <> renderByteStringHex (Shelley._poolMDHash md)
 
-    -- Let us try to decode the contents to JSON.
-    decodedMetadata <- case eitherDecode' (LBS.fromStrict respBS) of
-                        Left err -> left $ NEError (show $ UnableToEncodePoolMetadataToJSON (toS err))
-                        Right result -> pure result
+        decodedMetadata <- case eitherDecode' (LBS.fromStrict respBS) of
+                            Left err -> left $ NEError (show $ UnableToEncodePoolMetadataToJSON (toS err))
+                            Right result -> pure result
 
-    -- Let's check the hash
-    let hashFromMetadata = Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) respBS
+        -- Let's check the hash
+        let hashFromMetadata = Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) respBS
 
-    when (hashFromMetadata /= Shelley._poolMDHash md) $
-        left . NEError $
-          mconcat
-            [ "Pool hash mismatch. Expected ", renderByteStringHex (Shelley._poolMDHash md)
-            , " but got ", renderByteStringHex hashFromMetadata
-            ]
+        when (hashFromMetadata /= Shelley._poolMDHash md) $
+            left . NEError $
+              mconcat
+                [ "Pool hash mismatch. Expected ", renderByteStringHex (Shelley._poolMDHash md)
+                , " but got ", renderByteStringHex hashFromMetadata
+                ]
 
-    liftIO . logInfo tracer $ "Inserting JSON offline metadata."
+        liftIO . logInfo tracer $ "Inserting JSON offline metadata."
 
-    let addPoolMetadata = dlAddPoolMetadata postgresqlDataLayer
-    _ <- liftIO $ addPoolMetadata
-        poolId
-        (PoolMetadataHash . B16.encode $ Shelley._poolMDHash md)
-        (decodeUtf8 respBS)
-        (pomTicker decodedMetadata)
+        _ <- liftIO $ (dlAddPoolMetadata postgresqlDataLayer) refId poolId
+                        (PoolMetadataHash . B16.encode $ Shelley._poolMDHash md)
+                        (decodeUtf8 respBS) (pomTicker decodedMetadata)
 
-    pure respBS
+        pure respBS
 
 
 httpGetMax512Bytes :: Http.Request -> Http.Manager -> IO (ByteString, Http.Status)
