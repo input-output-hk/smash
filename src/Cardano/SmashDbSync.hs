@@ -177,7 +177,7 @@ runDbSyncNode plugin enp =
 
     trce <- if not (encEnableLogging enc)
               then pure Logging.nullTracer
-              else liftIO $ Logging.setupTrace (Right $ encLoggingConfig enc) "db-sync-node"
+              else liftIO $ Logging.setupTrace (Right $ encLoggingConfig enc) "smash-node"
 
     logInfo trce $ "Running migrations."
 
