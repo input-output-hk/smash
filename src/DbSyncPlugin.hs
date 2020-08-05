@@ -19,15 +19,13 @@ import           Control.Monad.Trans.Reader                  (ReaderT)
 
 import           DB                                          (DBFail (..),
                                                               DataLayer (..),
-                                                              postgresqlDataLayer,
-                                                              runDbAction)
+                                                              postgresqlDataLayer)
 import           Types                                       (PoolId (..), PoolMetadataHash (..),
-                                                              PoolMetadataRaw (..),
                                                               PoolOfflineMetadata (..),
                                                               PoolUrl (..))
 
 import           Data.Aeson (eitherDecode')
-import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text.Encoding as Text
 
 import qualified Cardano.Chain.Block as Byron
@@ -37,12 +35,12 @@ import qualified Cardano.Crypto.Hash.Blake2b as Crypto
 
 import qualified Data.ByteString.Base16                      as B16
 
-import           Network.HTTP.Client (HttpExceptionContent (..), HttpException (..), Request, Response)
+import           Network.HTTP.Client (HttpExceptionContent (..), HttpException (..))
 import qualified Network.HTTP.Client as Http
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
-import           Network.HTTP.Types.Status (statusCode)
+import qualified Network.HTTP.Types.Status as Http
 
-import           Database.Persist.Sql                        (SqlBackend)
+import           Database.Persist.Sql (IsolationLevel (..), SqlBackend, transactionSaveWithIsolation)
 
 import qualified Cardano.Db.Insert                           as DB
 import qualified Cardano.Db.Query                            as DB
@@ -76,7 +74,7 @@ insertCardanoBlock
     -> DbSyncEnv
     -> DbSync.BlockDetails
     -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
-insertCardanoBlock tracer _env block =
+insertCardanoBlock tracer _env block = do
   case block of
     ByronBlockDetails blk _details -> Right <$> insertByronBlock tracer blk
     ShelleyBlockDetails blk _details -> insertShelleyBlock tracer blk
@@ -89,7 +87,7 @@ insertByronBlock tracer blk = do
   case byronBlockRaw blk of
     Byron.ABOBBlock {} -> pure ()
     Byron.ABOBBoundary {} -> liftIO $ logInfo tracer "Byron EBB"
-
+  transactionSaveWithIsolation Serializable
 
 insertShelleyBlock
     :: Trace IO Text
@@ -117,6 +115,7 @@ insertShelleyBlock tracer blk = do
         [ "insertShelleyBlock pool info: slot ", show (Shelley.slotNumber blk)
         , ", block ", show (Shelley.blockNumber blk)
         ]
+    lift $ transactionSaveWithIsolation Serializable
 
 insertTx
     :: (MonadIO m)
@@ -150,15 +149,9 @@ insertPoolRegister tracer params = do
   poolMetadataId <- case strictMaybeToMaybe $ Shelley._poolMD params of
     Just md -> do
 
-        let eitherPoolMetadata :: IO (Either DbSyncNodeError (Response BL.ByteString))
-            eitherPoolMetadata = runExceptT (fetchInsertPoolMetadata tracer poolId md)
-
-        liftIO $ eitherPoolMetadata >>= \case
-                Left err -> logError tracer $ renderDbSyncNodeError err
-                Right response -> logInfo tracer (decodeUtf8 . BL.toStrict $ Http.responseBody response)
+        liftIO $ fetchInsertPoolMetadataWrap tracer poolId md
 
         liftIO . logInfo tracer $ "Inserting metadata."
-
         let metadataUrl = PoolUrl . Shelley.urlToText $ Shelley._poolMDUrl md
         let metadataHash = PoolMetadataHash . B16.encode $ Shelley._poolMDHash md
 
@@ -180,11 +173,23 @@ insertPoolRegister tracer params = do
   liftIO . logInfo tracer $ "Inserted pool register."
   return poolMetadataId
 
+fetchInsertPoolMetadataWrap
+    :: Trace IO Text
+    -> PoolId
+    -> Shelley.PoolMetaData
+    -> IO ()
+fetchInsertPoolMetadataWrap tracer poolId md = do
+    res <- runExceptT $ fetchInsertPoolMetadata tracer poolId md
+    case res of
+        Left err -> logError tracer $ renderDbSyncNodeError err
+        Right response -> logInfo tracer (decodeUtf8 response)
+
+
 fetchInsertPoolMetadata
     :: Trace IO Text
     -> PoolId
     -> Shelley.PoolMetaData
-    -> ExceptT DbSyncNodeError IO (Response BL.ByteString)
+    -> ExceptT DbSyncNodeError IO ByteString
 fetchInsertPoolMetadata tracer poolId md = do
     -- Fetch the JSON info!
     liftIO . logInfo tracer $ "Fetching JSON metadata."
@@ -196,58 +201,28 @@ fetchInsertPoolMetadata tracer poolId md = do
 
     liftIO . logInfo tracer $ "Request created with URL '" <> poolUrl <> "'."
 
-    let exceptRequest :: ExceptT DbSyncNodeError IO Request
-        exceptRequest = handleExceptT (\(e :: HttpException) -> NEError $ show e) (Http.parseRequest $ toS poolUrl)
-
-    request <- exceptRequest
+    request <- handleExceptT (\(e :: HttpException) -> NEError $ show e) (Http.parseRequest $ toS poolUrl)
 
     liftIO . logInfo tracer $ "HTTP Client GET request."
 
-    -- The response size check.
-    _responseRaw <- handleExceptT (\(e :: HttpException) -> NEError $ show e) $ Http.withResponse request manager $ \responseBR -> do
-        -- We read the first chunk that should contain all the bytes from the reponse.
-        responseBSFirstChunk <- Http.brReadSome (Http.responseBody responseBR) 512
-        -- If there are more bytes in the second chunk, we don't go any further since that
-        -- violates the size constraint.
-        responseBSSecondChunk <- Http.brReadSome (Http.responseBody responseBR) 512
-        if BL.null responseBSSecondChunk
-           then pure responseBSFirstChunk
-           else throwIO $ HttpExceptionRequest request NoResponseDataReceived
+    (respBS, status) <- liftIO $ httpGetMax512Bytes request manager
 
-    -- The request for fetching the full content strictly.
-    let httpRequest :: MonadIO n => n (Response BL.ByteString)
-        httpRequest = liftIO $ Http.httpLbs request manager
+    liftIO . logInfo tracer $ "HTTP GET request response: " <> show status
 
-    response <- handleExceptT (\(e :: HttpException) -> NEError $ show e) httpRequest
-
-    liftIO . logInfo tracer $ "HTTP GET request complete."
-    liftIO . logInfo tracer $ "The status code was: " <> (show $ statusCode $ Http.responseStatus response)
-
-    let poolMetadataJson = decodeUtf8 . BL.toStrict $ Http.responseBody response
-
-    let mdHash :: ByteString
-        mdHash = Shelley._poolMDHash md
-
-    let poolHash :: Text
-        poolHash = decodeUtf8 . B16.encode $ mdHash
-
-    liftIO . logInfo tracer $ "Inserting pool with hash: " <> poolHash
+    liftIO . logInfo tracer $ "Inserting pool with hash: " <> renderByteStringHex (Shelley._poolMDHash md)
 
     -- Let us try to decode the contents to JSON.
-    let decodedPoolMetadataJSON :: Either DBFail PoolOfflineMetadata
-        decodedPoolMetadataJSON = case (eitherDecode' (Http.responseBody response)) of
-            Left err -> Left $ UnableToEncodePoolMetadataToJSON $ toS err
-            Right result -> return result
-
-    decodedMetadata <- firstExceptT (\e -> NEError $ show e) (newExceptT $ pure decodedPoolMetadataJSON)
+    decodedMetadata <- case eitherDecode' (LBS.fromStrict respBS) of
+                        Left err -> left $ NEError (show $ UnableToEncodePoolMetadataToJSON (toS err))
+                        Right result -> pure result
 
     -- Let's check the hash
-    let hashFromMetadata = Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadataJson)
+    let hashFromMetadata = Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) respBS
 
-    when (hashFromMetadata /= mdHash) $
+    when (hashFromMetadata /= Shelley._poolMDHash md) $
         left . NEError $
           mconcat
-            [ "Pool hash mismatch. Expected ", renderByteStringHex mdHash
+            [ "Pool hash mismatch. Expected ", renderByteStringHex (Shelley._poolMDHash md)
             , " but got ", renderByteStringHex hashFromMetadata
             ]
 
@@ -256,11 +231,25 @@ fetchInsertPoolMetadata tracer poolId md = do
     let addPoolMetadata = dlAddPoolMetadata postgresqlDataLayer
     _ <- liftIO $ addPoolMetadata
         poolId
-        (PoolMetadataHash $ Shelley._poolMDHash md)
-        poolMetadataJson
+        (PoolMetadataHash . B16.encode $ Shelley._poolMDHash md)
+        (decodeUtf8 respBS)
         (pomTicker decodedMetadata)
 
-    pure response
+    pure respBS
+
+
+httpGetMax512Bytes :: Http.Request -> Http.Manager -> IO (ByteString, Http.Status)
+httpGetMax512Bytes request manager =
+    Http.withResponse request manager $ \responseBR -> do
+        -- We read the first chunk that should contain all the bytes from the reponse.
+        responseBSFirstChunk <- Http.brReadSome (Http.responseBody responseBR) 512
+        -- If there are more bytes in the second chunk, we don't go any further since that
+        -- violates the size constraint.
+        responseBSSecondChunk <- Http.brReadSome (Http.responseBody responseBR) 1
+        if LBS.null responseBSSecondChunk
+           then pure $ (LBS.toStrict responseBSFirstChunk, Http.responseStatus responseBR)
+           -- TODO: this is just WRONG.
+           else throwIO $ HttpExceptionRequest request NoResponseDataReceived
 
 renderByteStringHex :: ByteString -> Text
 renderByteStringHex = Text.decodeUtf8 . B16.encode
