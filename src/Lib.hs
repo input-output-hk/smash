@@ -166,7 +166,7 @@ runPoolInsertion poolMetadataJsonPath poolId poolHash = do
 
     let addPoolMetadata = dlAddPoolMetadata dataLayer
 
-    addPoolMetadata poolId poolHash poolMetadataJson (pomTicker decodedMetadata)
+    addPoolMetadata Nothing poolId poolHash poolMetadataJson (pomTicker decodedMetadata)
 
 runTickerNameInsertion :: Text -> PoolMetadataHash -> IO (Either DBFail ReservedTickerId)
 runTickerNameInsertion tickerName poolMetadataHash = do
