@@ -51,7 +51,7 @@ import qualified Cardano.Db.Types             as Types
 -- TODO(KS): Newtype wrapper around @Text@ for the metadata.
 data DataLayer = DataLayer
     { dlGetPoolMetadata         :: PoolId -> PoolMetadataHash -> IO (Either DBFail (Text, Text))
-    , dlAddPoolMetadata         :: PoolMetadataReferenceId -> PoolId -> PoolMetadataHash -> Text -> PoolTicker -> IO (Either DBFail Text)
+    , dlAddPoolMetadata         :: Maybe PoolMetadataReferenceId -> PoolId -> PoolMetadataHash -> Text -> PoolTicker -> IO (Either DBFail Text)
     , dlAddMetaDataReference    :: PoolId -> PoolUrl -> PoolMetadataHash -> IO PoolMetadataReferenceId
     , dlAddReservedTicker       :: Text -> PoolMetadataHash -> IO (Either DBFail ReservedTickerId)
     , dlCheckReservedTicker     :: Text -> IO (Maybe ReservedTicker)
@@ -117,9 +117,9 @@ postgresqlDataLayer = DataLayer
         -- Ugh. Very sorry about this.
         return $ (,) <$> poolTickerName <*> poolMetadata'
 
-    , dlAddPoolMetadata     = \ refId poolId poolHash poolMetadata poolTicker -> do
+    , dlAddPoolMetadata     = \ mRefId poolId poolHash poolMetadata poolTicker -> do
         let poolTickerName = Types.TickerName $ getPoolTicker poolTicker
-        _ <- runDbAction Nothing $ insertPoolMetadata $ PoolMetadata poolId poolTickerName poolHash (Types.PoolMetadataRaw poolMetadata) refId
+        _ <- runDbAction Nothing $ insertPoolMetadata $ PoolMetadata poolId poolTickerName poolHash (Types.PoolMetadataRaw poolMetadata) mRefId
         return $ Right poolMetadata
 
     , dlAddMetaDataReference = \poolId poolUrl poolMetadataHash -> do

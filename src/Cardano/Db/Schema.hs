@@ -70,7 +70,7 @@ share
     tickerName          Types.TickerName          sqltype=text
     hash                Types.PoolMetadataHash    sqltype=base16type
     metadata            Types.PoolMetadataRaw     sqltype=text
-    pmrId               PoolMetadataReferenceId
+    pmrId               PoolMetadataReferenceId Maybe
     UniquePoolMetadata  poolId hash
 
   -- The pools themselves (identified by the owner vkey hash)

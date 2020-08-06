@@ -11,7 +11,7 @@ BEGIN
     ALTER TABLE "pool_metadata" ALTER COLUMN "pool_id" TYPE text;
     ALTER TABLE "pool_metadata" ALTER COLUMN "ticker_name" TYPE text;
     ALTER TABLE "pool_metadata" ALTER COLUMN "metadata" TYPE text;
-    ALTER TABLE "pool_metadata" ADD COLUMN "pmr_id" INT8 NOT NULL;
+    ALTER TABLE "pool_metadata" ADD COLUMN "pmr_id" INT8 NULL;
     ALTER TABLE "reserved_ticker" ALTER COLUMN "name" TYPE text;
     -- Hand written SQL statements can be added here.
     UPDATE schema_version SET stage_two = 2 ;

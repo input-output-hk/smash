@@ -32,7 +32,7 @@ import           Control.Tracer                                        (Tracer)
 import           Cardano.BM.Data.Tracer                                (ToLogObject (..))
 import qualified Cardano.BM.Setup                                      as Logging
 import           Cardano.BM.Trace                                      (Trace, appendName,
-                                                                        logInfo)
+                                                                        modifyName, logInfo)
 import qualified Cardano.BM.Trace                                      as Logging
 
 import           Cardano.Client.Subscription                           (subscribe)
@@ -83,6 +83,8 @@ import           Network.Mux.Types                                     (MuxMode 
 import           Network.Socket                                        (SockAddr (..))
 
 import           Network.TypedProtocol.Pipelined                       (Nat (Succ, Zero))
+
+import           Offline (runOfflineFetchThread)
 
 import           Ouroboros.Network.Driver.Simple                       (runPipelinedPeer)
 
@@ -403,7 +405,10 @@ dbSyncProtocols trce env plugin _version codecs _connectionId =
         actionQueue <- newDbActionQueue
         (metrics, server) <- registerMetricsServer
         race_
-            (runDbThread trce env plugin metrics actionQueue)
+            (race_
+                (runDbThread trce env plugin metrics actionQueue)
+                (runOfflineFetchThread $ modifyName (const "fetch") trce)
+            )
             (runPipelinedPeer
                 localChainSyncTracer
                 (cChainSyncCodec codecs)
