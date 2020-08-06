@@ -1,37 +1,58 @@
-# smash
-
-**Integration with wallet is pending!**
-**Will not retry fetching metadata if the hash mismatches or URL is not available!**
+# Stakepool Metadata Aggregation Server (SMASH)
 
 [![Coverage Status](https://coveralls.io/repos/github/input-output-hk/smash/badge.svg?branch=master)](https://coveralls.io/github/input-output-hk/smash?branch=master)
 
-This is the repository that takes care of the cardano node Stakepool Metadata Aggregation Server.
+This repository contains the source code for the Cardano Stakepool Metadata Aggregation Server (SMASH).
+The purpose of SMASH is to aggregate common metadata about stakepools that are registered
+on the Cardano blockchain, including the name of the stakepool, its "ticker" name etc.
+This metadata can be curated and provided as a service to delegators, stake pool operators,
+exchanges etc., enabling independent validation and/or disambiguation of stakepool "ticker" names, for example.
 
-*The metadata is restricted to have no more than 512 bytes.*
+## Installation
 
-The list of fields we need to have from the stake pool are:
+SMASH can be built and installed from the command line using "cabal" as follows:
+
+```
+cabal build smash
+cabal install smash
+```
+
+### Prerequsites
+
+SMASH relies on:
+
+* The PostgreSQL library.  This can be installed on Linux using e.g. ``apt install libpg-dev``
+* The PostgreSQL server.  This can be installed on Linux using e.g. ``apt install pg``
+* The ``cardano-db-sync`` package.  This provides necessary database support.
+* The ``cardano-db-node`` package.  This provides the core Cardano node functionality.
+* An HTTP server (e.g. Apache).
+
+These need to be downloaded and installed before building, installing and deploying SMASH.  It is not necessary
+to install the Cardano wallet or any other Cardano components.
+
+## Metadata
+
+*The metadata that is stored by SMASH is restricted to contain no more than 512 bytes.*
+
+Registered stake pools provide the following on-chain data:
 * owner
-* name
-* ticker
+* pool name
+* pool ticker
 * homepage
 * pledge address
 * short description
 
-The ones we have to store offline, on this service are:
-* name
-* ticker
+SMASH records and serves the following subset of information:
+* pool name
+* pool ticker
 * homepage
 * short description
 
-The one remaining on the chain are:
-* owner
-* pledge address
+More information about the pool metadata (the `PoolMetaData` record) can be found here - https://github.com/input-output-hk/cardano-ledger-specs/blob/4458fdba7e2211f63e7f28ecd3f9b55b02eee071/shelley/chain-and-ledger/executable-spec/src/Shelley/Spec/Ledger/TxData.hs#L62
 
-The information about the `PoolMetaData` can be found here - https://github.com/input-output-hk/cardano-ledger-specs/blob/4458fdba7e2211f63e7f28ecd3f9b55b02eee071/shelley/chain-and-ledger/executable-spec/src/Shelley/Spec/Ledger/TxData.hs#L62
+Information about the structure of the (current) stake pool metadata can be found at - https://github.com/cardano-foundation/incentivized-testnet-stakepool-registry#submission-well-formedness-rules
 
-There is information about the structure of the (current) stake pool information - https://github.com/cardano-foundation/incentivized-testnet-stakepool-registry#submission-well-formedness-rules
-
-The most important points of it are here:
+The most important parts of this information are:
 ```JSON
 {
    "owner":{
@@ -72,20 +93,26 @@ The most important points of it are here:
 
 70+50+255+5+64 = 444 bytes.
 
-## How to run it with the node
+## How to run SMASH with the Cardano node
 
-First run the node. The genesis should be generated from Nix. You can run smash with:
+First run the Cardano node as a relay, e.g.:
+
 ```
-SMASHPGPASSFILE=./config/pgpass stack run smash-exe -- run-app-with-db-sync --config ../cardano-db-sync/config/testnet-config.yaml --genesis-file /nix/store/pdnsmv1gi6llr92fk7sgs3j2gcphm6fm-shelley-testnet-genesis.json --socket-path ../cardano-node/state-node-shelley_testnet/node.socket --schema-dir schema/
+cardano-node --genesis-file genesis.json --socket-path node.socket --config config.yaml
+```
+
+You can then run ``smash`` using e.g:
+```
+SMASHPGPASSFILE=./config/pgpass stack run smash-exe -- run-app-with-db-sync --config config.yaml --genesis-file genesis.json --socket-path node.socket --schema-dir schema/
 ```
 
 ## How to test this works?
 
-You can run the provided example and try out these commands (presuming you know what CURL is and how to use it).
+You can run the provided example and try out these commands
 ```
 curl --verbose --header "Content-Type: application/json" --request GET http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524
 
-curl --verbose --user ksaric:test --header "Content-Type: application/json" --request POST --data '{"blacklistPool":"xyz"}' http://localhost:3000/api/v1/blacklist
+curl --verbose --user ksaric:cirask --header "Content-Type: application/json" --request POST --data '{"delistPool":"xyz"}' http://localhost:3000/api/v1/delist
 ```
 
 ## What else do I need?
@@ -151,18 +178,18 @@ This is an example (we got the hash from Blake2 256):
 stack exec smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
 ```
 
-## Test blacklisting
+## Test delisting
 
 If you find some pool hash that has been inserted, like in our example, '93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873'.
 
-You can test the blacklisting by sending a PATCH on the blacklist endpoint.
+You can test the delisting by sending a PATCH on the delist endpoint.
 ```
-curl -X PATCH -v http://localhost:3100/api/v1/blacklist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
+curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
 ```
 
-Or if you have Basic Auth enabled (replace with you username/pass you have in your DB):
+Or if you have Basic Auth enabled (replace with the username/pass for your DB):
 ```
-curl -u ksaric:test -X PATCH -v http://localhost:3100/api/v1/blacklist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
+curl -u ksaric:cirask -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
 ```
 
 Fetching the pool:
@@ -183,7 +210,7 @@ If you change your users/passwords, please restart the application since it take
 
 ## Test script
 
-An example of how the whole thing works.
+An example of how SMASH works.
 ```
 SMASHPGPASSFILE=config/pgpass ./scripts/postgresql-setup.sh --recreatedb
 SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
@@ -200,17 +227,22 @@ After the server is running, you can check the hash on http://localhost:3100/api
 ## How to figure out the JSON hash?
 
 You can do it inside GHCi.
-So run GHCi, using whatever you please (I will be using `stack ghci`) and:
 ```
-import qualified Cardano.Crypto.Hash.Class as Crypto
-import qualified Cardano.Crypto.Hash.Blake2b as Crypto
-import qualified Data.ByteString.Base16 as B16
-
-poolMetadata <- readFile "test_pool.json"
-B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadata)
+ghci
 ```
 
-This presumes that you have a file containing the JSON in your path called "test_pool.json".
+```
+Prelude> import qualified Cardano.Crypto.Hash.Class as Crypto
+Prelude> import qualified Cardano.Crypto.Hash.Blake2b as Crypto
+Prelude> import qualified Data.ByteString.Base16 as B16
+
+Prelude> poolMetadata <- readFile "test_pool.json"
+Prelude> B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadata)
+```
+
+This assumes that you have a file called "test_pool.json" in your current directory that contains the JSON
+metadata for the stake pool.
+
 
 ## How to insert the reserved ticker name?
 

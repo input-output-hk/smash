@@ -23,7 +23,7 @@ import           Types
 smashSpec :: Spec
 smashSpec = do
     describe "DataLayer" $ do
-        describe "Blacklisted pool" $
+        describe "Delisted pool" $
             it "should test these things in comments" $ pending
 --            prop "adding a pool hash adds it to the data layer" $ monadicIO $ do
 --
@@ -113,3 +113,4 @@ smashSpec = do
 --            poolTicker
 --            poolHomepage
 --
+

@@ -12,7 +12,7 @@ module DB
     , postgresqlDataLayer
     -- * Examples
     , stubbedInitialDataMap
-    , stubbedBlacklistedPools
+    , stubbedDelistedPools
     ) where
 
 import           Cardano.Prelude
@@ -22,7 +22,7 @@ import qualified Data.Map                     as Map
 
 import           Types
 
-import           Cardano.Db.Insert            (insertBlacklistedPool,
+import           Cardano.Db.Insert            (insertDelistedPool,
                                                insertPoolMetadata,
                                                insertPoolMetadataReference,
                                                insertReservedTicker)
@@ -34,9 +34,9 @@ import           Cardano.Db.Migration.Version as X
 import           Cardano.Db.PGConfig          as X
 import           Cardano.Db.Query             as X
 import           Cardano.Db.Run               as X
-import           Cardano.Db.Schema            as X (AdminUser (..),
-                                                    BlacklistedPool (..),
-                                                    Block (..), Meta (..),
+import           Cardano.Db.Schema            as X (AdminUser (..), Block (..),
+                                                    DelistedPool (..),
+                                                    Meta (..),
                                                     PoolMetadata (..),
                                                     PoolMetadataReference (..),
                                                     PoolMetadataReferenceId,
@@ -55,8 +55,8 @@ data DataLayer = DataLayer
     , dlAddMetaDataReference    :: PoolId -> PoolUrl -> PoolMetadataHash -> IO PoolMetadataReferenceId
     , dlAddReservedTicker       :: Text -> PoolMetadataHash -> IO (Either DBFail ReservedTickerId)
     , dlCheckReservedTicker     :: Text -> IO (Maybe ReservedTicker)
-    , dlCheckBlacklistedPool    :: PoolId -> IO Bool
-    , dlAddBlacklistedPool      :: PoolId -> IO (Either DBFail PoolId)
+    , dlCheckDelistedPool       :: PoolId -> IO Bool
+    , dlAddDelistedPool         :: PoolId -> IO (Either DBFail PoolId)
     , dlGetAdminUsers           :: IO (Either DBFail [AdminUser])
     } deriving (Generic)
 
@@ -67,7 +67,7 @@ stubbedDataLayer
     :: IORef (Map (PoolId, PoolMetadataHash) Text)
     -> IORef [PoolId]
     -> DataLayer
-stubbedDataLayer ioDataMap ioBlacklistedPool = DataLayer
+stubbedDataLayer ioDataMap ioDelistedPool = DataLayer
     { dlGetPoolMetadata     = \poolId poolmdHash -> do
         ioDataMap' <- readIORef ioDataMap
         case (Map.lookup (poolId, poolmdHash) ioDataMap') of
@@ -85,14 +85,14 @@ stubbedDataLayer ioDataMap ioBlacklistedPool = DataLayer
 
     , dlAddMetaDataReference = \poolId poolUrl poolMetadataHash -> panic "!"
 
-    , dlCheckBlacklistedPool = \poolId -> do
-        blacklistedPool' <- readIORef ioBlacklistedPool
+    , dlCheckDelistedPool = \poolId -> do
+        blacklistedPool' <- readIORef ioDelistedPool
         return $ poolId `elem` blacklistedPool'
 
-    , dlAddBlacklistedPool  = \poolId -> do
-        _ <- modifyIORef ioBlacklistedPool (\pool -> [poolId] ++ pool)
+    , dlAddDelistedPool  = \poolId -> do
+        _ <- modifyIORef ioDelistedPool (\pool -> [poolId] ++ pool)
         -- TODO(KS): Do I even need to query this?
-        _blacklistedPool' <- readIORef ioBlacklistedPool
+        _blacklistedPool' <- readIORef ioDelistedPool
         return $ Right poolId
 
     , dlGetAdminUsers       = return $ Right []
@@ -105,8 +105,8 @@ stubbedInitialDataMap = Map.fromList
     ]
 
 -- The approximation for the table.
-stubbedBlacklistedPools :: [PoolId]
-stubbedBlacklistedPools = []
+stubbedDelistedPools :: [PoolId]
+stubbedDelistedPools = []
 
 postgresqlDataLayer :: DataLayer
 postgresqlDataLayer = DataLayer
@@ -138,11 +138,11 @@ postgresqlDataLayer = DataLayer
     , dlCheckReservedTicker = \tickerName ->
         runDbAction Nothing $ queryReservedTicker tickerName
 
-    , dlCheckBlacklistedPool = \poolId -> do
-        runDbAction Nothing $ queryBlacklistedPool poolId
+    , dlCheckDelistedPool = \poolId -> do
+        runDbAction Nothing $ queryDelistedPool poolId
 
-    , dlAddBlacklistedPool  = \poolId -> do
-        _ <- runDbAction Nothing $ insertBlacklistedPool $ BlacklistedPool poolId
+    , dlAddDelistedPool  = \poolId -> do
+        _ <- runDbAction Nothing $ insertDelistedPool $ DelistedPool poolId
         return $ Right poolId
 
     , dlGetAdminUsers       = do
