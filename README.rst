@@ -2,7 +2,7 @@
 
    <p align="center">
      <a href="https://github.com/input-output-hk/smash/releases"><img src="https://img.shields.io/github/release-pre/input-output-hk/smash.svg?style=for-the-badge" /></a>
-     <a href="https://coveralls.io/github/input-output-hk/smash?branch=master"><img src=" https://coveralls.io/repos/github/input-output-hk/smash/badge.svg?branch=master" /></a>
+     <a href="https://coveralls.io/github/input-output-hk/smash?branch=master"><img src="https://coveralls.io/repos/github/input-output-hk/smash/badge.svg?branch=master" /></a>
    </p>
 
 *************************
