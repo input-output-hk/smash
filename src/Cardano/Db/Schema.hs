@@ -60,7 +60,7 @@ share
   PoolMetadataReference
     poolId              Types.PoolId              sqltype=text
     url                 Types.PoolUrl             sqltype=text
-    hash                Types.PoolMetadataHash    sqltype=base16type
+    hash                Types.PoolMetadataHash    sqltype=hash32type
     UniquePoolMetadataReference  poolId hash
 
   -- The table containing the metadata.
@@ -68,7 +68,7 @@ share
   PoolMetadata
     poolId              Types.PoolId              sqltype=text
     tickerName          Types.TickerName          sqltype=text
-    hash                Types.PoolMetadataHash    sqltype=base16type
+    hash                Types.PoolMetadataHash    sqltype=hash32type
     metadata            Types.PoolMetadataRaw     sqltype=text
     pmrId               PoolMetadataReferenceId Maybe
     UniquePoolMetadata  poolId hash
@@ -110,7 +110,7 @@ share
   -- For now they are grouped under the specific hash of the pool.
   ReservedTicker
     name                Text                    sqltype=text
-    poolHash            Types.PoolMetadataHash  sqltype=base16type
+    poolHash            Types.PoolMetadataHash  sqltype=hash32type
     UniqueReservedTicker name
 
   -- A table containin a list of administrator users that can be used to access the secure API endpoints.
