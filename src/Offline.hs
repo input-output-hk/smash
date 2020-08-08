@@ -28,7 +28,7 @@ import qualified Cardano.Crypto.Hash.Class as Crypto
 import qualified Cardano.Crypto.Hash.Blake2b as Crypto
 import qualified Cardano.Db.Schema as DB
 
-import qualified Data.ByteString.Base16 as B16
+import qualified Data.ByteString.Base16 as Base16
 
 import           Database.Esqueleto (Entity (..), SqlExpr, ValueList, (^.), (==.),
                     entityKey, entityVal, from, groupBy, in_, just, max_, notExists,
@@ -122,7 +122,7 @@ fetchInsertNewPoolMetadataOld tracer pfr = do
             (dlAddPoolMetadata postgresqlDataLayer)
                 (Just $ pfrReferenceId pfr)
                 (pfrPoolIdWtf pfr)
-                (PoolMetadataHash . B16.encode $ pfrPoolMDHash pfr)
+                (PoolMetadataHash $ pfrPoolMDHash pfr)
                 (decodeUtf8 respBS)
                 (pomTicker decodedMetadata)
 
@@ -214,13 +214,13 @@ queryPoolFetchRetry retry = do
           { pfrReferenceId = entityKey entity
           , pfrPoolIdWtf = DB.poolMetadataReferencePoolId pmr
           , pfrPoolUrl = getPoolUrl $ poolMetadataReferenceUrl pmr
-          , pfrPoolMDHash = fst . B16.decode $ getPoolMetadataHash (poolMetadataReferenceHash pmr)
+          , pfrPoolMDHash = getPoolMetadataHash (poolMetadataReferenceHash pmr)
           , pfrRetry = retry
           }
 
 
 renderByteStringHex :: ByteString -> Text
-renderByteStringHex = Text.decodeUtf8 . B16.encode
+renderByteStringHex = Text.decodeUtf8 . Base16.encode
 
 renderFetchError :: FetchError -> Text
 renderFetchError fe =

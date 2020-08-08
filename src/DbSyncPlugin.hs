@@ -23,8 +23,6 @@ import           Types                                       (PoolId (..), PoolM
 
 import qualified Cardano.Chain.Block as Byron
 
-import qualified Data.ByteString.Base16                      as B16
-
 import           Database.Persist.Sql (IsolationLevel (..), SqlBackend, transactionSaveWithIsolation)
 
 import qualified Cardano.Db.Insert                           as DB
