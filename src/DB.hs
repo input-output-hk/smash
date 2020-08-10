@@ -131,9 +131,8 @@ postgresqlDataLayer = DataLayer
                 }
         return poolMetadataRefId
 
-    , dlAddReservedTicker = \tickerName poolMetadataHash -> do
-        reservedTickerId <- runDbAction Nothing $ insertReservedTicker $ ReservedTicker tickerName poolMetadataHash
-        return $ Right reservedTickerId
+    , dlAddReservedTicker = \tickerName poolMetadataHash ->
+        runDbAction Nothing $ insertReservedTicker $ ReservedTicker tickerName poolMetadataHash
 
     , dlCheckReservedTicker = \tickerName ->
         runDbAction Nothing $ queryReservedTicker tickerName
@@ -142,7 +141,7 @@ postgresqlDataLayer = DataLayer
         runDbAction Nothing $ queryDelistedPool poolId
 
     , dlAddDelistedPool  = \poolId -> do
-        _ <- runDbAction Nothing $ insertDelistedPool $ DelistedPool poolId
+        delistedPoolId <- runDbAction Nothing $ insertDelistedPool $ DelistedPool poolId
         return $ Right poolId
 
     , dlGetAdminUsers       = do

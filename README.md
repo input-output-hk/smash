@@ -250,7 +250,7 @@ Currently, the SMASH service works by allowing superusers to insert the ticker n
 
 There is a CLI utility for doing exactly that. If you want to reserve the ticker name "SALAD" for the specific metadata hash "2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524", then you would reserve it like this:
 ```
-SMASHPGPASSFILE=config/pgpass stack run smash-exe -- insert-ticker-name --tickerName "SALAD" --poolhash "2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524"
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- reserve-ticker-name --tickerName "SALAD" --poolhash "2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524"
 ```
 
 If somebody adds the ticker name that exists there, it will not be returned, but it will return 404.

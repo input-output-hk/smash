@@ -20,11 +20,12 @@ import           Control.Monad.IO.Class (MonadIO)
 import           Control.Monad.Trans.Reader (ReaderT)
 
 import           Database.Persist.Class (AtLeastOneUniqueKey, Key, PersistEntityBackend,
-                    getByValue, insert)
+                    getByValue, insert, checkUnique)
 import           Database.Persist.Sql (SqlBackend)
 import           Database.Persist.Types (entityKey)
 
 import           Cardano.Db.Schema
+import           Cardano.Db.Error
 
 insertBlock :: (MonadIO m) => Block -> ReaderT SqlBackend m BlockId
 insertBlock = insertByReturnKey
@@ -41,8 +42,13 @@ insertPoolMetadataReference
     -> ReaderT SqlBackend m PoolMetadataReferenceId
 insertPoolMetadataReference = insertByReturnKey
 
-insertReservedTicker :: (MonadIO m) => ReservedTicker -> ReaderT SqlBackend m ReservedTickerId
-insertReservedTicker = insertByReturnKey
+insertReservedTicker :: (MonadIO m) => ReservedTicker -> ReaderT SqlBackend m (Either DBFail ReservedTickerId)
+insertReservedTicker reservedTicker = do
+    isUnique <- checkUnique reservedTicker
+    -- If there is no unique constraint violated, insert, otherwise return error.
+    case isUnique of
+        Nothing -> Right <$> insertByReturnKey reservedTicker
+        Just _key -> return . Left . ReservedTickerAlreadyInserted $ reservedTickerName reservedTicker
 
 insertDelistedPool :: (MonadIO m) => DelistedPool -> ReaderT SqlBackend m DelistedPoolId
 insertDelistedPool = insertByReturnKey
