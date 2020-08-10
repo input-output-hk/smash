@@ -96,11 +96,10 @@ Finally, we have one thing left.
 We first run the node, like mentioned above and in another terminal session/service we simply run SMASH.
 
 We need to run it using appropriate parameters, since running it requires it to be in sync with the node.
-This example is running it using the testnet and using the shelley genesis found when running the node.
 The socket path is just pointing to a socket that will be used for communication with the node.
 The example:
 ```
-SMASHPGPASSFILE=config/pgpass ./smash-local run-app-with-db-sync --config config/testnet-config.yaml --genesis-file /nix/store/hih30xck46bw2l4mlz6b36dsdnd2cwh4-shelley-testnet-genesis.json --socket-path ../cardano-node/state-node-shelley_testnet/node.socket --schema-dir schema/
+SMASHPGPASSFILE=config/pgpass ./smash-local run-app-with-db-sync --config config/testnet-config.yaml --socket-path ../cardano-node/state-node-shelley_testnet/node.socket --schema-dir schema/
 ```
 
 After this, the SMASH application should start syncing blocks and picking up pools.
