@@ -156,7 +156,7 @@ fetchLoop trce =
           loop unrunnable
         else do
           liftIO $ logInfo trce $ "Pools without offline metadata: " <> show (length runnable)
-          rs <- catMaybes <$> mapM (fetchInsertNewPoolMetadataOld trce) pools
+          rs <- catMaybes <$> mapM (fetchInsertNewPoolMetadataOld trce) runnable
           loop $ insertFetchQueue rs unrunnable
 
 httpGetMax512Bytes :: Http.Request -> Http.Manager -> ExceptT FetchError IO (ByteString, Http.Status)
