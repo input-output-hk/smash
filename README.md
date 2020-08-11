@@ -17,6 +17,8 @@ cabal build smash
 cabal install smash
 ```
 
+You can also use `stack` if you so prefer. Simply replace `stack` commands with `cabal` in the examples if you are using `cabal`.
+
 ### Prerequsites
 
 SMASH relies on:
@@ -106,13 +108,37 @@ You can then run ``smash`` using e.g:
 SMASHPGPASSFILE=./config/pgpass stack run smash-exe -- run-app-with-db-sync --config config.yaml --socket-path node.socket --schema-dir schema/
 ```
 
+## What can we do with SMASH?
+
+SMASH syncs with the blockchain and fetches the pool metadata off the chain. It then stores that into the database and allows for people/wallets/clients to check that metadata.
+
+From the HTTP API it supports the fetching of the metadata using:
+```
+curl --verbose --header "Content-Type: application/json" --request GET http://localhost:3100/api/v1/metadata/<POOL_ID>/<POOL_HASH>
+```
+Or delisting (if you are admin):
+```
+curl --verbose --header "Content-Type: application/json" --request POST --data '{"delistPool":"<POOL_ID>"}' http://localhost:3100/api/v1/delist
+```
+
+From the CLI (Command Line Interface) you can use additional command, which presumes you have to execute them from the server. 
+You can insert a pool manually:
+```
+SMASHPGPASSFILE=config/pgpass stack exec smash-exe -- insert-pool --metadata <POOL_JSON_FILE_PATH> --poolId "<POOL_ID>" --poolhash "<POOL_HASH>"
+```
+
+You can reserve a ticker:
+```
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- reserve-ticker-name --tickerName "<TICKER_NAME>" --poolhash "<POOL_HASH>"
+```
+
 ## How to test this works?
 
 You can run the provided example and try out these commands
 ```
 curl --verbose --header "Content-Type: application/json" --request GET http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524
 
-curl --verbose --user ksaric:cirask --header "Content-Type: application/json" --request POST --data '{"delistPool":"xyz"}' http://localhost:3000/api/v1/delist
+curl --verbose --user ksaric:cirask --header "Content-Type: application/json" --request POST --data '{"delistPool":"xyz"}' http://localhost:3100/api/v1/delist
 ```
 
 ## What else do I need?
@@ -175,7 +201,7 @@ pg_dump -c -s --no-owner cexplorer > cexplorer.sql
 
 This is an example (we got the hash from Blake2 256):
 ```
-stack exec smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
+SMASHPGPASSFILE=config/pgpass stack exec smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
 ```
 
 ## Test delisting
