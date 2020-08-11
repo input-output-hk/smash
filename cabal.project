@@ -3,6 +3,19 @@ index-state: 2020-07-15T00:00:00Z
 packages:
     ./
 
+-- -----------------------------------------------------------------------------
+-- Disable all tests by defauly and yhen enable specific tests in this repo
+
+tests: False
+
+package smash
+  tests: True
+
+test-show-details: direct
+
+-- -----------------------------------------------------------------------------
+
+
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-db-sync

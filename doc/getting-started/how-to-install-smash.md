@@ -1,3 +1,20 @@
+# Stakepool Metadata Aggregation Server (SMASH)
+
+```
+cabal build smash
+cabal install smash
+```
+
+### Prerequsites
+
+SMASH relies on:
+
+This repository contains the source code for the Cardano Stakepool Metadata Aggregation Server (SMASH).
+The purpose of SMASH is to aggregate common metadata about stakepools that are registered
+on the Cardano blockchain, including the name of the stakepool, its "ticker" name etc.
+This metadata can be curated and provided as a service to delegators, stake pool operators,
+exchanges etc., enabling independent validation and/or disambiguation of stakepool "ticker" names, for example.
+
 ## Installation
 
 SMASH can be built and installed from the command line using "cabal" as follows:
@@ -6,6 +23,8 @@ SMASH can be built and installed from the command line using "cabal" as follows:
 cabal build smash
 cabal install smash
 ```
+
+You can also use `stack` if you so prefer. Simply replace `stack` commands with `cabal` in the examples if you are using `cabal`.
 
 ### Prerequsites
 
@@ -93,16 +112,40 @@ cardano-node --genesis-file genesis.json --socket-path node.socket --config conf
 
 You can then run ``smash`` using e.g:
 ```
-SMASHPGPASSFILE=./config/pgpass stack run smash-exe -- run-app-with-db-sync --config config.yaml --genesis-file genesis.json --socket-path node.socket --schema-dir schema/
+SMASHPGPASSFILE=./config/pgpass stack run smash-exe -- run-app-with-db-sync --config config.yaml --socket-path node.socket --schema-dir schema/
+```
+
+## What can we do with SMASH?
+
+SMASH syncs with the blockchain and fetches the pool metadata off the chain. It then stores that into the database and allows for people/wallets/clients to check that metadata.
+
+From the HTTP API it supports the fetching of the metadata using:
+```
+curl --verbose --header "Content-Type: application/json" --request GET http://localhost:3100/api/v1/metadata/<POOL_ID>/<POOL_HASH>
+```
+Or delisting (if you are admin):
+```
+curl --verbose --header "Content-Type: application/json" --request POST --data '{"delistPool":"<POOL_ID>"}' http://localhost:3100/api/v1/delist
+```
+
+From the CLI (Command Line Interface) you can use additional command, which presumes you have to execute them from the server. 
+You can insert a pool manually:
+```
+SMASHPGPASSFILE=config/pgpass stack exec smash-exe -- insert-pool --metadata <POOL_JSON_FILE_PATH> --poolId "<POOL_ID>" --poolhash "<POOL_HASH>"
+```
+
+You can reserve a ticker:
+```
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- reserve-ticker-name --tickerName "<TICKER_NAME>" --poolhash "<POOL_HASH>"
 ```
 
 ## How to test this works?
 
 You can run the provided example and try out these commands
 ```
-curl --verbose --header "Content-Type: application/json" --request GET http://localhost:3000/api/v1/metadata/ed25519_pk1z2ffur59cq7t806nc9y2g64wa60pg5m6e9cmrhxz9phppaxk5d4sn8nsqg
+curl --verbose --header "Content-Type: application/json" --request GET http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524
 
-curl --verbose --user ksaric:cirask --header "Content-Type: application/json" --request POST --data '{"delistPool":"xyz"}' http://localhost:3000/api/v1/delist
+curl --verbose --user ksaric:cirask --header "Content-Type: application/json" --request POST --data '{"delistPool":"xyz"}' http://localhost:3100/api/v1/delist
 ```
 
 ## What else do I need?
@@ -165,7 +208,7 @@ pg_dump -c -s --no-owner cexplorer > cexplorer.sql
 
 This is an example (we got the hash from Blake2 256):
 ```
-stack exec smash-exe -- insert-pool --metadata test_pool.json --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
+SMASHPGPASSFILE=config/pgpass stack exec smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
 ```
 
 ## Test delisting
@@ -174,17 +217,17 @@ If you find some pool hash that has been inserted, like in our example, '93b1333
 
 You can test the delisting by sending a PATCH on the delist endpoint.
 ```
-curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
+curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7"}'
 ```
 
 Or if you have Basic Auth enabled (replace with the username/pass for your DB):
 ```
-curl -u ksaric:cirask -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
+curl -u ksaric:test -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7"}'
 ```
 
 Fetching the pool:
 ```
-curl -X GET -v http://localhost:3100/api/v1/metadata/93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873 | jq .
+curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f | jq .
 ```
 
 ## Basic Auth and DB
@@ -207,12 +250,12 @@ SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./sch
 SMASHPGPASSFILE=config/pgpass stack run smash-exe -- create-migration --mdir ./schema
 SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-migrations --mdir ./schema
 
-SMASHPGPASSFILE=config/pgpass stack run smash-exe -- insert-pool --metadata test_pool.json --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
 
 SMASHPGPASSFILE=config/pgpass stack run smash-exe -- run-app
 ```
 
-After the server is running, you can check the hash on http://localhost:3100/api/v1/metadata/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f to see it return the JSON metadata.
+After the server is running, you can check the hash on http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f to see it return the JSON metadata.
 
 ## How to figure out the JSON hash?
 
@@ -228,6 +271,55 @@ Prelude> import qualified Data.ByteString.Base16 as B16
 
 Prelude> poolMetadata <- readFile "test_pool.json"
 Prelude> B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadata)
+```
+
+This assumes that you have a file called "test_pool.json" in your current directory that contains the JSON
+metadata for the stake pool.
+
+
+## How to insert the reserved ticker name?
+
+Currently, the SMASH service works by allowing superusers to insert the ticker name and the hash of the pool they want to be reserved _for that ticker name_.
+
+There is a CLI utility for doing exactly that. If you want to reserve the ticker name "SALAD" for the specific metadata hash "2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524", then you would reserve it like this:
+```
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- reserve-ticker-name --tickerName "SALAD" --poolhash "2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524"
+```
+
+If somebody adds the ticker name that exists there, it will not be returned, but it will return 404.
+
+## How to test delisting?
+
+The example we used for testing shows that we can delist the pool id.
+That pool id is then unable to provide any more pools.
+
+We first insert the `test_pool.json` we have in the provided example:
+```
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
+```
+
+Then we change ticker name of `test_pool.json` from `testy` to `testo`. This changes the pool hash.
+You can check the hash using the example in https://github.com/input-output-hk/smash#how-to-figure-out-the-json-hash:
+```
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699"
+```
+
+We now have two pools from the same pool id. Let's see if we got them in the database: 
+```
+curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f | jq .
+
+curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699 | jq .
+```
+We can try to delist that pool id and then try fetching both pools to see if delisting works on the level of the pool id:
+```
+curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7"}'
+```
+
+Fetching them again should result in 403:
+```
+curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f | jq .
+
+curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699 | jq .
 ```
 
 This assumes that you have a file called "test_pool.json" in your current directory that contains the JSON

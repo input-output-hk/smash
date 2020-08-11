@@ -5,6 +5,7 @@ import           Cardano.Prelude
 import           DB
 import           DbSyncPlugin          (poolMetadataDbSyncNodePlugin)
 import           Lib
+import           Types
 
 import           Cardano.SmashDbSync   (ConfigFile (..),
                                         SmashDbSyncNodeParams (..),
@@ -40,7 +41,8 @@ data Command
   | RunMigrations SmashMigrationDir (Maybe SmashLogFileDir)
   | RunApplication
   | RunApplicationWithDbSync SmashDbSyncNodeParams
-  | InsertPool FilePath Text
+  | InsertPool FilePath PoolId PoolMetadataHash
+  | ReserveTickerName Text PoolMetadataHash
 
 runCommand :: Command -> IO ()
 runCommand cmd =
@@ -52,12 +54,19 @@ runCommand cmd =
         race_
             (runDbSyncNode poolMetadataDbSyncNodePlugin dbSyncNodeParams)
             (runApp defaultConfiguration)
-    InsertPool poolMetadataJsonPath poolHash -> do
+    InsertPool poolMetadataJsonPath poolId poolHash -> do
         putTextLn "Inserting pool metadata!"
-        result <- runPoolInsertion poolMetadataJsonPath poolHash
+        result <- runPoolInsertion poolMetadataJsonPath poolId poolHash
         either
             (\err -> putTextLn $ "Error occured. " <> renderLookupFail err)
             (\_ -> putTextLn "Insertion completed!")
+            result
+    ReserveTickerName tickerName poolHash -> do
+        putTextLn "Reserving ticker name!"
+        result <- runTickerNameInsertion tickerName poolHash
+        either
+            (\err -> putTextLn $ "Reserved ticker name not inserted! " <> renderLookupFail err)
+            (\_ -> putTextLn "Ticker name inserted into the database reserved!")
             result
 
 doCreateMigration :: SmashMigrationDir -> IO ()
@@ -68,14 +77,6 @@ doCreateMigration mdir = do
     Just fp -> putTextLn $ toS ("New migration '" ++ fp ++ "' created.")
 
 -------------------------------------------------------------------------------
-
-opts :: ParserInfo SmashDbSyncNodeParams
-opts =
-  Opt.info (pCommandLine <**> Opt.helper)
-    ( Opt.fullDesc
-    <> Opt.progDesc "Extended Cardano POstgreSQL sync node."
-    )
-
 
 pCommandLine :: Parser SmashDbSyncNodeParams
 pCommandLine =
@@ -151,6 +152,10 @@ pCommand =
         ( Opt.info pInsertPool
           $ Opt.progDesc "Inserts the pool into the database (utility)."
           )
+    <> Opt.command "reserve-ticker-name"
+        ( Opt.info pReserveTickerName
+          $ Opt.progDesc "Inserts the ticker name into the database (utility)."
+          )
     )
   where
     pCreateMigration :: Parser Command
@@ -174,7 +179,20 @@ pCommand =
     -- Empty right now but we might add some params over time.
     pInsertPool :: Parser Command
     pInsertPool =
-      InsertPool <$> pFilePath <*> pPoolHash
+      InsertPool <$> pFilePath <*> pPoolId <*> pPoolHash
+
+    -- For inserting ticker names.
+    pReserveTickerName :: Parser Command
+    pReserveTickerName =
+      ReserveTickerName <$> pTickerName <*> pPoolHash
+
+
+pPoolId :: Parser PoolId
+pPoolId =
+  PoolId <$> Opt.strOption
+    (  Opt.long "poolId"
+    <> Opt.help "The pool id of the operator, the hash of the 'cold' pool key."
+    )
 
 pFilePath :: Parser FilePath
 pFilePath =
@@ -185,9 +203,9 @@ pFilePath =
     <> Opt.completer (Opt.bashCompleter "directory")
     )
 
-pPoolHash :: Parser Text
+pPoolHash :: Parser PoolMetadataHash
 pPoolHash =
-  Opt.strOption
+  PoolMetadataHash <$> Opt.strOption
     (  Opt.long "poolhash"
     <> Opt.help "The JSON metadata Blake2 256 hash."
     )
@@ -207,4 +225,12 @@ pLogFileDir =
     <> Opt.help "The directory to write the log to."
     <> Opt.completer (Opt.bashCompleter "directory")
     )
+
+pTickerName :: Parser Text
+pTickerName =
+  Opt.strOption
+    (  Opt.long "tickerName"
+    <> Opt.help "The name of the ticker."
+    )
+
 

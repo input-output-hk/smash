@@ -4,9 +4,10 @@
 module Cardano.Db.Insert
   ( insertBlock
   , insertMeta
-  , insertTxMetadata
-  , insertPoolMetaData
-  , insertBlacklistedPool
+  , insertPoolMetadata
+  , insertPoolMetadataReference
+  , insertReservedTicker
+  , insertDelistedPool
   , insertAdminUser
 
   -- Export mainly for testing.
@@ -19,11 +20,12 @@ import           Control.Monad.IO.Class (MonadIO)
 import           Control.Monad.Trans.Reader (ReaderT)
 
 import           Database.Persist.Class (AtLeastOneUniqueKey, Key, PersistEntityBackend,
-                    getByValue, insert)
+                    getByValue, insert, checkUnique)
 import           Database.Persist.Sql (SqlBackend)
 import           Database.Persist.Types (entityKey)
 
 import           Cardano.Db.Schema
+import           Cardano.Db.Error
 
 insertBlock :: (MonadIO m) => Block -> ReaderT SqlBackend m BlockId
 insertBlock = insertByReturnKey
@@ -31,14 +33,25 @@ insertBlock = insertByReturnKey
 insertMeta :: (MonadIO m) => Meta -> ReaderT SqlBackend m MetaId
 insertMeta = insertByReturnKey
 
-insertTxMetadata :: (MonadIO m) => TxMetadata -> ReaderT SqlBackend m TxMetadataId
-insertTxMetadata = insertByReturnKey
+insertPoolMetadata :: (MonadIO m) => PoolMetadata -> ReaderT SqlBackend m PoolMetadataId
+insertPoolMetadata = insertByReturnKey
 
-insertPoolMetaData :: (MonadIO m) => PoolMetaData -> ReaderT SqlBackend m PoolMetaDataId
-insertPoolMetaData = insertByReturnKey
+insertPoolMetadataReference
+    :: MonadIO m
+    => PoolMetadataReference
+    -> ReaderT SqlBackend m PoolMetadataReferenceId
+insertPoolMetadataReference = insertByReturnKey
 
-insertBlacklistedPool :: (MonadIO m) => BlacklistedPool -> ReaderT SqlBackend m BlacklistedPoolId
-insertBlacklistedPool = insertByReturnKey
+insertReservedTicker :: (MonadIO m) => ReservedTicker -> ReaderT SqlBackend m (Either DBFail ReservedTickerId)
+insertReservedTicker reservedTicker = do
+    isUnique <- checkUnique reservedTicker
+    -- If there is no unique constraint violated, insert, otherwise return error.
+    case isUnique of
+        Nothing -> Right <$> insertByReturnKey reservedTicker
+        Just _key -> return . Left . ReservedTickerAlreadyInserted $ reservedTickerName reservedTicker
+
+insertDelistedPool :: (MonadIO m) => DelistedPool -> ReaderT SqlBackend m DelistedPoolId
+insertDelistedPool = insertByReturnKey
 
 insertAdminUser :: (MonadIO m) => AdminUser -> ReaderT SqlBackend m AdminUserId
 insertAdminUser = insertByReturnKey

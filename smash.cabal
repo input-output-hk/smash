@@ -1,7 +1,7 @@
 cabal-version: 1.12
 
 name:           smash
-version:        0.1.0
+version:        1.0.0
 description:    Please see the README on GitHub at <https://github.com/input-output-hk/smash#readme>
 homepage:       https://github.com/input-output-hk/smash#readme
 bug-reports:    https://github.com/input-output-hk/smash/issues
@@ -29,6 +29,9 @@ library
 
   exposed-modules:
       Lib
+      Offline
+      FetchQueue
+      FetchQueue.Retry
     , Types
     , DB
     , DbSyncPlugin
@@ -47,7 +50,7 @@ library
     , Cardano.Db.Error
     , Cardano.Db.Insert
     , Cardano.Db.Query
-
+    , Cardano.Db.Types
 
   other-modules:
       Paths_smash
@@ -57,6 +60,7 @@ library
       base >=4.7 && <5
     , cardano-prelude
     , containers
+    , quiet
     , servant
     , servant-server
     , servant-swagger
@@ -157,6 +161,7 @@ test-suite smash-test
   other-modules:
       Paths_smash
     , SmashSpec
+    , SmashSpecSM
   hs-source-dirs:
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N

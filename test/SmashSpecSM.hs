@@ -55,16 +55,16 @@ prop_smash = do
     -- Placeholder
     let testdDL =   stubbedDataLayer
                         (unsafePerformIO $ newIORef stubbedInitialDataMap)
-                        (unsafePerformIO $ newIORef stubbedBlacklistedPools)
+                        (unsafePerformIO $ newIORef stubbedDelistedPools)
 
     forAllCommands (smUnused testdDL) (Just 100) $ \cmds -> monadicIO $ do
 
         --TODO(KS): Initialize the REAL DB!
         ioDataMap           <- run $ newIORef stubbedInitialDataMap
-        ioBlacklistedPools  <- run $ newIORef stubbedBlacklistedPools
+        ioDelistedPools  <- run $ newIORef stubbedDelistedPools
 
         let dataLayer :: DataLayer
-            dataLayer = stubbedDataLayer ioDataMap ioBlacklistedPools
+            dataLayer = stubbedDataLayer ioDataMap ioDelistedPools
 
         -- Run the actual commands
         (hist, _model, res) <- runCommands (smashSM dataLayer) cmds
@@ -83,15 +83,15 @@ smUnused dataLayer = smashSM dataLayer
 -- | The list of commands/actions the model can take.
 -- The __r__ type here is the polymorphic type param for symbolic and concrete @Action@.
 data Action (r :: Type -> Type)
-    = InsertPool !PoolHash !Text
+    = InsertPool !PoolId !PoolMetadataHash !Text
     -- ^ This should really be more type-safe.
     deriving (Show, Generic1, Rank2.Foldable, Rank2.Traversable, Rank2.Functor, CommandNames)
 
 -- | The types of responses of the model.
 -- The __r__ type here is the polymorphic type param for symbolic and concrete @Response@.
 data Response (r :: Type -> Type)
-    = PoolInserted !PoolHash !Text
-    | MissingPoolHash !PoolHash
+    = PoolInserted !PoolId !PoolMetadataHash !Text
+    | MissingPoolHash !PoolId !PoolMetadataHash
     deriving (Show, Generic1, Rank2.Foldable, Rank2.Traversable, Rank2.Functor)
 
 -- | The types of error that can occur in the model.
@@ -161,13 +161,13 @@ smashSM dataLayer = StateMachine
 
     -- | Post conditions for the system.
     mPostconditions :: Model Concrete -> Action Concrete -> Response Concrete -> Logic
-    mPostconditions _ (InsertPool poolHash poolOfflineMeta) (PoolInserted poolHash' poolOfflineMeta')   = Top
+    mPostconditions _ (InsertPool poolId poolHash poolOfflineMeta) (PoolInserted poolId' poolHash' poolOfflineMeta')   = Top
     mPostconditions _ _                                     _                                           = Bot
 
     -- | Generator for symbolic actions.
     mGenerator :: Model Symbolic -> Maybe (Gen (Action Symbolic))
     mGenerator _            = Just $ oneof
-        [ InsertPool <$> genPoolHash <*> genPoolOfflineMetadataText
+        [ InsertPool <$> genPoolId <*> genPoolHash <*> genPoolOfflineMetadataText
         ]
 
     -- | Trivial shrinker. __No shrinker__.
@@ -176,24 +176,28 @@ smashSM dataLayer = StateMachine
 
     -- | Here we'd do the dispatch to the actual SUT.
     mSemantics :: Action Concrete -> IO (Response Concrete)
-    mSemantics (InsertPool poolHash poolOfflineMeta) = do
+    mSemantics (InsertPool poolId poolHash poolOfflineMeta) = do
         let addPoolMetadata = dlAddPoolMetadata dataLayer
-        result <- addPoolMetadata poolHash poolOfflineMeta
+        -- TODO(KS): Fix this.
+        result <- addPoolMetadata Nothing poolId poolHash poolOfflineMeta (PoolTicker "tickerName")
         case result of
-            Left err -> return $ MissingPoolHash poolHash
-            Right poolOfflineMeta' -> return $ PoolInserted poolHash poolOfflineMeta'
+            Left err -> return $ MissingPoolHash poolId poolHash
+            Right poolOfflineMeta' -> return $ PoolInserted poolId poolHash poolOfflineMeta'
 
     -- | Compare symbolic and SUT.
     mMock :: Model Symbolic -> Action Symbolic -> GenSym (Response Symbolic)
-    mMock _ (InsertPool poolHash poolOfflineMeta)   = return (PoolInserted poolHash poolOfflineMeta)
+    mMock _ (InsertPool poolId poolHash poolOfflineMeta)   = return (PoolInserted poolId poolHash poolOfflineMeta)
     --mMock _ (MissingPoolHash _)    = return PoolInserted
 
 -- | A simple utility function so we don't have to pass panic around.
 doNotUse :: a
 doNotUse = panic "Should not be used!"
 
-genPoolHash :: Gen PoolHash
-genPoolHash = PoolHash <$> genSafeText
+genPoolId :: Gen PoolId
+genPoolId = PoolId . encodeUtf8 <$> genSafeText
+
+genPoolHash :: Gen PoolMetadataHash
+genPoolHash = PoolMetadataHash . encodeUtf8 <$> genSafeText
 
 -- |Improve this.
 genPoolOfflineMetadataText :: Gen Text

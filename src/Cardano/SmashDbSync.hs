@@ -32,7 +32,7 @@ import           Control.Tracer                                        (Tracer)
 import           Cardano.BM.Data.Tracer                                (ToLogObject (..))
 import qualified Cardano.BM.Setup                                      as Logging
 import           Cardano.BM.Trace                                      (Trace, appendName,
-                                                                        logInfo)
+                                                                        modifyName, logInfo)
 import qualified Cardano.BM.Trace                                      as Logging
 
 import           Cardano.Client.Subscription                           (subscribe)
@@ -83,6 +83,8 @@ import           Network.Mux.Types                                     (MuxMode 
 import           Network.Socket                                        (SockAddr (..))
 
 import           Network.TypedProtocol.Pipelined                       (Nat (Succ, Zero))
+
+import           Offline (runOfflineFetchThread)
 
 import           Ouroboros.Network.Driver.Simple                       (runPipelinedPeer)
 
@@ -177,7 +179,7 @@ runDbSyncNode plugin enp =
 
     trce <- if not (encEnableLogging enc)
               then pure Logging.nullTracer
-              else liftIO $ Logging.setupTrace (Right $ encLoggingConfig enc) "db-sync-node"
+              else liftIO $ Logging.setupTrace (Right $ encLoggingConfig enc) "smash-node"
 
     logInfo trce $ "Running migrations."
 
@@ -221,7 +223,7 @@ insertValidateGenesisDistSmash tracer (NetworkName networkName) cfg =
     insertAction = do
       ebid <- DB.queryBlockId (configGenesisHash cfg)
       case ebid of
-        Right bid -> validateGenesisDistribution tracer networkName cfg bid
+        Right _bid -> validateGenesisDistribution tracer networkName cfg
         Left _ ->
           runExceptT $ do
             liftIO $ logInfo tracer "Inserting Genesis distribution"
@@ -251,9 +253,9 @@ insertValidateGenesisDistSmash tracer (NetworkName networkName) cfg =
 -- | Validate that the initial Genesis distribution in the DB matches the Genesis data.
 validateGenesisDistribution
     :: (MonadIO m)
-    => Trace IO Text -> Text -> ShelleyGenesis TPraosStandardCrypto -> DB.BlockId
+    => Trace IO Text -> Text -> ShelleyGenesis TPraosStandardCrypto
     -> ReaderT SqlBackend m (Either DbSyncNodeError ())
-validateGenesisDistribution tracer networkName cfg _bid =
+validateGenesisDistribution tracer networkName cfg =
   runExceptT $ do
     liftIO $ logInfo tracer "Validating Genesis distribution"
     meta <- firstExceptT (\(e :: DB.DBFail) -> NEError $ show e) . newExceptT $ DB.queryMeta
@@ -403,7 +405,10 @@ dbSyncProtocols trce env plugin _version codecs _connectionId =
         actionQueue <- newDbActionQueue
         (metrics, server) <- registerMetricsServer
         race_
-            (runDbThread trce env plugin metrics actionQueue)
+            (race_
+                (runDbThread trce env plugin metrics actionQueue)
+                (runOfflineFetchThread $ modifyName (const "fetch") trce)
+            )
             (runPipelinedPeer
                 localChainSyncTracer
                 (cChainSyncCodec codecs)
