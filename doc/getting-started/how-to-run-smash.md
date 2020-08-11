@@ -111,23 +111,13 @@ For example, after seeing that a pool has be registered, you can try to get it's
 curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873
 ```
 
-<<<<<<< HEAD:doc/getting-started/how-to-run-smash.md
-You can test the delisting by sending a PATCH on the delist endpoint.
-```
-curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
-=======
 You can test the delisting by sending a PATCH on the delist endpoint (using the pool id from the example, `062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7`).
 ```
 curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7"}'
->>>>>>> upstream/master:doc/getting-started/running.md
 ```
 
 Or if you have Basic Auth enabled (replace with you username/pass you have in your DB):
 ```
-<<<<<<< HEAD:doc/getting-started/how-to-run-smash.md
-curl -u ksaric:cirask -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
-=======
 curl -u ksaric:cirask -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7"}'
->>>>>>> upstream/master:doc/getting-started/running.md
 ```
 
