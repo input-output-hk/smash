@@ -1,6 +1,13 @@
 # Stakepool Metadata Aggregation Server (SMASH)
 
-[![Coverage Status](https://coveralls.io/repos/github/input-output-hk/smash/badge.svg?branch=master)](https://coveralls.io/github/input-output-hk/smash?branch=master)
+```
+cabal build smash
+cabal install smash
+```
+
+### Prerequsites
+
+SMASH relies on:
 
 This repository contains the source code for the Cardano Stakepool Metadata Aggregation Server (SMASH).
 The purpose of SMASH is to aggregate common metadata about stakepools that are registered
@@ -153,7 +160,7 @@ You need an HTTP server to serve it from and simply point to the application por
 Run the application, go to the local port http://localhost:3000/swagger.json and copy the content into https://editor.swagger.io/
 Voila! You got it, the spec is there.
 
-## How to run
+## How to use SMASH
 
 ### Create DB
 
@@ -315,3 +322,5 @@ curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f0207
 curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699 | jq .
 ```
 
+This assumes that you have a file called "test_pool.json" in your current directory that contains the JSON
+metadata for the stake pool.
