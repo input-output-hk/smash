@@ -18,7 +18,7 @@ BEGIN
     ALTER TABLE "block" ADD CONSTRAINT "unique_block" UNIQUE("hash");
     CREATe TABLE "meta"("id" SERIAL8  PRIMARY KEY UNIQUE,"protocol_const" INT8 NOT NULL,"slot_duration" INT8 NOT NULL,"start_time" timestamp NOT NULL,"slots_per_epoch" INT8 NOT NULL,"network_name" VARCHAR NULL);
     ALTER TABLE "meta" ADD CONSTRAINT "unique_meta" UNIQUE("start_time");
-    CREATe TABLE "delisted_pool"("id" SERIAL8  PRIMARY KEY UNIQUE,"pool_id" hash28type NOT NULL);
+    CREATe TABLE "delisted_pool"("id" SERIAL8  PRIMARY KEY UNIQUE,"pool_id" text NOT NULL);
     ALTER TABLE "delisted_pool" ADD CONSTRAINT "unique_blacklisted_pool" UNIQUE("pool_id");
     CREATe TABLE "reserved_ticker"("id" SERIAL8  PRIMARY KEY UNIQUE,"name" text NOT NULL,"pool_hash" base16type NOT NULL);
     ALTER TABLE "reserved_ticker" ADD CONSTRAINT "unique_reserved_ticker" UNIQUE("name");

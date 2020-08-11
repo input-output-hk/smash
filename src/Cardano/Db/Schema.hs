@@ -103,7 +103,7 @@ share
 
   -- A table containing a list of delisted pools.
   DelistedPool
-    poolId              Types.PoolId        sqltype=hash28type
+    poolId              Types.PoolId        sqltype=text
     UniqueBlacklistedPool poolId
 
   -- A table containing a managed list of reserved ticker names.

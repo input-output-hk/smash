@@ -103,7 +103,7 @@ cardano-node --genesis-file genesis.json --socket-path node.socket --config conf
 
 You can then run ``smash`` using e.g:
 ```
-SMASHPGPASSFILE=./config/pgpass stack run smash-exe -- run-app-with-db-sync --config config.yaml --genesis-file genesis.json --socket-path node.socket --schema-dir schema/
+SMASHPGPASSFILE=./config/pgpass stack run smash-exe -- run-app-with-db-sync --config config.yaml --socket-path node.socket --schema-dir schema/
 ```
 
 ## How to test this works?
@@ -184,17 +184,17 @@ If you find some pool hash that has been inserted, like in our example, '93b1333
 
 You can test the delisting by sending a PATCH on the delist endpoint.
 ```
-curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
+curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7"}'
 ```
 
 Or if you have Basic Auth enabled (replace with the username/pass for your DB):
 ```
-curl -u ksaric:cirask -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolHash": "93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873"}'
+curl -u ksaric:test -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7"}'
 ```
 
 Fetching the pool:
 ```
-curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873 | jq .
+curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f | jq .
 ```
 
 ## Basic Auth and DB
@@ -255,6 +255,37 @@ SMASHPGPASSFILE=config/pgpass stack run smash-exe -- insert-ticker-name --ticker
 
 If somebody adds the ticker name that exists there, it will not be returned, but it will return 404.
 
+## How to test delisting?
 
+The example we used for testing shows that we can delist the pool id.
+That pool id is then unable to provide any more pools.
 
+We first insert the `test_pool.json` we have in the provided example:
+```
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
+```
+
+Then we change ticker name of `test_pool.json` from `testy` to `testo`. This changes the pool hash.
+You can check the hash using the example in https://github.com/input-output-hk/smash#how-to-figure-out-the-json-hash:
+```
+SMASHPGPASSFILE=config/pgpass stack run smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699"
+```
+
+We now have two pools from the same pool id. Let's see if we got them in the database: 
+```
+curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f | jq .
+
+curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699 | jq .
+```
+We can try to delist that pool id and then try fetching both pools to see if delisting works on the level of the pool id:
+```
+curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7"}'
+```
+
+Fetching them again should result in 403:
+```
+curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f | jq .
+
+curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699 | jq .
+```
 
