@@ -42,7 +42,7 @@ data Command
   | RunApplication
   | RunApplicationWithDbSync SmashDbSyncNodeParams
   | InsertPool FilePath PoolId PoolMetadataHash
-  | InsertTickerName Text PoolMetadataHash
+  | ReserveTickerName Text PoolMetadataHash
 
 runCommand :: Command -> IO ()
 runCommand cmd =
@@ -61,10 +61,13 @@ runCommand cmd =
             (\err -> putTextLn $ "Error occured. " <> renderLookupFail err)
             (\_ -> putTextLn "Insertion completed!")
             result
-    InsertTickerName tickerName poolHash -> do
-        putTextLn "Inserting reserved ticker name!"
-        void $ runTickerNameInsertion tickerName poolHash
-
+    ReserveTickerName tickerName poolHash -> do
+        putTextLn "Reserving ticker name!"
+        result <- runTickerNameInsertion tickerName poolHash
+        either
+            (\err -> putTextLn $ "Reserved ticker name not inserted! " <> renderLookupFail err)
+            (\_ -> putTextLn "Ticker name inserted into the database reserved!")
+            result
 
 doCreateMigration :: SmashMigrationDir -> IO ()
 doCreateMigration mdir = do
@@ -149,8 +152,8 @@ pCommand =
         ( Opt.info pInsertPool
           $ Opt.progDesc "Inserts the pool into the database (utility)."
           )
-    <> Opt.command "insert-ticker-name"
-        ( Opt.info pInsertTickerName
+    <> Opt.command "reserve-ticker-name"
+        ( Opt.info pReserveTickerName
           $ Opt.progDesc "Inserts the ticker name into the database (utility)."
           )
     )
@@ -179,9 +182,9 @@ pCommand =
       InsertPool <$> pFilePath <*> pPoolId <*> pPoolHash
 
     -- For inserting ticker names.
-    pInsertTickerName :: Parser Command
-    pInsertTickerName =
-      InsertTickerName <$> pTickerName <*> pPoolHash
+    pReserveTickerName :: Parser Command
+    pReserveTickerName =
+      ReserveTickerName <$> pTickerName <*> pPoolHash
 
 
 pPoolId :: Parser PoolId

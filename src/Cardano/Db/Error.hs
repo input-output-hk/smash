@@ -25,6 +25,7 @@ data DBFail
   | PoolDelisted
   | UnableToEncodePoolMetadataToJSON !Text
   | UnknownError !Text
+  | ReservedTickerAlreadyInserted !Text
   deriving (Eq, Show, Generic)
 
 {-
@@ -80,6 +81,11 @@ instance ToJSON DBFail where
             [ "code"            .= String "UnknownError"
             , "description"     .= String (renderLookupFail failure)
             ]
+    toJSON failure@(ReservedTickerAlreadyInserted _tickerName) =
+        object
+            [ "code"            .= String "ReservedTickerAlreadyInserted"
+            , "description"     .= String (renderLookupFail failure)
+            ]
 
 
 renderLookupFail :: DBFail -> Text
@@ -93,4 +99,5 @@ renderLookupFail lf =
     PoolDelisted -> "The pool has been delisted!"
     UnableToEncodePoolMetadataToJSON err -> "Unable to encode the content to JSON. " <> err
     UnknownError text -> "Unknown error. Context: " <> text
+    ReservedTickerAlreadyInserted tickerName -> "Ticker '" <> tickerName <> "' has already been inserted."
 
