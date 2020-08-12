@@ -58,12 +58,10 @@ let
   jobs = {
     native = mapTestOn (__trace (__toJSON (packagePlatforms project)) (packagePlatforms project));
     # only build nixos tests on first supported system (linux)
-    inherit (pkgsFor (builtins.head  supportedSystems)) nixosTests;
   } // (mkRequiredJob (concatLists [
     (collectJobs jobs.native.checks)
     (collectJobs jobs.native.libs)
     (collectJobs jobs.native.exes)
-    (collectJobs jobs.nixosTests.smashTest)
   ]));
 
 in jobs
