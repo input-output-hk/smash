@@ -4,18 +4,18 @@
 
 ### Story
 
-[CAD-1397] - ITN Ticker protection for mainnet and SMASH
-[CAD-1399] - Change wording in documentation and codebase to delist/list
-[CAD-1409] - Will not retry fetching metadata if hash mismatches or URL is not available
-[CAD-1428] - Change the primary database key to be "poolid", not ticker name
-[CAD-1446] - Support delayed registration of metadata
-[CAD-1449] - Exponential back-off to pull Stake Pools metadata in case there’s a timeout or an HTTP error returned by the pool metadata server
-[CAD-1456] - Implement blacklisting for pool ids
-[CAD-1462] - Clarify insert ticker command name and report error if ticker already exists
+- [CAD-1397] - ITN Ticker protection for mainnet and SMASH
+- [CAD-1399] - Change wording in documentation and codebase to delist/list
+- [CAD-1409] - Will not retry fetching metadata if hash mismatches or URL is not available
+- [CAD-1428] - Change the primary database key to be "poolid", not ticker name
+- [CAD-1446] - Support delayed registration of metadata
+- [CAD-1449] - Exponential back-off to pull Stake Pools metadata in case there’s a timeout or an HTTP error returned by the pool metadata server
+- [CAD-1456] - Implement blacklisting for pool ids
+- [CAD-1462] - Clarify insert ticker command name and report error if ticker already exists
 
 ### Bug
 
-[CAD-1390] - Fix Nix issue
+- [CAD-1390] - Fix Nix issue
 
 
 ## 0.1.0
