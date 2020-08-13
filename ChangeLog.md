@@ -1,5 +1,12 @@
 # Changelog for smash
 
+## 1.0.1
+
+### Bug
+
+- [CAD-1471] - Query pool id along with hash when looking for pool info
+
+
 ## 1.0.0
 
 ### Story
