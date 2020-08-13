@@ -11,7 +11,7 @@ license:        Apache-2.0
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
-    README.md
+    README.rst
     ChangeLog.md
 
 source-repository head
@@ -37,6 +37,7 @@ library
     , DbSyncPlugin
     -- DbSync
     , Cardano.SmashDbSync
+    , Cardano.Metrics
     -- Migration
     , Cardano.Db.Database
     , Cardano.Db.Migration
