@@ -33,7 +33,7 @@ import           Database.Esqueleto         (Entity, PersistField, SqlExpr,
                                              Value, countRows, desc, entityVal,
                                              from, isNothing, just, limit, not_,
                                              orderBy, select, unValue, val,
-                                             where_, (==.), (^.))
+                                             where_, (&&.), (==.), (^.))
 import           Database.Persist.Sql       (SqlBackend, selectList)
 
 import           Cardano.Db.Error
@@ -45,7 +45,7 @@ import qualified Cardano.Db.Types           as Types
 queryPoolMetadata :: MonadIO m => Types.PoolId -> Types.PoolMetadataHash -> ReaderT SqlBackend m (Either DBFail PoolMetadata)
 queryPoolMetadata poolId poolMetadataHash = do
   res <- select . from $ \ poolMetadata -> do
-            where_ (poolMetadata ^. PoolMetadataHash ==. val poolMetadataHash)
+            where_ (poolMetadata ^. PoolMetadataPoolId ==. val poolId &&. poolMetadata ^. PoolMetadataHash ==. val poolMetadataHash)
             pure poolMetadata
   pure $ maybeToEither (DbLookupPoolMetadataHash poolId poolMetadataHash) entityVal (listToMaybe res)
 

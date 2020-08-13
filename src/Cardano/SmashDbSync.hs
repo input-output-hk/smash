@@ -40,10 +40,11 @@ import           Cardano.Client.Subscription                           (subscrib
 import qualified DB                                                    as DB
 
 import           Cardano.Db.Database
+import           Cardano.Metrics
+
 import           Cardano.DbSync.Config
 import           Cardano.DbSync.Era
 import           Cardano.DbSync.Error
-import           Cardano.DbSync.Metrics
 import           Cardano.DbSync.Plugin                                 (DbSyncNodePlugin (..))
 import           Cardano.DbSync.Tracing.ToObjectOrphans                ()
 import           Cardano.DbSync.Types                                  (ConfigFile (..),
@@ -403,7 +404,7 @@ dbSyncProtocols trce env plugin _version codecs _connectionId =
         currentTip <- getCurrentTipBlockNo
         logDbState trce
         actionQueue <- newDbActionQueue
-        (metrics, server) <- registerMetricsServer
+        (metrics, server) <- registerMetricsServer 8080
         race_
             (race_
                 (runDbThread trce env plugin metrics actionQueue)

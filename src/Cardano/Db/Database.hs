@@ -25,9 +25,10 @@ import           Control.Monad.Trans.Except.Extra (left, newExceptT, runExceptT)
 import           Cardano.Slotting.Slot (SlotNo)
 
 import qualified DB as DB
+import           Cardano.Metrics
+
 import           Cardano.DbSync.DbAction
 import           Cardano.DbSync.Error
-import           Cardano.DbSync.Metrics
 import           Cardano.DbSync.Plugin
 import           Cardano.DbSync.Types
 import           Cardano.DbSync.Util
