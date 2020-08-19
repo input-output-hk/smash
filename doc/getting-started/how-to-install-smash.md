@@ -5,15 +5,31 @@ cabal build smash
 cabal install smash
 ```
 
-### Prerequsites
+### Prerequisites
 
-SMASH relies on:
+Cardano Shelley introduces the concept of stake pools - reliable server nodes that keep an aggregated stake of pool operators and delegators in a single entity. Stake pools are registered on-chain, and their on-chain data (such as information required to calculate rewards) is critical to the operation of the ledger. Stake pools also possess metadata that helps users to make a rational choice of a stake pool to delegate to. This metadata is stored off-chain as it might reflect sensitive content, and such an approach allows for a degree of decentralized censorship. 
 
-This repository contains the source code for the Cardano Stakepool Metadata Aggregation Server (SMASH).
-The purpose of SMASH is to aggregate common metadata about stakepools that are registered
-on the Cardano blockchain, including the name of the stakepool, its "ticker" name etc.
-This metadata can be curated and provided as a service to delegators, stake pool operators,
-exchanges etc., enabling independent validation and/or disambiguation of stakepool "ticker" names, for example.
+On the other hand, off-chain metadata storage prerequisites a challenge of seamless access by different users. On-chain stake pool registrations contain an URL pointer to the off-chain metadata and a content hash that can be fetched from a specific stake pool. This might cause both performance and privacy issues. Another crucial aspect to address is the stake pool’s “ticker” name, which is the short name a stake pool is recognized by. Ticker names might reflect prominent brands or trademarks. This positions an issue of misleading use of brand names by dishonest individuals or the confusion of duplicate ticker name registrations. 
+
+To solve performance and privacy issues, a stake pool metadata aggregation server (SMASH) is introduced. SMASH provides a higher level of metadata accountability and maintenance. It aggregates metadata from existing stake pools and provides an efficient way to fetch it and store it in a semi-centralized environment. This metadata can then be curated and reviewed for censorship. In particular, stake pools with illegal content can be blacklisted, and disputes over offending stake pool ticker names or their disambiguation can be resolved. SMASH can be provided as a service to delegators, stake pool operators, exchanges, wallets, etc., enabling independent validation. Users (e.g. wallets, exchanges, etc.) can choose to interpret the non-availability of the metadata as an indication that the pool should not be listed. 
+
+**SMASH Characteristics**
+
+The metadata aggregation server possesses the following characteristic features:
+
+- runs continuously and autonomously;
+- follows the blockchain data to track the stake pool registration or re-registration;
+- downloads stake pool metadata from on-chain locations;
+- is robust against incorrectly configured or malicious metadata hosting (e.g. timeouts, resource limits);
+- verifies metadata content against the on-chain registered hash;
+- verifies the size is within the limits, and the content matches the necessary JSON scheme;
+- serves requested metadata via an API to wallets and other users in a performant way, including for the case of incremental updates;
+- indicates that metadata is not available in response to requests;
+- serves the requested metadata preserving the content hash to be verified against the hash from the on-chain registration certificate;
+- allows operators to use a blacklist of stake pools to exclude when metadata is requested;
+- allows operators to configure, check and adjust their chosen policy via an appropriate interface without service interruptions;
+- scales to reasonable numbers of metadata requests, directly or indirectly (e.g. caching HTTP proxies, multiple instances);
+- follows typical behaviours, e.g. configured via CLI and/or configuration file, stdout/stderr logging. 
 
 ## Installation
 
@@ -26,7 +42,7 @@ cabal install smash
 
 You can also use `stack` if you so prefer. Simply replace `stack` commands with `cabal` in the examples if you are using `cabal`.
 
-### Prerequsites
+### Prerequisites
 
 SMASH relies on:
 
