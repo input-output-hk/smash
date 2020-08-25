@@ -59,7 +59,7 @@ to install the Cardano wallet or any other Cardano components.
 
 *The metadata that is stored by SMASH is restricted to contain no more than 512 bytes.*
 
-Registered stake pools provide the following on-chain data:
+Registered stake pools provide the following off-chain data:
 * owner
 * pool name
 * pool ticker
