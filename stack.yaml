@@ -64,6 +64,7 @@ extra-deps:
   - bech32-1.1.0
   - ghc-byteorder-4.11.0.0.10
   - quickcheck-state-machine-0.6.0
+  - tls-1.5.4
 
   - git: https://github.com/input-output-hk/cardano-db-sync
     commit: 7f9959c9a0746d44d331cffcf7abb0ef4f4fb948

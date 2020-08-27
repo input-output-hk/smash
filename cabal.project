@@ -385,6 +385,7 @@ constraints:
   , libsystemd-journal >= 1.4.4
   , systemd >= 2.3.0
   , splitmix < 0.1
+  , tls >= 1.5.4
 
 package cardano-prelude
   tests: False
