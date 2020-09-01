@@ -1,5 +1,12 @@
 # Changelog for smash
 
+## 1.0.2
+
+### Bug
+
+- [CAD-1753] - TLS version 1.3 not working correctly
+
+
 ## 1.0.1
 
 ### Bug
