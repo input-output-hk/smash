@@ -32,8 +32,9 @@ import           Servant                  (Application, BasicAuth,
                                            BasicAuthData (..),
                                            BasicAuthResult (..), Capture,
                                            Context (..), Get, Handler (..),
-                                           JSON, Patch, ReqBody, Server, err403,
-                                           err404, serveWithContext)
+                                           JSON, Patch, QueryParam, ReqBody,
+                                           Server, err403, err404,
+                                           serveWithContext)
 import           Servant.Swagger
 
 import           DB
@@ -48,13 +49,18 @@ type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "id" PoolId :> 
 -- POST api/v1/delist
 #ifdef DISABLE_BASIC_AUTH
 type DelistPoolAPI = "api" :> "v1" :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+
+type FetchPoolErrorAPI = "api" :> "v1" :> "errors" :> QueryParam "poolId" PoolId :> ApiRes Get [PoolFetchError]
 #else
 -- The basic auth.
 type BasicAuthURL = BasicAuth "smash" User
+
 type DelistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+
+type FetchPoolErrorAPI = BasicAuthURL :> "api" :> "v1" :> "errors" :> QueryParam "poolId" PoolId :> ApiRes Get [PoolFetchError]
 #endif
 
-type SmashAPI = OfflineMetadataAPI :<|> DelistPoolAPI
+type SmashAPI = OfflineMetadataAPI :<|> DelistPoolAPI :<|> FetchPoolErrorAPI
 
 -- | Swagger spec for Todo API.
 todoSwagger :: Swagger
@@ -112,7 +118,7 @@ runAppStubbed configuration = do
 mkAppStubbed :: Configuration -> IO Application
 mkAppStubbed configuration = do
 
-    ioDataMap           <- newIORef stubbedInitialDataMap
+    ioDataMap        <- newIORef stubbedInitialDataMap
     ioDelistedPools  <- newIORef stubbedDelistedPools
 
     let dataLayer :: DataLayer
@@ -212,6 +218,25 @@ server configuration dataLayer
     =       return todoSwagger
     :<|>    getPoolOfflineMetadata dataLayer
     :<|>    postDelistPool dataLayer
+    :<|>    fetchPoolErrorAPI dataLayer
+
+#ifdef DISABLE_BASIC_AUTH
+fetchPoolErrorAPI :: DataLayer -> Maybe PoolId -> Handler (ApiResult DBFail [PoolFetchError])
+fetchPoolErrorAPI dataLayer mPoolId = convertIOToHandler $ do
+
+    let getFetchErrors = dlGetFetchErrors dataLayer
+    fetchErrors <- getFetchErrors mPoolId
+
+    return . ApiResult $ fetchErrors
+#else
+fetchPoolErrorAPI :: DataLayer -> User -> Maybe PoolId -> Handler (ApiResult DBFail [PoolFetchError])
+fetchPoolErrorAPI dataLayer _user mPoolId = convertIOToHandler $ do
+
+    let getFetchErrors = dlGetFetchErrors dataLayer
+    fetchErrors <- getFetchErrors mPoolId
+
+    return . ApiResult $ fetchErrors
+#endif
 
 #ifdef DISABLE_BASIC_AUTH
 postDelistPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
@@ -230,6 +255,7 @@ postDelistPool dataLayer user poolId = convertIOToHandler $ do
 
     return . ApiResult $ delistedPool'
 #endif
+
 
 -- throwError err404
 getPoolOfflineMetadata :: DataLayer -> PoolId -> PoolMetadataHash -> Handler (ApiResult DBFail PoolMetadataWrapped)

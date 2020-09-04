@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralisedNewtypeDeriving #-}
@@ -14,26 +15,26 @@ import Database.Persist.Class
 --
 -- It may be rendered as hex or as bech32 using the @pool@ prefix.
 --
-newtype PoolId = PoolId { getPoolId :: ByteString }
+newtype PoolId = PoolId { getPoolId :: Text }
   deriving stock (Eq, Show, Ord, Generic)
   deriving newtype PersistField
 
 instance ToJSON PoolId where
     toJSON (PoolId poolId) =
         object
-            [ "poolId" .= decodeUtf8 poolId
+            [ "poolId" .= poolId
             ]
 
 instance FromJSON PoolId where
     parseJSON = withObject "PoolId" $ \o -> do
         poolId <- o .: "poolId"
-        return $ PoolId $ encodeUtf8 poolId
+        return $ PoolId poolId
 
 -- | The hash of a stake pool's metadata.
 --
 -- It may be rendered as hex.
 --
-newtype PoolMetadataHash = PoolMetadataHash { getPoolMetadataHash :: ByteString }
+newtype PoolMetadataHash = PoolMetadataHash { getPoolMetadataHash :: Text }
   deriving stock (Eq, Show, Ord, Generic)
   deriving newtype PersistField
 

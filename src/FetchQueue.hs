@@ -2,6 +2,7 @@ module FetchQueue
   ( FetchQueue -- opaque
   , PoolFetchRetry (..)
   , Retry -- opaque
+  , retryCount
   , emptyFetchQueue
   , lenFetchQueue
   , nullFetchQueue

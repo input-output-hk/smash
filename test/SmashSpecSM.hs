@@ -194,10 +194,10 @@ doNotUse :: a
 doNotUse = panic "Should not be used!"
 
 genPoolId :: Gen PoolId
-genPoolId = PoolId . encodeUtf8 <$> genSafeText
+genPoolId = PoolId <$> genSafeText
 
 genPoolHash :: Gen PoolMetadataHash
-genPoolHash = PoolMetadataHash . encodeUtf8 <$> genSafeText
+genPoolHash = PoolMetadataHash <$> genSafeText
 
 -- |Improve this.
 genPoolOfflineMetadataText :: Gen Text

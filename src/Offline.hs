@@ -13,16 +13,16 @@ import           Cardano.BM.Trace (Trace, logWarning, logInfo)
 import           Control.Concurrent (threadDelay)
 import           Control.Monad.Trans.Except.Extra (handleExceptT, hoistEither, left)
 
-import           DB (DataLayer (..), PoolMetadataReference (..), PoolMetadataReferenceId,
-                    postgresqlDataLayer, runDbAction)
+import           DB (DataLayer (..), PoolMetadataReference (..), PoolMetadataReferenceId, PoolMetadataFetchError (..), postgresqlDataLayer, runDbAction)
 import           FetchQueue
-import           Types (PoolId, PoolMetadataHash (..), getPoolMetadataHash, getPoolUrl, pomTicker)
+import           Types (PoolId, PoolMetadataHash (..), PoolFetchError (..), FetchError (..), getPoolMetadataHash, getPoolUrl, pomTicker)
 
 import           Data.Aeson (eitherDecode')
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Time.Clock.POSIX as Time
+import           Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 
 import qualified Cardano.Crypto.Hash.Class as Crypto
 import qualified Cardano.Crypto.Hash.Blake2b as Crypto
@@ -46,27 +46,16 @@ import qualified Shelley.Spec.Ledger.TxData as Shelley
 -- This is an incredibly rough hack that adds asynchronous fetching of offline metadata.
 -- This is not my best work.
 
-
-data FetchError
-  = FEHashMismatch !Text !Text
-  | FEDataTooLong
-  | FEUrlParseFail !Text
-  | FEJsonDecodeFail !Text
-  | FEHttpException !Text
-  | FEHttpResponse !Int
-  | FEIOException !Text
-  | FETimeout !Text
-  | FEConnectionFailure
-
 fetchInsertNewPoolMetadata
-    :: Trace IO Text
+    :: DataLayer
+    -> Trace IO Text
     -> DB.PoolMetadataReferenceId
     -> PoolId
     -> Shelley.PoolMetaData
     -> IO ()
-fetchInsertNewPoolMetadata tracer refId poolId md  = do
+fetchInsertNewPoolMetadata dataLayer tracer refId poolId md  = do
     now <- Time.getPOSIXTime
-    void . fetchInsertNewPoolMetadataOld tracer $
+    void . fetchInsertNewPoolMetadataOld dataLayer tracer $
       PoolFetchRetry
         { pfrReferenceId = refId
         , pfrPoolIdWtf = poolId
@@ -76,17 +65,39 @@ fetchInsertNewPoolMetadata tracer refId poolId md  = do
         }
 
 fetchInsertNewPoolMetadataOld
-    :: Trace IO Text
+    :: DataLayer
+    -> Trace IO Text
     -> PoolFetchRetry
     -> IO (Maybe PoolFetchRetry)
-fetchInsertNewPoolMetadataOld tracer pfr = do
+fetchInsertNewPoolMetadataOld dataLayer tracer pfr = do
     res <- runExceptT fetchInsert
     case res of
         Right () -> pure Nothing
         Left err -> do
-            logWarning tracer $ renderFetchError err
+            let poolId = pfrPoolIdWtf pfr
+            let poolHash = PoolMetadataHash . decodeUtf8 . B16.encode $ pfrPoolMDHash pfr
+            let poolMetadataReferenceId = pfrReferenceId pfr
+            let fetchError = renderFetchError err
+            let currRetryCount = retryCount $ pfrRetry pfr
+
             -- Update retry timeout here as a psuedo-randomisation of retry.
             now <- Time.getPOSIXTime
+
+            -- The generated fetch error
+            let _poolFetchError = PoolFetchError now poolId poolHash fetchError
+
+            let addFetchError = dlAddFetchError dataLayer
+
+            _ <- addFetchError $ PoolMetadataFetchError
+                (posixSecondsToUTCTime now)
+                poolId
+                poolHash
+                poolMetadataReferenceId
+                fetchError
+                currRetryCount
+
+            logWarning tracer fetchError
+
             pure . Just $ pfr { pfrRetry = nextRetry now (pfrRetry pfr) }
   where
     fetchInsert :: ExceptT FetchError IO ()
@@ -122,7 +133,7 @@ fetchInsertNewPoolMetadataOld tracer pfr = do
             (dlAddPoolMetadata postgresqlDataLayer)
                 (Just $ pfrReferenceId pfr)
                 (pfrPoolIdWtf pfr)
-                (PoolMetadataHash . B16.encode $ pfrPoolMDHash pfr)
+                (PoolMetadataHash . renderByteStringHex $ pfrPoolMDHash pfr)
                 (decodeUtf8 respBS)
                 (pomTicker decodedMetadata)
 
@@ -131,12 +142,12 @@ fetchInsertNewPoolMetadataOld tracer pfr = do
 runOfflineFetchThread :: Trace IO Text -> IO ()
 runOfflineFetchThread trce = do
     liftIO $ logInfo trce "Runing Offline fetch thread"
-    fetchLoop trce emptyFetchQueue
+    fetchLoop DB.postgresqlDataLayer trce emptyFetchQueue
 
 -- -------------------------------------------------------------------------------------------------
 
-fetchLoop :: Trace IO Text -> FetchQueue -> IO ()
-fetchLoop trce =
+fetchLoop :: DataLayer -> Trace IO Text -> FetchQueue -> IO ()
+fetchLoop dataLayer trce =
     loop
   where
     loop :: FetchQueue -> IO ()
@@ -156,7 +167,7 @@ fetchLoop trce =
           loop unrunnable
         else do
           liftIO $ logInfo trce $ "Pools without offline metadata: " <> show (length runnable)
-          rs <- catMaybes <$> mapM (fetchInsertNewPoolMetadataOld trce) runnable
+          rs <- catMaybes <$> mapM (fetchInsertNewPoolMetadataOld dataLayer trce) runnable
           loop $ insertFetchQueue rs unrunnable
 
 httpGetMax512Bytes :: Http.Request -> Http.Manager -> ExceptT FetchError IO (ByteString, Http.Status)
@@ -214,7 +225,7 @@ queryPoolFetchRetry retry = do
           { pfrReferenceId = entityKey entity
           , pfrPoolIdWtf = DB.poolMetadataReferencePoolId pmr
           , pfrPoolUrl = getPoolUrl $ poolMetadataReferenceUrl pmr
-          , pfrPoolMDHash = fst . B16.decode $ getPoolMetadataHash (poolMetadataReferenceHash pmr)
+          , pfrPoolMDHash = fst . B16.decode . encodeUtf8 $ getPoolMetadataHash (poolMetadataReferenceHash pmr)
           , pfrRetry = retry
           }
 

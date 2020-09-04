@@ -19,11 +19,13 @@ import           Cardano.Prelude
 
 import           Data.IORef                   (IORef, modifyIORef, readIORef)
 import qualified Data.Map                     as Map
+import           Data.Time.Clock.POSIX        (utcTimeToPOSIXSeconds)
 
 import           Types
 
 import           Cardano.Db.Insert            (insertDelistedPool,
                                                insertPoolMetadata,
+                                               insertPoolMetadataFetchError,
                                                insertPoolMetadataReference,
                                                insertReservedTicker)
 import           Cardano.Db.Query             (DBFail (..), queryPoolMetadata)
@@ -38,6 +40,8 @@ import           Cardano.Db.Schema            as X (AdminUser (..), Block (..),
                                                     DelistedPool (..),
                                                     Meta (..),
                                                     PoolMetadata (..),
+                                                    PoolMetadataFetchError (..),
+                                                    PoolMetadataFetchErrorId,
                                                     PoolMetadataReference (..),
                                                     PoolMetadataReferenceId,
                                                     ReservedTicker (..),
@@ -52,12 +56,20 @@ import qualified Cardano.Db.Types             as Types
 data DataLayer = DataLayer
     { dlGetPoolMetadata         :: PoolId -> PoolMetadataHash -> IO (Either DBFail (Text, Text))
     , dlAddPoolMetadata         :: Maybe PoolMetadataReferenceId -> PoolId -> PoolMetadataHash -> Text -> PoolTicker -> IO (Either DBFail Text)
+
     , dlAddMetaDataReference    :: PoolId -> PoolUrl -> PoolMetadataHash -> IO PoolMetadataReferenceId
+
     , dlAddReservedTicker       :: Text -> PoolMetadataHash -> IO (Either DBFail ReservedTickerId)
     , dlCheckReservedTicker     :: Text -> IO (Maybe ReservedTicker)
+
     , dlCheckDelistedPool       :: PoolId -> IO Bool
     , dlAddDelistedPool         :: PoolId -> IO (Either DBFail PoolId)
+
     , dlGetAdminUsers           :: IO (Either DBFail [AdminUser])
+
+    -- TODO(KS): Switch to PoolFetchError!
+    , dlAddFetchError           :: PoolMetadataFetchError -> IO (Either DBFail PoolMetadataFetchErrorId)
+    , dlGetFetchErrors          :: Maybe PoolId -> IO (Either DBFail [PoolFetchError])
     } deriving (Generic)
 
 -- | Simple stubbed @DataLayer@ for an example.
@@ -96,6 +108,9 @@ stubbedDataLayer ioDataMap ioDelistedPool = DataLayer
         return $ Right poolId
 
     , dlGetAdminUsers       = return $ Right []
+
+    , dlAddFetchError       = \_ -> panic "!"
+    , dlGetFetchErrors      = \_ -> panic "!"
     }
 
 -- The approximation for the table.
@@ -148,5 +163,17 @@ postgresqlDataLayer = DataLayer
         adminUsers <- runDbAction Nothing $ queryAdminUsers
         return $ Right adminUsers
 
+    , dlAddFetchError       = \poolMetadataFetchError -> do
+        poolMetadataFetchErrorId <- runDbAction Nothing $ insertPoolMetadataFetchError poolMetadataFetchError
+        return $ Right poolMetadataFetchErrorId
+
+    , dlGetFetchErrors      = \mPoolId -> do
+        poolMetadataFetchErrors <- runDbAction Nothing (queryPoolMetadataFetchError mPoolId)
+        pure $ sequence $ Right <$> map convertPoolMetadataFetchError poolMetadataFetchErrors
+
     }
+
+convertPoolMetadataFetchError :: PoolMetadataFetchError -> PoolFetchError
+convertPoolMetadataFetchError (PoolMetadataFetchError timeUTC poolId poolHash _pMRId fetchError retryCount) =
+    PoolFetchError (utcTimeToPOSIXSeconds timeUTC) poolId poolHash fetchError retryCount
 
