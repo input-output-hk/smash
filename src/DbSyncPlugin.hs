@@ -127,7 +127,7 @@ insertPoolRegister
     -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
 insertPoolRegister tracer params = do
   let poolIdHash = B16.encode . Shelley.unKeyHashBS $ Shelley._poolPubKey params
-  let poolId = PoolId poolIdHash
+  let poolId = PoolId . decodeUtf8 $ poolIdHash
 
   liftIO . logInfo tracer $ "Inserting pool register with pool id: " <> decodeUtf8 poolIdHash
   case strictMaybeToMaybe $ Shelley._poolMD params of
@@ -135,12 +135,12 @@ insertPoolRegister tracer params = do
 
         liftIO . logInfo tracer $ "Inserting metadata."
         let metadataUrl = PoolUrl . Shelley.urlToText $ Shelley._poolMDUrl md
-        let metadataHash = PoolMetadataHash . B16.encode $ Shelley._poolMDHash md
+        let metadataHash = PoolMetadataHash . decodeUtf8 . B16.encode $ Shelley._poolMDHash md
 
         -- Ah. We can see there is garbage all over the code. Needs refactoring.
         refId <- lift . liftIO $ (dlAddMetaDataReference postgresqlDataLayer) poolId metadataUrl metadataHash
 
-        liftIO $ fetchInsertNewPoolMetadata tracer refId poolId md
+        liftIO $ fetchInsertNewPoolMetadata postgresqlDataLayer tracer refId poolId md
 
         liftIO . logInfo tracer $ "Metadata inserted."
 

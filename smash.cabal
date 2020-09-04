@@ -20,7 +20,7 @@ source-repository head
 
 Flag disable-basic-auth
   description:         Disable basic authentication scheme for other authentication mechanisms.
-  default:             True
+  default:             False
 
 library
 

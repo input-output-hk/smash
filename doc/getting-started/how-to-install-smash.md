@@ -284,4 +284,29 @@ curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f0207
 curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699 | jq .
 ```
 
-This assumes that you have a file called "test_pool.json" in your current directory that contains the JSON metadata for the stake pool.
+This assumes that you have a file called "test_pool.json" in your current directory that contains the JSON
+metadata for the stake pool.
+
+## Checking the pool rejection errors
+
+Currently there is a way to check if there are any errors while trying to download the pool metadata. It could be that the hash is wrong, that the server URL return 404, or something else.
+This is a nice way to check what went wrong.
+
+So if you want to see all the errors that were recorded, you can simply query:
+```
+http://localhost:3100/api/v1/errors
+```
+
+If you have a specific pool id you want to check, you can add that pool id (`c0b0e43213a8c898e373928fbfc3df81ee77c0df7dadc3ad6e5bae17`) in there:
+```
+http://localhost:3100/api/v1/errors?poolId=c0b0e43213a8c898e373928fbfc3df81ee77c0df7dadc3ad6e5bae17
+```
+
+The returned list consists of objects that contain:
+- time - the time formatted in `DD.MM.YYYY. HH:MM:SS` which I claim, is the only sane choice
+- utcTime - the time formatted in the standard UTCTime format for any clients
+- poolId - the pool id of the owner of the pool
+- poolHash - the hash of the pool metadata
+- cause - what is the cause of the error and why is it failing
+- retryCount - the number of times we retried to fetch the offline metadata
+

@@ -407,6 +407,7 @@ dbSyncProtocols trce env plugin _version codecs _connectionId =
         (metrics, server) <- registerMetricsServer 8080
         race_
             (race_
+                -- TODO(KS): Watch out! We pass the data layer here directly!
                 (runDbThread trce env plugin metrics actionQueue)
                 (runOfflineFetchThread $ modifyName (const "fetch") trce)
             )

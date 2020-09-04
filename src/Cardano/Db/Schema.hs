@@ -60,7 +60,7 @@ share
   PoolMetadataReference
     poolId              Types.PoolId              sqltype=text
     url                 Types.PoolUrl             sqltype=text
-    hash                Types.PoolMetadataHash    sqltype=base16type
+    hash                Types.PoolMetadataHash    sqltype=text
     UniquePoolMetadataReference  poolId hash
 
   -- The table containing the metadata.
@@ -68,7 +68,7 @@ share
   PoolMetadata
     poolId              Types.PoolId              sqltype=text
     tickerName          Types.TickerName          sqltype=text
-    hash                Types.PoolMetadataHash    sqltype=base16type
+    hash                Types.PoolMetadataHash    sqltype=text
     metadata            Types.PoolMetadataRaw     sqltype=text
     pmrId               PoolMetadataReferenceId Maybe
     UniquePoolMetadata  poolId hash
@@ -79,6 +79,17 @@ share
     poolId              PoolId                    sqltype=text
     UniquePoolId poolId
 
+  -- The pool metadata fetch error. We duplicate the poolId for easy access.
+
+  PoolMetadataFetchError
+    fetchTime           UTCTime                   sqltype=timestamp
+    poolId              Types.PoolId              sqltype=text
+    poolHash            Types.PoolMetadataHash    sqltype=text
+    pmrId               PoolMetadataReferenceId
+    fetchError          Text
+    retryCount          Word                      sqltype=uinteger
+    UniquePoolMetadataFetchError fetchTime poolId
+
   -- We actually need the block table to be able to persist sync data
 
   Block
@@ -87,7 +98,6 @@ share
     slotNo              Word64 Maybe        sqltype=uinteger
     blockNo             Word64 Maybe        sqltype=uinteger
     UniqueBlock         hash
-
 
   -- A table containing metadata about the chain. There will probably only ever be one
   -- row in this table.
@@ -110,7 +120,7 @@ share
   -- For now they are grouped under the specific hash of the pool.
   ReservedTicker
     name                Text                    sqltype=text
-    poolHash            Types.PoolMetadataHash  sqltype=base16type
+    poolHash            Types.PoolMetadataHash  sqltype=text
     UniqueReservedTicker name
 
   -- A table containin a list of administrator users that can be used to access the secure API endpoints.

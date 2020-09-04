@@ -16,6 +16,7 @@ module Cardano.Db.Query
   , queryDelistedPool
   , queryReservedTicker
   , queryAdminUsers
+  , queryPoolMetadataFetchError
   ) where
 
 import           Cardano.Prelude            hiding (Meta, from, isJust,
@@ -153,6 +154,18 @@ queryAdminUsers :: MonadIO m => ReaderT SqlBackend m [AdminUser]
 queryAdminUsers = do
   res <- selectList [] []
   pure $ entityVal <$> res
+
+-- | Query all the errors we have.
+queryPoolMetadataFetchError :: MonadIO m => Maybe Types.PoolId -> ReaderT SqlBackend m [PoolMetadataFetchError]
+queryPoolMetadataFetchError Nothing = do
+  res <- selectList [] []
+  pure $ entityVal <$> res
+
+queryPoolMetadataFetchError (Just poolId) = do
+  res <- select . from $ \(poolMetadataFetchError :: SqlExpr (Entity PoolMetadataFetchError)) -> do
+            where_ (poolMetadataFetchError ^. PoolMetadataFetchErrorPoolId ==. val poolId)
+            pure $ poolMetadataFetchError
+  pure $ fmap entityVal res
 
 ------------------------------------------------------------------------------------
 

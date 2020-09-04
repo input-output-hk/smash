@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
 
 module Types
     ( ApplicationUser (..)
@@ -27,6 +28,9 @@ module Types
     , defaultConfiguration
     -- * API
     , ApiResult (..)
+    -- * HTTP
+    , FetchError (..)
+    , PoolFetchError (..)
     ) where
 
 import           Cardano.Prelude
@@ -38,6 +42,9 @@ import           Data.Aeson          (FromJSON (..), ToJSON (..), object,
 import qualified Data.Aeson          as Aeson
 import           Data.Aeson.Encoding (unsafeToEncoding)
 import qualified Data.Aeson.Types    as Aeson
+import           Data.Time.Clock     (UTCTime)
+import qualified Data.Time.Clock.POSIX as Time
+import           Data.Time.Format    (formatTime, defaultTimeLocale)
 
 import           Data.Swagger        (NamedSchema (..), ToParamSchema (..),
                                       ToSchema (..))
@@ -113,7 +120,7 @@ checkIfUserValid (ApplicationUsers applicationUsers) applicationUser@(Applicatio
 
 -- TODO(KS): Temporarily, validation!?
 instance FromHttpApiData PoolId where
-    parseUrlPiece poolId = Right $ PoolId (encodeUtf8 poolId)
+    parseUrlPiece poolId = Right $ PoolId poolId
     --TODO: parse hex or bech32
 
 instance ToSchema PoolMetadataHash where
@@ -122,7 +129,7 @@ instance ToSchema PoolMetadataHash where
 
 -- TODO(KS): Temporarily, validation!?
 instance FromHttpApiData PoolMetadataHash where
-    parseUrlPiece poolMetadataHash = Right $ PoolMetadataHash (encodeUtf8 poolMetadataHash)
+    parseUrlPiece poolMetadataHash = Right $ PoolMetadataHash poolMetadataHash
     --TODO: parse hex or bech32
 
 newtype PoolName = PoolName
@@ -273,4 +280,33 @@ instance (ToJSON err, ToJSON a) => ToJSON (ApiResult err a) where
     toEncoding (ApiResult (Left result))  = toEncoding result
     toEncoding (ApiResult (Right result)) = toEncoding result
 
+-- |Fetch error for the HTTP client fetching the pool.
+data FetchError
+  = FEHashMismatch !Text !Text
+  | FEDataTooLong
+  | FEUrlParseFail !Text
+  | FEJsonDecodeFail !Text
+  | FEHttpException !Text
+  | FEHttpResponse !Int
+  | FEIOException !Text
+  | FETimeout !Text
+  | FEConnectionFailure
 
+-- |Fetch error for the specific @PoolId@ and the @PoolMetadataHash@.
+data PoolFetchError = PoolFetchError !Time.POSIXTime !PoolId !PoolMetadataHash !Text !Word
+  deriving (Eq, Show)
+
+instance ToJSON PoolFetchError where
+    toJSON (PoolFetchError time poolId poolHash errorCause retryCount) =
+        object
+            [ "time"        .= formatTimeToNormal time
+            , "utcTime"     .= (show time :: Text)
+            , "poolId"      .= getPoolId poolId
+            , "poolHash"    .= getPoolMetadataHash poolHash
+            , "cause"       .= errorCause
+            , "retryCount"  .= retryCount
+            ]
+
+
+formatTimeToNormal :: Time.POSIXTime -> Text
+formatTimeToNormal = toS . formatTime defaultTimeLocale "%d.%m.%Y. %T" . Time.posixSecondsToUTCTime

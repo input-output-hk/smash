@@ -9,6 +9,7 @@ module Cardano.Db.Insert
   , insertReservedTicker
   , insertDelistedPool
   , insertAdminUser
+  , insertPoolMetadataFetchError
 
   -- Export mainly for testing.
   , insertByReturnKey
@@ -55,6 +56,12 @@ insertDelistedPool = insertByReturnKey
 
 insertAdminUser :: (MonadIO m) => AdminUser -> ReaderT SqlBackend m AdminUserId
 insertAdminUser = insertByReturnKey
+
+insertPoolMetadataFetchError
+    :: (MonadIO m)
+    => PoolMetadataFetchError
+    -> ReaderT SqlBackend m PoolMetadataFetchErrorId
+insertPoolMetadataFetchError = insertByReturnKey
 
 -------------------------------------------------------------------------------
 
