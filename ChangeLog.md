@@ -1,9 +1,15 @@
 # Changelog for smash
 
-## 1.0.2
+
+## 1.1.0
+
+### Story
+
+- [CAD-1744] - Easily query reason for pool metadata lookup failure
 
 ### Bug
 
+- [CAD-1791] - smash on shelley-qa is failing when decoding address
 - [CAD-1753] - TLS version 1.3 not working correctly
 
 
