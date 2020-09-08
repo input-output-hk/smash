@@ -1,7 +1,7 @@
-resolver: https://raw.githubusercontent.com/input-output-hk/cardano-prelude/316c854d1d3089f480708ad5cd5ecf8a74423ddd/snapshot.yaml
+resolver: https://raw.githubusercontent.com/input-output-hk/cardano-haskell/da70d67ff662b85e72e1f203defbf5e3028d03cd/snapshots/cardano-1.19.1.yaml
 compiler: ghc-8.6.5
 
-allow-newer: true
+#allow-newer: true
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -22,136 +22,29 @@ flags:
     external-libsodium-vrf: false
 
 extra-deps:
-
-  - binary-0.8.7.0
-  - bimap-0.4.0
-  - brick-0.47.1
-  - config-ini-0.2.4.0
-  - containers-0.5.11.0
-  - data-clist-0.1.2.3
-  - ekg-prometheus-adapter-0.1.0.4
-  - esqueleto-3.2.2
-  - generic-monoid-0.1.0.0
-  - libsystemd-journal-1.4.4
-  - network-3.1.1.1
-  - snap-core-1.0.4.1
-  - snap-server-1.1.1.1
   - persistent-2.10.5.1
   - persistent-postgresql-2.10.1.2
   - persistent-template-2.8.2.3
-  - prometheus-2.1.2
-  - pvss-0.2.0
-  - tasty-hedgehog-1.0.0.2
-  - text-zipper-0.10.1
-  - time-units-1.0.0
-  - word-wrap-0.4.1
-  - transformers-except-0.1.1
-  - text-ansi-0.1.0
-  - Diff-0.4.0
-  - katip-0.8.3.0
-  - moo-1.2
-  - gray-code-0.3.1
-  - Unique-0.4.7.6
-  - statistics-linreg-0.3
-  - socks-0.6.1
-  - servant-0.17
-  - servant-server-0.17
-  - connection-0.3.1
-  - http-api-data-0.4.1.1
-  - time-compat-1.9.2.2
-  - quiet-0.2
-  - base64-0.4.2.2
-  - bech32-1.1.0
-  - ghc-byteorder-4.11.0.0.10
-  - quickcheck-state-machine-0.6.0
-  - tls-1.5.4
+
+  # This is something extra we need.
+  - git: https://github.com/input-output-hk/ouroboros-network
+    commit: f0eb6e439e7c0121476ded5e88d2f638e8aa36ac
+    subdirs:
+    - cardano-client
 
   - git: https://github.com/input-output-hk/cardano-db-sync
-    commit: 7f9959c9a0746d44d331cffcf7abb0ef4f4fb948
+    commit: 9f95fb8bd63c2ce4ff973b7cd11dbada69e86597
     subdirs:
       - cardano-db
       - cardano-db-sync
       - cardano-db-sync-extended
 
-  - git: https://github.com/input-output-hk/cardano-shell
-    commit: b3231f7f3b8b6d07fef08f8cc41aa804524f94c2
-    subdirs:
-      - cardano-shell
-
-  - git: https://github.com/input-output-hk/cardano-crypto
-    commit: 2547ad1e80aeabca2899951601079408becbc92c
-
-  - git: https://github.com/input-output-hk/cardano-prelude
-    commit: 316c854d1d3089f480708ad5cd5ecf8a74423ddd
-    subdirs:
-      - .
-      - test
-
-  - git: https://github.com/input-output-hk/iohk-monitoring-framework
-    commit: efa4b5ecd7f0a13124616b12679cd42517cd905a
-    subdirs:
-      - contra-tracer
-      - iohk-monitoring
-      - plugins/backend-aggregation
-      - plugins/backend-ekg
-      - plugins/backend-monitoring
-      - plugins/backend-trace-forwarder
-      - plugins/scribe-systemd
-      - tracer-transformers
-
-  - git: https://github.com/input-output-hk/cardano-base
-    commit: 7d795c3040ea7785812efa1c97864bbb41b15d3e
-    subdirs:
-      - binary
-      - cardano-crypto-praos
-      - binary/test
-      - cardano-crypto-class
-      - slotting
-
-  - git: https://github.com/input-output-hk/goblins
-    commit: 26d35ad52fe9ade3391532dbfeb2f416f07650bc
-
-  - git: https://github.com/input-output-hk/cardano-ledger-specs
-    commit: 183a70c001587d9b1977541deae28c3e44713907
-    subdirs:
-      - byron/crypto
-      - byron/crypto/test
-      - byron/chain/executable-spec
-      - byron/ledger/executable-spec
-      - byron/ledger/impl
-      - byron/ledger/impl/test
-      - semantics/executable-spec
-      - semantics/small-steps-test
-      - shelley/chain-and-ledger/dependencies/non-integer
-      - shelley/chain-and-ledger/executable-spec
-      - shelley/chain-and-ledger/executable-spec/test
-
-  - git: https://github.com/input-output-hk/ouroboros-network
-    commit: ec74d1c463b6d18bdca2b714abe730c1d237cc32
-    subdirs:
-      - cardano-client
-      - io-sim
-      - io-sim-classes
-      - network-mux
-      - ouroboros-network
-      - ouroboros-network-framework
-      - Win32-network
-      - ouroboros-consensus
-      - ouroboros-consensus-byron
-      - ouroboros-consensus-byronspec
-      - ouroboros-consensus-shelley
-      - ouroboros-consensus-cardano
-      - typed-protocols
-      - typed-protocols-examples
-      - ouroboros-network-testing
-      - ouroboros-consensus/ouroboros-consensus-mock
-      - ouroboros-consensus/ouroboros-consensus-test-infra
-
   - git: https://github.com/input-output-hk/cardano-node
-    commit: 3258fdbb2ce8c56ca175401630aa71d75a4d6ab2
+    commit: 4814003f14340d5a1fc02f3ac15437387a7ada9f
     subdirs:
       - cardano-config
       - cardano-api
+      - cardano-node
 
 nix:
   shell-file: nix/stack-shell.nix

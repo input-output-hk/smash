@@ -7,7 +7,7 @@ module DbSyncPlugin
 
 import           Cardano.Prelude
 
-import           Cardano.BM.Trace                            (Trace,
+import           Cardano.BM.Trace                            (Trace, logError,
                                                               logInfo)
 
 import           Control.Monad.Logger                        (LoggingT)
@@ -107,7 +107,22 @@ insertTx
     => Trace IO Text -> Word64 -> ShelleyTx
     -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
 insertTx tracer _blockIndex tx =
-    mapM_ (insertPoolCert tracer) (Shelley.txPoolCertificates tx)
+    mapM_ (insertCertificate tracer) (Shelley.txCertificates tx)
+
+
+insertCertificate
+    :: (MonadIO m)
+    => Trace IO Text -> (Word16, ShelleyDCert)
+    -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
+insertCertificate tracer (_idx, cert) =
+  case cert of
+    Shelley.DCertDeleg _deleg ->
+        liftIO $ logInfo tracer "insertCertificate: DCertDeleg"
+    Shelley.DCertPool pool -> insertPoolCert tracer pool
+    Shelley.DCertMir _mir ->
+        liftIO $ logInfo tracer "insertCertificate: DCertMir"
+    Shelley.DCertGenesis _gen ->
+        liftIO $ logError tracer "insertCertificate: Unhandled DCertGenesis certificate"
 
 insertPoolCert
     :: (MonadIO m)
