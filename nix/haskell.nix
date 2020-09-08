@@ -43,6 +43,10 @@ let
           # "stm" "terminfo"
         ];
       }
+      {
+        # Disable basic auth:
+        packages.smash.flags.disable-basic-auth = true;
+      }
       # TODO: Compile all local packages with -Werror:
       #{
       #  packages = lib.genAttrs projectPackages
