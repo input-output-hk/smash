@@ -1,10 +1,10 @@
-{-# LANGUAGE CPP                 #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE CPP                   #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module Lib
     ( Configuration (..)
@@ -16,35 +16,38 @@ module Lib
     , runTickerNameInsertion
     ) where
 
-import           Cardano.Prelude          hiding (Handler)
+import           Cardano.Prelude             hiding (Handler)
 
-import           Data.Aeson               (eitherDecode')
-import qualified Data.ByteString.Lazy     as BL
-import           Data.IORef               (newIORef)
-import           Data.Swagger             (Info (..), Swagger (..))
+import           Data.Aeson                  (eitherDecode')
+import qualified Data.ByteString.Lazy        as BL
+import           Data.IORef                  (newIORef)
+import           Data.Swagger                (Info (..), Swagger (..))
 
-import           Network.Wai.Handler.Warp (defaultSettings, runSettings,
-                                           setBeforeMainLoop, setPort)
+import           Network.Wai.Handler.Warp    (defaultSettings, runSettings,
+                                              setBeforeMainLoop, setPort)
 
-import           Servant                  ((:<|>) (..), (:>))
-import           Servant                  (Application, BasicAuth,
-                                           BasicAuthCheck (..),
-                                           BasicAuthData (..),
-                                           BasicAuthResult (..), Capture,
-                                           Context (..), Get, Handler (..),
-                                           JSON, Patch, QueryParam, ReqBody,
-                                           Server, err403, err404,
-                                           serveWithContext)
+import           Servant                     ((:<|>) (..), (:>))
+import           Servant                     (Application, BasicAuth,
+                                              BasicAuthCheck (..),
+                                              BasicAuthData (..),
+                                              BasicAuthResult (..), Capture,
+                                              Context (..), Get, Handler (..),
+                                              HasServer (..), Header, Headers,
+                                              JSON, Patch, QueryParam, ReqBody,
+                                              Server, ServerT, err403, err404,
+                                              serveWithContext)
+import           Servant.API.ResponseHeaders (addHeader)
 import           Servant.Swagger
 
 import           DB
 import           Types
 
+
 -- | Shortcut for common api result types.
 type ApiRes verb a = verb '[JSON] (ApiResult DBFail a)
 
 -- GET api/v1/metadata/{hash}
-type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> ApiRes Get PoolMetadataWrapped
+type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> Get '[JSON] (Headers '[Header "Cache" Text] (ApiResult DBFail PoolMetadataWrapped))
 
 -- POST api/v1/delist
 #ifdef DISABLE_BASIC_AUTH
@@ -258,8 +261,12 @@ postDelistPool dataLayer user poolId = convertIOToHandler $ do
 
 
 -- throwError err404
-getPoolOfflineMetadata :: DataLayer -> PoolId -> PoolMetadataHash -> Handler (ApiResult DBFail PoolMetadataWrapped)
-getPoolOfflineMetadata dataLayer poolId poolHash = convertIOToHandler $ do
+getPoolOfflineMetadata
+    :: DataLayer
+    -> PoolId
+    -> PoolMetadataHash
+    -> Handler ((Headers '[Header "Cache" Text] (ApiResult DBFail PoolMetadataWrapped)))
+getPoolOfflineMetadata dataLayer poolId poolHash = fmap (addHeader "always") . convertIOToHandler $ do
 
     let checkDelistedPool = dlCheckDelistedPool dataLayer
     isDelisted <- checkDelistedPool poolId
