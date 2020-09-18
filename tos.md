@@ -1,0 +1,3 @@
+# Terms of Service
+
+These are the terms of service for IOHK smash deployment...
