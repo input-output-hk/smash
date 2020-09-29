@@ -14,6 +14,7 @@ module Cardano.Db.Query
   , queryLatestBlockNo
   , queryCheckPoints
   , queryDelistedPool
+  , queryAllDelistedPools
   , queryReservedTicker
   , queryAdminUsers
   , queryPoolMetadataFetchError
@@ -139,6 +140,12 @@ queryDelistedPool poolId = do
             where_ (pool ^. DelistedPoolPoolId ==. val poolId)
             pure pool
   pure $ maybe False (\_ -> True) (listToMaybe res)
+
+-- |Return all delisted pools.
+queryAllDelistedPools :: MonadIO m => ReaderT SqlBackend m [DelistedPool]
+queryAllDelistedPools = do
+  res <- selectList [] []
+  pure $ entityVal <$> res
 
 -- | Check if the ticker is in the table.
 queryReservedTicker :: MonadIO m => Text -> ReaderT SqlBackend m (Maybe ReservedTicker)
