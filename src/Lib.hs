@@ -49,6 +49,9 @@ type ApiRes verb a = verb '[JSON] (ApiResult DBFail a)
 -- GET api/v1/metadata/{hash}
 type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> Get '[JSON] (Headers '[Header "Cache" Text] (ApiResult DBFail PoolMetadataWrapped))
 
+-- GET api/v1/delisted
+type DelistedPoolsAPI = "api" :> "v1" :> "delisted" :> ApiRes Get [PoolId]
+
 -- POST api/v1/delist
 #ifdef DISABLE_BASIC_AUTH
 type DelistPoolAPI = "api" :> "v1" :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
@@ -63,7 +66,7 @@ type DelistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "delist" :> ReqBody '[JSON
 type FetchPoolErrorAPI = BasicAuthURL :> "api" :> "v1" :> "errors" :> QueryParam "poolId" PoolId :> ApiRes Get [PoolFetchError]
 #endif
 
-type SmashAPI = OfflineMetadataAPI :<|> DelistPoolAPI :<|> FetchPoolErrorAPI
+type SmashAPI = OfflineMetadataAPI :<|> DelistPoolAPI :<|> FetchPoolErrorAPI :<|> DelistedPoolsAPI
 
 -- | Swagger spec for Todo API.
 todoSwagger :: Swagger
@@ -222,6 +225,7 @@ server configuration dataLayer
     :<|>    getPoolOfflineMetadata dataLayer
     :<|>    postDelistPool dataLayer
     :<|>    fetchPoolErrorAPI dataLayer
+    :<|>    getDelistedPools dataLayer
 
 #ifdef DISABLE_BASIC_AUTH
 fetchPoolErrorAPI :: DataLayer -> Maybe PoolId -> Handler (ApiResult DBFail [PoolFetchError])
@@ -293,6 +297,14 @@ getPoolOfflineMetadata dataLayer poolId poolHash = fmap (addHeader "always") . c
                     if (reservedTickerPoolHash foundReservedTicker) == poolHash
                         then return . ApiResult . Right $ PoolMetadataWrapped poolMetadata
                         else throwIO err404
+
+
+-- Get all delisted pools
+getDelistedPools :: DataLayer -> Handler (ApiResult DBFail [PoolId])
+getDelistedPools dataLayer = convertIOToHandler $ do
+    let getAllDelisted = dlGetDelistedPools dataLayer
+    allDelistedPools <- getAllDelisted
+    return . ApiResult . Right $ allDelistedPools
 
 -- For now, we just ignore the @BasicAuth@ definition.
 instance (HasSwagger api) => HasSwagger (BasicAuth name typo :> api) where

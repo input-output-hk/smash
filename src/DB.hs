@@ -62,6 +62,7 @@ data DataLayer = DataLayer
     , dlAddReservedTicker       :: Text -> PoolMetadataHash -> IO (Either DBFail ReservedTickerId)
     , dlCheckReservedTicker     :: Text -> IO (Maybe ReservedTicker)
 
+    , dlGetDelistedPools        :: IO [PoolId]
     , dlCheckDelistedPool       :: PoolId -> IO Bool
     , dlAddDelistedPool         :: PoolId -> IO (Either DBFail PoolId)
 
@@ -96,6 +97,8 @@ stubbedDataLayer ioDataMap ioDelistedPool = DataLayer
     , dlCheckReservedTicker = \tickerName -> panic "!"
 
     , dlAddMetaDataReference = \poolId poolUrl poolMetadataHash -> panic "!"
+
+    , dlGetDelistedPools = readIORef ioDelistedPool
 
     , dlCheckDelistedPool = \poolId -> do
         blacklistedPool' <- readIORef ioDelistedPool
@@ -151,6 +154,11 @@ postgresqlDataLayer = DataLayer
 
     , dlCheckReservedTicker = \tickerName ->
         runDbAction Nothing $ queryReservedTicker tickerName
+
+    , dlGetDelistedPools = do
+        delistedPoolsDB <- runDbAction Nothing queryAllDelistedPools
+        -- Convert from DB-specific type to the "general" type
+        return $ map (\delistedPoolDB -> PoolId . getPoolId $ delistedPoolPoolId delistedPoolDB) delistedPoolsDB
 
     , dlCheckDelistedPool = \poolId -> do
         runDbAction Nothing $ queryDelistedPool poolId
