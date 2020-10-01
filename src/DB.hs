@@ -23,6 +23,7 @@ import           Data.Time.Clock.POSIX        (utcTimeToPOSIXSeconds)
 
 import           Types
 
+import           Cardano.Db.Delete            (deleteDelistedPool)
 import           Cardano.Db.Insert            (insertDelistedPool,
                                                insertPoolMetadata,
                                                insertPoolMetadataFetchError,
@@ -65,6 +66,7 @@ data DataLayer = DataLayer
     , dlGetDelistedPools        :: IO [PoolId]
     , dlCheckDelistedPool       :: PoolId -> IO Bool
     , dlAddDelistedPool         :: PoolId -> IO (Either DBFail PoolId)
+    , dlRemoveDelistedPool      :: PoolId -> IO (Either DBFail PoolId)
 
     , dlGetAdminUsers           :: IO (Either DBFail [AdminUser])
 
@@ -86,28 +88,25 @@ stubbedDataLayer ioDataMap ioDelistedPool = DataLayer
         case (Map.lookup (poolId, poolmdHash) ioDataMap') of
             Just poolOfflineMetadata'   -> return . Right $ ("Test", poolOfflineMetadata')
             Nothing                     -> return $ Left (DbLookupPoolMetadataHash poolId poolmdHash)
-
     , dlAddPoolMetadata     = \ _ poolId poolmdHash poolMetadata poolTicker -> do
         -- TODO(KS): What if the pool metadata already exists?
         _ <- modifyIORef ioDataMap (Map.insert (poolId, poolmdHash) poolMetadata)
         return . Right $ poolMetadata
 
-    , dlAddReservedTicker = \tickerName poolMetadataHash -> panic "!"
-
-    , dlCheckReservedTicker = \tickerName -> panic "!"
-
     , dlAddMetaDataReference = \poolId poolUrl poolMetadataHash -> panic "!"
 
-    , dlGetDelistedPools = readIORef ioDelistedPool
+    , dlAddReservedTicker = \tickerName poolMetadataHash -> panic "!"
+    , dlCheckReservedTicker = \tickerName -> panic "!"
 
+    , dlGetDelistedPools = readIORef ioDelistedPool
     , dlCheckDelistedPool = \poolId -> do
         blacklistedPool' <- readIORef ioDelistedPool
         return $ poolId `elem` blacklistedPool'
-
     , dlAddDelistedPool  = \poolId -> do
-        _ <- modifyIORef ioDelistedPool (\pool -> [poolId] ++ pool)
-        -- TODO(KS): Do I even need to query this?
-        _blacklistedPool' <- readIORef ioDelistedPool
+        _ <- modifyIORef ioDelistedPool (\pools -> [poolId] ++ pools)
+        return $ Right poolId
+    , dlRemoveDelistedPool = \poolId -> do
+        _ <- modifyIORef ioDelistedPool (\pools -> filter (/= poolId) pools)
         return $ Right poolId
 
     , dlGetAdminUsers       = return $ Right []
@@ -132,9 +131,7 @@ postgresqlDataLayer = DataLayer
         poolMetadata <- runDbAction Nothing $ queryPoolMetadata poolId poolMetadataHash
         let poolTickerName = Types.getTickerName . poolMetadataTickerName <$> poolMetadata
         let poolMetadata' = Types.getPoolMetadata . poolMetadataMetadata <$> poolMetadata
-        -- Ugh. Very sorry about this.
         return $ (,) <$> poolTickerName <*> poolMetadata'
-
     , dlAddPoolMetadata     = \ mRefId poolId poolHash poolMetadata poolTicker -> do
         let poolTickerName = Types.TickerName $ getPoolTicker poolTicker
         _ <- runDbAction Nothing $ insertPoolMetadata $ PoolMetadata poolId poolTickerName poolHash (Types.PoolMetadataRaw poolMetadata) mRefId
@@ -151,7 +148,6 @@ postgresqlDataLayer = DataLayer
 
     , dlAddReservedTicker = \tickerName poolMetadataHash ->
         runDbAction Nothing $ insertReservedTicker $ ReservedTicker tickerName poolMetadataHash
-
     , dlCheckReservedTicker = \tickerName ->
         runDbAction Nothing $ queryReservedTicker tickerName
 
@@ -159,13 +155,17 @@ postgresqlDataLayer = DataLayer
         delistedPoolsDB <- runDbAction Nothing queryAllDelistedPools
         -- Convert from DB-specific type to the "general" type
         return $ map (\delistedPoolDB -> PoolId . getPoolId $ delistedPoolPoolId delistedPoolDB) delistedPoolsDB
-
     , dlCheckDelistedPool = \poolId -> do
         runDbAction Nothing $ queryDelistedPool poolId
-
     , dlAddDelistedPool  = \poolId -> do
         delistedPoolId <- runDbAction Nothing $ insertDelistedPool $ DelistedPool poolId
         return $ Right poolId
+    , dlRemoveDelistedPool = \poolId -> do
+        isDeleted <- runDbAction Nothing $ deleteDelistedPool poolId
+        -- Up for a discussion, but this might be more sensible in the lower DB layer.
+        if isDeleted
+            then return $ Right poolId
+            else return $ Left RecordDoesNotExist
 
     , dlGetAdminUsers       = do
         adminUsers <- runDbAction Nothing $ queryAdminUsers
@@ -174,11 +174,9 @@ postgresqlDataLayer = DataLayer
     , dlAddFetchError       = \poolMetadataFetchError -> do
         poolMetadataFetchErrorId <- runDbAction Nothing $ insertPoolMetadataFetchError poolMetadataFetchError
         return $ Right poolMetadataFetchErrorId
-
     , dlGetFetchErrors      = \mPoolId -> do
         poolMetadataFetchErrors <- runDbAction Nothing (queryPoolMetadataFetchError mPoolId)
         pure $ sequence $ Right <$> map convertPoolMetadataFetchError poolMetadataFetchErrors
-
     }
 
 convertPoolMetadataFetchError :: PoolMetadataFetchError -> PoolFetchError

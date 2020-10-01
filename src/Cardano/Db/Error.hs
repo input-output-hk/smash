@@ -26,6 +26,7 @@ data DBFail
   | UnableToEncodePoolMetadataToJSON !Text
   | UnknownError !Text
   | ReservedTickerAlreadyInserted !Text
+  | RecordDoesNotExist
   deriving (Eq, Show, Generic)
 
 {-
@@ -86,7 +87,11 @@ instance ToJSON DBFail where
             [ "code"            .= String "ReservedTickerAlreadyInserted"
             , "description"     .= String (renderLookupFail failure)
             ]
-
+    toJSON failure@(RecordDoesNotExist) =
+        object
+            [ "code"            .= String "RecordDoesNotExist"
+            , "description"     .= String (renderLookupFail failure)
+            ]
 
 renderLookupFail :: DBFail -> Text
 renderLookupFail lf =
@@ -100,4 +105,5 @@ renderLookupFail lf =
     UnableToEncodePoolMetadataToJSON err -> "Unable to encode the content to JSON. " <> err
     UnknownError text -> "Unknown error. Context: " <> text
     ReservedTickerAlreadyInserted tickerName -> "Ticker '" <> tickerName <> "' has already been inserted."
+    RecordDoesNotExist -> "The requested record does not exist."
 
