@@ -4,9 +4,15 @@
 
 Cardano Shelley introduces the concept of stake pools - reliable server nodes that keep an aggregated stake of pool operators and delegators in a single entity. Stake pools are registered on-chain, and their on-chain data (such as information required to calculate rewards) is critical to the operation of the ledger. Stake pools also possess metadata that helps users to make a rational choice of a stake pool to delegate to. This metadata is stored off-chain as it might reflect sensitive content, and such an approach allows for a degree of decentralized censorship. 
 
-On the other hand, off-chain metadata storage prerequisites a challenge of open access by different users. On-chain stake pool registrations contain an URL pointer to the off-chain metadata and a content hash that can be fetched from a specific stake pool. This might cause both performance and privacy issues. Another crucial aspect to address is the stake pool’s “ticker” name, which is the short name a stake pool is recognized by. Ticker names might reflect prominent brands or trademarks which should not be duplicated as this leads to confusion. Stake pool operators running multiple pools might want to use the same metadata for all their pools and then, this might also lead to these pools appearing with the same ticker name. 
+On the other hand, off-chain metadata storage prerequisites a challenge of open access by different users. On-chain stake pool registrations contain an URL pointer to the off-chain metadata and a content hash that can be fetched from a specific stake pool. This might cause both performance and privacy issues. Another crucial aspect to address is the stake pool’s “ticker” name, which is the short name a stake pool is recognized by. Ticker names might reflect prominent brands or trademarks which should not be duplicated as this leads to confusion. Stake pool operators (SPOs) running multiple pools might want to use the same metadata for all their pools and then, this might also lead to these pools appearing with the same ticker name. 
 
-Addressing performance and privacy issues, a stake pool metadata aggregation server (SMASH) is introduced. SMASH provides a higher level of metadata accountability and maintenance. It aggregates metadata from existing stake pools and provides an efficient way to fetch it and store it in a semi-centralized environment. This metadata can then be curated and reviewed by an operator for censorship via the delisting feature. In particular, stake pools with illegal content can be delisted, and disputes over offending stake pool ticker names or their disambiguation can be resolved. SMASH can be provided as a service to delegators, stake pool operators, exchanges, wallets, etc., enabling independent validation. Users (e.g. wallets, exchanges, etc.) can choose to interpret the non-availability of the metadata as an indication that the pool should not be listed. 
+## Use cases
+
+A stake pool meta aggregation server (SMASH) is introduced to address metadata performance and privacy issues. Delegators, stake pool operators, exchanges, or wallets can deploy and use SMASH to ensure a higher level of metadata accountability and maintenance. SMASH aggregates metadata from existing stake pools and provides an efficient way to fetch it and store it in a semi-centralized environment. SMASH operators (exchanges, wallets, SPOs) are then enabled to validate and manage this metadata curating it for censorship via the delisting feature.
+
+The first generation of SMASH server has been deployed by Input Output Global (IOG). It aggregates stake pool metadata and offers a list of valid stake pools with reviewed content and ticker names. In the short-term perspective, the Daedalus wallet will allow the selection of the SMASH server. From a list of reviewed stake pools, it will be easier to make a rational choice of the pool to delegate to. IOG will be one of the first servers, and it is expected that more operators will be using SMASH for the same purpose.
+
+Exchanges, for example, can use the same functionality to keep track of stake pool metadata. SMASH will allow an exchange to fetch stake pool metadata and verify its content against the on-chain registered hash. The exchange can then check existing metadata for correctness (size limits, content), create new stake pools manually, and reserve their ticker names. In case there is a stake pool with a duplicated ticker name, counterfeit or offensive content, it will be possible to delist this pool. 
 
 **SMASH Characteristics**
 
@@ -93,7 +99,7 @@ You can also use `stack` if you prefer. For this, replace `cabal`commands with `
 
 ## Metadata
 
-*The metadata that is stored by SMASH is restricted to contain more than 512 bytes.*
+*The metadata that is stored by SMASH is restricted to contain no more than 512 bytes.*
 
 Registered stake pools provide the following metadata:
 * owner
