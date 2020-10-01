@@ -2,4 +2,5 @@
 dist-newstyle/
 *~
 tags
+stack.yaml.lock
 result*

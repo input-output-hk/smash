@@ -56,6 +56,8 @@ type DelistedPoolsAPI = "api" :> "v1" :> "delisted" :> ApiRes Get [PoolId]
 #ifdef DISABLE_BASIC_AUTH
 type DelistPoolAPI = "api" :> "v1" :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 
+type EnlistPoolAPI = "api" :> "v1" :> "enlist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+
 type FetchPoolErrorAPI = "api" :> "v1" :> "errors" :> QueryParam "poolId" PoolId :> ApiRes Get [PoolFetchError]
 #else
 -- The basic auth.
@@ -63,10 +65,17 @@ type BasicAuthURL = BasicAuth "smash" User
 
 type DelistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 
+type EnlistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "enlist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+
 type FetchPoolErrorAPI = BasicAuthURL :> "api" :> "v1" :> "errors" :> QueryParam "poolId" PoolId :> ApiRes Get [PoolFetchError]
 #endif
 
-type SmashAPI = OfflineMetadataAPI :<|> DelistPoolAPI :<|> FetchPoolErrorAPI :<|> DelistedPoolsAPI
+-- The full API.
+type SmashAPI =  OfflineMetadataAPI
+            :<|> DelistedPoolsAPI
+            :<|> DelistPoolAPI
+            :<|> EnlistPoolAPI
+            :<|> FetchPoolErrorAPI
 
 -- | Swagger spec for Todo API.
 todoSwagger :: Swagger
@@ -82,7 +91,7 @@ todoSwagger =
         Nothing
         Nothing
         Nothing
-        "0.0.1"
+        "1.1.0"
 
 -- | API for serving @swagger.json@.
 type SwaggerAPI = "swagger.json" :> Get '[JSON] Swagger
@@ -96,10 +105,6 @@ fullAPI = Proxy
 -- | Just the @Proxy@ for the API type.
 smashApi :: Proxy SmashAPI
 smashApi = Proxy
-
--- 403 if it is delisted
--- 404 if it is not available (e.g. it could not be downloaded, or was invalid)
--- 200 with the JSON content. Note that this must be the original content with the expected hash, not a re-rendering of the original.
 
 runApp :: Configuration -> IO ()
 runApp configuration = do
@@ -223,48 +228,15 @@ server :: Configuration -> DataLayer -> Server API
 server configuration dataLayer
     =       return todoSwagger
     :<|>    getPoolOfflineMetadata dataLayer
-    :<|>    postDelistPool dataLayer
-    :<|>    fetchPoolErrorAPI dataLayer
     :<|>    getDelistedPools dataLayer
-
-#ifdef DISABLE_BASIC_AUTH
-fetchPoolErrorAPI :: DataLayer -> Maybe PoolId -> Handler (ApiResult DBFail [PoolFetchError])
-fetchPoolErrorAPI dataLayer mPoolId = convertIOToHandler $ do
-
-    let getFetchErrors = dlGetFetchErrors dataLayer
-    fetchErrors <- getFetchErrors mPoolId
-
-    return . ApiResult $ fetchErrors
-#else
-fetchPoolErrorAPI :: DataLayer -> User -> Maybe PoolId -> Handler (ApiResult DBFail [PoolFetchError])
-fetchPoolErrorAPI dataLayer _user mPoolId = convertIOToHandler $ do
-
-    let getFetchErrors = dlGetFetchErrors dataLayer
-    fetchErrors <- getFetchErrors mPoolId
-
-    return . ApiResult $ fetchErrors
-#endif
-
-#ifdef DISABLE_BASIC_AUTH
-postDelistPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
-postDelistPool dataLayer poolId = convertIOToHandler $ do
-
-    let addDelistedPool = dlAddDelistedPool dataLayer
-    delistedPool' <- addDelistedPool poolId
-
-    return . ApiResult $ delistedPool'
-#else
-postDelistPool :: DataLayer -> User -> PoolId -> Handler (ApiResult DBFail PoolId)
-postDelistPool dataLayer user poolId = convertIOToHandler $ do
-
-    let addDelistedPool = dlAddDelistedPool dataLayer
-    delistedPool' <- addDelistedPool poolId
-
-    return . ApiResult $ delistedPool'
-#endif
+    :<|>    delistPool dataLayer
+    :<|>    enlistPool dataLayer
+    :<|>    fetchPoolErrorAPI dataLayer
 
 
--- throwError err404
+-- 403 if it is delisted
+-- 404 if it is not available (e.g. it could not be downloaded, or was invalid)
+-- 200 with the JSON content. Note that this must be the original content with the expected hash, not a re-rendering of the original.
 getPoolOfflineMetadata
     :: DataLayer
     -> PoolId
@@ -305,6 +277,68 @@ getDelistedPools dataLayer = convertIOToHandler $ do
     let getAllDelisted = dlGetDelistedPools dataLayer
     allDelistedPools <- getAllDelisted
     return . ApiResult . Right $ allDelistedPools
+
+
+#ifdef DISABLE_BASIC_AUTH
+delistPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
+delistPool dataLayer poolId = convertIOToHandler $ do
+
+    let addDelistedPool = dlAddDelistedPool dataLayer
+    delistedPool' <- addDelistedPool poolId
+
+    return . ApiResult $ delistedPool'
+#else
+delistPool :: DataLayer -> User -> PoolId -> Handler (ApiResult DBFail PoolId)
+delistPool dataLayer user poolId = convertIOToHandler $ do
+
+    let addDelistedPool = dlAddDelistedPool dataLayer
+    delistedPool' <- addDelistedPool poolId
+
+    return . ApiResult $ delistedPool'
+#endif
+
+
+#ifdef DISABLE_BASIC_AUTH
+enlistPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
+enlistPool dataLayer poolId = convertIOToHandler $ do
+
+    let removeDelistedPool = dlRemoveDelistedPool dataLayer
+    delistedPool' <- removeDelistedPool poolId
+
+    case delistedPool' of
+        Left err -> throwIO err404
+        Right poolId' -> return . ApiResult . Right $ poolId
+#else
+enlistPool :: DataLayer -> User -> PoolId -> Handler (ApiResult DBFail PoolId)
+enlistPool dataLayer user poolId = convertIOToHandler $ do
+
+    let removeDelistedPool = dlRemoveDelistedPool dataLayer
+    delistedPool' <- removeDelistedPool poolId
+
+    case delistedPool' of
+        Left err -> throwIO err404
+        Right poolId' -> return . ApiResult . Right $ poolId'
+#endif
+
+
+#ifdef DISABLE_BASIC_AUTH
+fetchPoolErrorAPI :: DataLayer -> Maybe PoolId -> Handler (ApiResult DBFail [PoolFetchError])
+fetchPoolErrorAPI dataLayer mPoolId = convertIOToHandler $ do
+
+    let getFetchErrors = dlGetFetchErrors dataLayer
+    fetchErrors <- getFetchErrors mPoolId
+
+    return . ApiResult $ fetchErrors
+#else
+fetchPoolErrorAPI :: DataLayer -> User -> Maybe PoolId -> Handler (ApiResult DBFail [PoolFetchError])
+fetchPoolErrorAPI dataLayer _user mPoolId = convertIOToHandler $ do
+
+    let getFetchErrors = dlGetFetchErrors dataLayer
+    fetchErrors <- getFetchErrors mPoolId
+
+    return . ApiResult $ fetchErrors
+#endif
+
 
 -- For now, we just ignore the @BasicAuth@ definition.
 instance (HasSwagger api) => HasSwagger (BasicAuth name typo :> api) where

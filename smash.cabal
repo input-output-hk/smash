@@ -50,6 +50,7 @@ library
     -- DB operations
     , Cardano.Db.Error
     , Cardano.Db.Insert
+    , Cardano.Db.Delete
     , Cardano.Db.Query
     , Cardano.Db.Types
 

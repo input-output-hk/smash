@@ -1,5 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 
 module Types
     ( ApplicationUser (..)
@@ -31,6 +33,8 @@ module Types
     -- * HTTP
     , FetchError (..)
     , PoolFetchError (..)
+    -- * Util
+    , DBConversion (..)
     ) where
 
 import           Cardano.Prelude
@@ -307,6 +311,19 @@ instance ToJSON PoolFetchError where
             , "retryCount"  .= retryCount
             ]
 
-
 formatTimeToNormal :: Time.POSIXTime -> Text
 formatTimeToNormal = toS . formatTime defaultTimeLocale "%d.%m.%Y. %T" . Time.posixSecondsToUTCTime
+
+-- We need a "conversion" layer between custom DB types and the rest of the
+-- codebase se we can have a clean separation and replace them at any point.
+-- The natural place to have this conversion is in the types.
+-- The choice is to use the typeclass here since the operation is general and
+-- will be used multiple times (more than 3!).
+class DBConversion dbType regularType where
+    convertFromDB   :: dbType -> regularType
+    convertToDB     :: regularType -> dbType
+
+--instance DBConversion Types.PoolId PoolId where
+--    convertFromDB (Types.PoolId poolId) = PoolId poolId
+--    convertFromDB (PoolId poolId) = Types.PoolId poolId
+
