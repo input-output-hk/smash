@@ -1,0 +1,78 @@
+version: "3.5"
+
+services:
+  postgres:
+    image: postgres:11.5-alpine
+    environment:
+      - POSTGRES_LOGGING=true
+      - POSTGRES_DB_FILE=/run/secrets/postgres_db
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+      - POSTGRES_USER_FILE=/run/secrets/postgres_user
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    restart: on-failure
+    secrets:
+      - postgres_password
+      - postgres_user
+      - postgres_db
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+
+  cardano-node:
+    image: inputoutput/cardano-node:1.20.0
+    environment:
+      - NETWORK=${NETWORK:-mainnet}
+    volumes:
+      - node-db:/data/db
+      - node-ipc:/ipc
+    restart: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+
+  smash:
+    build: .
+    command: [
+      "run-app-with-db-sync",
+      "--config", "/configuration/config.yaml",
+      "--socket-path", "/node-ipc/node.socket"
+    ]
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+    depends_on:
+      - cardano-node
+      - postgres
+    volumes:
+      - node-ipc:/node-ipc
+      - ./config/${NETWORK:-mainnet}:/configuration
+    restart: on-failure
+    secrets:
+      - postgres_password
+      - postgres_user
+      - postgres_db
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+        
+secrets:
+  postgres_db:
+    file: ./config/secrets/postgres_db
+  postgres_password:
+    file: ./config/secrets/postgres_password
+  postgres_user:
+    file: ./config/secrets/postgres_user
+    
+volumes:
+  postgres:
+  node-db:
+  node-ipc:
