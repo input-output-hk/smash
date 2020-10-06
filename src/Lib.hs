@@ -52,8 +52,8 @@ type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "id" PoolId :> 
 -- GET api/v1/delisted
 type DelistedPoolsAPI = "api" :> "v1" :> "delisted" :> ApiRes Get [PoolId]
 
--- POST api/v1/delist
 #ifdef DISABLE_BASIC_AUTH
+-- POST api/v1/delist
 type DelistPoolAPI = "api" :> "v1" :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 
 type EnlistPoolAPI = "api" :> "v1" :> "enlist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
@@ -70,12 +70,22 @@ type EnlistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "enlist" :> ReqBody '[JSON
 type FetchPoolErrorAPI = BasicAuthURL :> "api" :> "v1" :> "errors" :> QueryParam "poolId" PoolId :> ApiRes Get [PoolFetchError]
 #endif
 
+type RetiredPoolsAPI = "api" :> "v1" :> "retired" :> ApiRes Get [PoolId]
+
+
 -- The full API.
 type SmashAPI =  OfflineMetadataAPI
             :<|> DelistedPoolsAPI
             :<|> DelistPoolAPI
             :<|> EnlistPoolAPI
             :<|> FetchPoolErrorAPI
+            :<|> RetiredPoolsAPI
+#ifdef TESTING_MODE
+            :<|> RetirePoolAPI
+
+type RetirePoolAPI = "api" :> "v1" :> "retired" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+#endif
+
 
 -- | Swagger spec for Todo API.
 todoSwagger :: Swagger
@@ -231,7 +241,11 @@ server configuration dataLayer
     :<|>    getDelistedPools dataLayer
     :<|>    delistPool dataLayer
     :<|>    enlistPool dataLayer
-    :<|>    fetchPoolErrorAPI dataLayer
+    :<|>    getPoolErrorAPI dataLayer
+    :<|>    getRetiredPools dataLayer
+#ifdef TESTING_MODE
+    :<|>    retirePool dataLayer
+#endif
 
 
 -- 403 if it is delisted
@@ -271,7 +285,7 @@ getPoolOfflineMetadata dataLayer poolId poolHash = fmap (addHeader "always") . c
                         else throwIO err404
 
 
--- Get all delisted pools
+-- |Get all delisted pools
 getDelistedPools :: DataLayer -> Handler (ApiResult DBFail [PoolId])
 getDelistedPools dataLayer = convertIOToHandler $ do
     let getAllDelisted = dlGetDelistedPools dataLayer
@@ -322,16 +336,16 @@ enlistPool dataLayer user poolId = convertIOToHandler $ do
 
 
 #ifdef DISABLE_BASIC_AUTH
-fetchPoolErrorAPI :: DataLayer -> Maybe PoolId -> Handler (ApiResult DBFail [PoolFetchError])
-fetchPoolErrorAPI dataLayer mPoolId = convertIOToHandler $ do
+getPoolErrorAPI :: DataLayer -> Maybe PoolId -> Handler (ApiResult DBFail [PoolFetchError])
+getPoolErrorAPI dataLayer mPoolId = convertIOToHandler $ do
 
     let getFetchErrors = dlGetFetchErrors dataLayer
     fetchErrors <- getFetchErrors mPoolId
 
     return . ApiResult $ fetchErrors
 #else
-fetchPoolErrorAPI :: DataLayer -> User -> Maybe PoolId -> Handler (ApiResult DBFail [PoolFetchError])
-fetchPoolErrorAPI dataLayer _user mPoolId = convertIOToHandler $ do
+getPoolErrorAPI :: DataLayer -> User -> Maybe PoolId -> Handler (ApiResult DBFail [PoolFetchError])
+getPoolErrorAPI dataLayer _user mPoolId = convertIOToHandler $ do
 
     let getFetchErrors = dlGetFetchErrors dataLayer
     fetchErrors <- getFetchErrors mPoolId
@@ -339,6 +353,19 @@ fetchPoolErrorAPI dataLayer _user mPoolId = convertIOToHandler $ do
     return . ApiResult $ fetchErrors
 #endif
 
+getRetiredPools :: DataLayer -> Handler (ApiResult DBFail [PoolId])
+getRetiredPools dataLayer = convertIOToHandler $ do
+    let getRetiredPools = dlGetRetiredPools dataLayer
+    retiredPools <- getRetiredPools
+    return . ApiResult $ retiredPools
+
+#ifdef TESTING_MODE
+retirePool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
+retirePool dataLayer poolId = convertIOToHandler $ do
+    let addRetiredPool = dlAddRetiredPool dataLayer
+    retiredPoolId <- addRetiredPool poolId
+    return . ApiResult $ retiredPoolId
+#endif
 
 -- For now, we just ignore the @BasicAuth@ definition.
 instance (HasSwagger api) => HasSwagger (BasicAuth name typo :> api) where

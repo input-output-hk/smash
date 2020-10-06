@@ -22,10 +22,17 @@ Flag disable-basic-auth
   description:         Disable basic authentication scheme for other authentication mechanisms.
   default:             False
 
+Flag testing-mode
+  description:         A flag for allowing operations that promote easy testing.
+  default:             False
+
 library
 
   if flag(disable-basic-auth)
     cpp-options:       -DDISABLE_BASIC_AUTH
+
+  if flag(testing-mode)
+    cpp-options:       -DTESTING_MODE
 
   exposed-modules:
       Lib

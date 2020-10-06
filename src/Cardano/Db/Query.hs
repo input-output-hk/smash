@@ -18,6 +18,7 @@ module Cardano.Db.Query
   , queryReservedTicker
   , queryAdminUsers
   , queryPoolMetadataFetchError
+  , queryAllRetiredPools
   ) where
 
 import           Cardano.Prelude            hiding (Meta, from, isJust,
@@ -31,11 +32,12 @@ import           Data.ByteString.Char8      (ByteString)
 import           Data.Maybe                 (catMaybes, listToMaybe)
 import           Data.Word                  (Word64)
 
-import           Database.Esqueleto         (Entity, PersistField, SqlExpr,
+import           Database.Esqueleto         (Entity, PersistField, SqlExpr, ValueList,
                                              Value, countRows, desc, entityVal,
-                                             from, isNothing, just, limit, not_,
-                                             orderBy, select, unValue, val,
-                                             where_, (&&.), (==.), (^.))
+                                             from, isNothing, just, limit, subList_select,
+                                             notIn, not_, orderBy, select,
+                                             unValue, val, where_, (&&.), (==.),
+                                             (^.))
 import           Database.Persist.Sql       (SqlBackend, selectList)
 
 import           Cardano.Db.Error
@@ -47,9 +49,23 @@ import qualified Cardano.Db.Types           as Types
 queryPoolMetadata :: MonadIO m => Types.PoolId -> Types.PoolMetadataHash -> ReaderT SqlBackend m (Either DBFail PoolMetadata)
 queryPoolMetadata poolId poolMetadataHash = do
   res <- select . from $ \ poolMetadata -> do
-            where_ (poolMetadata ^. PoolMetadataPoolId ==. val poolId &&. poolMetadata ^. PoolMetadataHash ==. val poolMetadataHash)
+            where_ (poolMetadata ^. PoolMetadataPoolId ==. val poolId
+                &&. poolMetadata ^. PoolMetadataHash ==. val poolMetadataHash
+                &&. poolMetadata ^. PoolMetadataPoolId `notIn` retiredPoolsPoolId)
             pure poolMetadata
   pure $ maybeToEither (DbLookupPoolMetadataHash poolId poolMetadataHash) entityVal (listToMaybe res)
+  where
+    -- |Subselect that selects all the retired pool ids.
+    retiredPoolsPoolId :: SqlExpr (ValueList (Types.PoolId))
+    retiredPoolsPoolId =
+        subList_select . from $ \(retiredPool :: SqlExpr (Entity RetiredPool)) ->
+        return $ retiredPool ^. RetiredPoolPoolId
+
+-- |Return all retired pools.
+queryAllRetiredPools :: MonadIO m => ReaderT SqlBackend m [RetiredPool]
+queryAllRetiredPools = do
+  res <- selectList [] []
+  pure $ entityVal <$> res
 
 -- | Count the number of blocks in the Block table.
 queryBlockCount :: MonadIO m => ReaderT SqlBackend m Word

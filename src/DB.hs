@@ -28,7 +28,8 @@ import           Cardano.Db.Insert            (insertDelistedPool,
                                                insertPoolMetadata,
                                                insertPoolMetadataFetchError,
                                                insertPoolMetadataReference,
-                                               insertReservedTicker)
+                                               insertReservedTicker,
+                                               insertRetiredPool)
 import           Cardano.Db.Query             (DBFail (..), queryPoolMetadata)
 
 import           Cardano.Db.Error             as X
@@ -47,6 +48,7 @@ import           Cardano.Db.Schema            as X (AdminUser (..), Block (..),
                                                     PoolMetadataReferenceId,
                                                     ReservedTicker (..),
                                                     ReservedTickerId (..),
+                                                    RetiredPool (..),
                                                     poolMetadataMetadata)
 import qualified Cardano.Db.Types             as Types
 
@@ -67,6 +69,9 @@ data DataLayer = DataLayer
     , dlCheckDelistedPool       :: PoolId -> IO Bool
     , dlAddDelistedPool         :: PoolId -> IO (Either DBFail PoolId)
     , dlRemoveDelistedPool      :: PoolId -> IO (Either DBFail PoolId)
+
+    , dlAddRetiredPool          :: PoolId -> IO (Either DBFail PoolId)
+    , dlGetRetiredPools         :: IO (Either DBFail [PoolId])
 
     , dlGetAdminUsers           :: IO (Either DBFail [AdminUser])
 
@@ -109,6 +114,9 @@ stubbedDataLayer ioDataMap ioDelistedPool = DataLayer
         _ <- modifyIORef ioDelistedPool (\pools -> filter (/= poolId) pools)
         return $ Right poolId
 
+    , dlAddRetiredPool      = \poolId -> panic "!"
+    , dlGetRetiredPools     = panic "!"
+
     , dlGetAdminUsers       = return $ Right []
 
     , dlAddFetchError       = \_ -> panic "!"
@@ -132,7 +140,7 @@ postgresqlDataLayer = DataLayer
         let poolTickerName = Types.getTickerName . poolMetadataTickerName <$> poolMetadata
         let poolMetadata' = Types.getPoolMetadata . poolMetadataMetadata <$> poolMetadata
         return $ (,) <$> poolTickerName <*> poolMetadata'
-    , dlAddPoolMetadata     = \ mRefId poolId poolHash poolMetadata poolTicker -> do
+    , dlAddPoolMetadata     = \mRefId poolId poolHash poolMetadata poolTicker -> do
         let poolTickerName = Types.TickerName $ getPoolTicker poolTicker
         _ <- runDbAction Nothing $ insertPoolMetadata $ PoolMetadata poolId poolTickerName poolHash (Types.PoolMetadataRaw poolMetadata) mRefId
         return $ Right poolMetadata
@@ -166,6 +174,13 @@ postgresqlDataLayer = DataLayer
         if isDeleted
             then return $ Right poolId
             else return $ Left RecordDoesNotExist
+
+    , dlAddRetiredPool  = \poolId -> do
+        _retiredPoolId <- runDbAction Nothing $ insertRetiredPool $ RetiredPool poolId
+        return $ Right poolId
+    , dlGetRetiredPools = do
+        retiredPools <- runDbAction Nothing $ queryAllRetiredPools
+        return $ Right $ map retiredPoolPoolId retiredPools
 
     , dlGetAdminUsers       = do
         adminUsers <- runDbAction Nothing $ queryAdminUsers

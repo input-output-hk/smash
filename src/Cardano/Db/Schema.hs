@@ -79,6 +79,12 @@ share
     poolId              PoolId                    sqltype=text
     UniquePoolId poolId
 
+  -- The retired pools.
+
+  RetiredPool
+    poolId              Types.PoolId              sqltype=text
+    UniqueRetiredPoolId poolId
+
   -- The pool metadata fetch error. We duplicate the poolId for easy access.
 
   PoolMetadataFetchError

@@ -316,3 +316,11 @@ The returned list consists of objects that contain:
 - cause - what is the cause of the error and why is it failing
 - retryCount - the number of times we retried to fetch the offline metadata
 
+## Pool unregistrations
+
+It is possible that a pool unregisters, in which case all it's metadata will be unavailable. You can check what pools have unregistered by:
+```
+curl --verbose --header "Content-Type: application/json" http://localhost:3100/api/v1/retired
+```
+
+
