@@ -8,6 +8,7 @@ module Cardano.Db.Insert
   , insertPoolMetadataReference
   , insertReservedTicker
   , insertDelistedPool
+  , insertRetiredPool
   , insertAdminUser
   , insertPoolMetadataFetchError
 
@@ -53,6 +54,9 @@ insertReservedTicker reservedTicker = do
 
 insertDelistedPool :: (MonadIO m) => DelistedPool -> ReaderT SqlBackend m DelistedPoolId
 insertDelistedPool = insertByReturnKey
+
+insertRetiredPool :: (MonadIO m) => RetiredPool -> ReaderT SqlBackend m RetiredPoolId
+insertRetiredPool = insertByReturnKey
 
 insertAdminUser :: (MonadIO m) => AdminUser -> ReaderT SqlBackend m AdminUserId
 insertAdminUser = insertByReturnKey
