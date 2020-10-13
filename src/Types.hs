@@ -1,5 +1,5 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DerivingStrategies    #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 
@@ -33,28 +33,30 @@ module Types
     -- * HTTP
     , FetchError (..)
     , PoolFetchError (..)
+    , TimeStringFormat (..)
     -- * Util
     , DBConversion (..)
     ) where
 
 import           Cardano.Prelude
 
-import           Control.Monad.Fail  (fail)
+import           Control.Monad.Fail    (fail)
 
-import           Data.Aeson          (FromJSON (..), ToJSON (..), object,
-                                      withObject, (.:), (.=))
-import qualified Data.Aeson          as Aeson
-import           Data.Aeson.Encoding (unsafeToEncoding)
-import qualified Data.Aeson.Types    as Aeson
-import           Data.Time.Clock     (UTCTime)
+import           Data.Aeson            (FromJSON (..), ToJSON (..), object,
+                                        withObject, (.:), (.=))
+import qualified Data.Aeson            as Aeson
+import           Data.Aeson.Encoding   (unsafeToEncoding)
+import qualified Data.Aeson.Types      as Aeson
+import           Data.Time.Clock       (UTCTime)
 import qualified Data.Time.Clock.POSIX as Time
-import           Data.Time.Format    (formatTime, defaultTimeLocale)
+import           Data.Time.Format      (defaultTimeLocale, formatTime,
+                                        parseTimeM)
 
-import           Data.Swagger        (NamedSchema (..), ToParamSchema (..),
-                                      ToSchema (..))
-import           Data.Text.Encoding  (encodeUtf8Builder)
+import           Data.Swagger          (NamedSchema (..), ToParamSchema (..),
+                                        ToSchema (..))
+import           Data.Text.Encoding    (encodeUtf8Builder)
 
-import           Servant             (FromHttpApiData (..))
+import           Servant               (FromHttpApiData (..))
 
 import           Cardano.Db.Error
 import           Cardano.Db.Types
@@ -313,6 +315,22 @@ instance ToJSON PoolFetchError where
 
 formatTimeToNormal :: Time.POSIXTime -> Text
 formatTimeToNormal = toS . formatTime defaultTimeLocale "%d.%m.%Y. %T" . Time.posixSecondsToUTCTime
+
+-- |Specific time string format.
+newtype TimeStringFormat = TimeStringFormat { unTimeStringFormat :: UTCTime }
+    deriving (Eq, Show)
+
+instance FromHttpApiData TimeStringFormat where
+    --parseQueryParam :: Text -> Either Text a
+    parseQueryParam queryParam =
+        let timeFormat = "%d.%m.%Y"
+
+            --parsedTime :: UTCTime <- parseTimeM False defaultTimeLocale "%d.%m.%Y %T" "04.03.2010 16:05:21"
+            parsedTime = parseTimeM False defaultTimeLocale timeFormat $ toS queryParam
+        in  TimeStringFormat <$> parsedTime
+
+instance ToParamSchema TimeStringFormat where
+    toParamSchema _ = mempty
 
 -- We need a "conversion" layer between custom DB types and the rest of the
 -- codebase se we can have a clean separation and replace them at any point.
