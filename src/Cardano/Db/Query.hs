@@ -18,6 +18,7 @@ module Cardano.Db.Query
   , queryReservedTicker
   , queryAdminUsers
   , queryPoolMetadataFetchError
+  , queryPoolMetadataFetchErrorByTime
   , queryAllRetiredPools
   ) where
 
@@ -30,13 +31,15 @@ import           Control.Monad.Trans.Reader (ReaderT)
 
 import           Data.ByteString.Char8      (ByteString)
 import           Data.Maybe                 (catMaybes, listToMaybe)
+import           Data.Time.Clock            (UTCTime)
 import           Data.Word                  (Word64)
 
-import           Database.Esqueleto         (Entity, PersistField, SqlExpr, ValueList,
-                                             Value, countRows, desc, entityVal,
-                                             from, isNothing, just, limit, subList_select,
-                                             notIn, not_, orderBy, select,
-                                             unValue, val, where_, (&&.), (==.),
+import           Database.Esqueleto         (Entity, PersistField, SqlExpr,
+                                             Value, ValueList, countRows, desc,
+                                             entityVal, from, isNothing, just,
+                                             limit, notIn, not_, orderBy,
+                                             select, subList_select, unValue,
+                                             val, where_, (&&.), (==.), (>=.),
                                              (^.))
 import           Database.Persist.Sql       (SqlBackend, selectList)
 
@@ -187,6 +190,26 @@ queryPoolMetadataFetchError Nothing = do
 queryPoolMetadataFetchError (Just poolId) = do
   res <- select . from $ \(poolMetadataFetchError :: SqlExpr (Entity PoolMetadataFetchError)) -> do
             where_ (poolMetadataFetchError ^. PoolMetadataFetchErrorPoolId ==. val poolId)
+            pure $ poolMetadataFetchError
+  pure $ fmap entityVal res
+
+queryPoolMetadataFetchErrorByTime
+    :: MonadIO m
+    => Types.PoolId
+    -> Maybe UTCTime
+    -> ReaderT SqlBackend m [PoolMetadataFetchError]
+queryPoolMetadataFetchErrorByTime poolId Nothing = do
+  res <- select . from $ \(poolMetadataFetchError :: SqlExpr (Entity PoolMetadataFetchError)) -> do
+            where_ (poolMetadataFetchError ^. PoolMetadataFetchErrorPoolId ==. val poolId)
+
+            pure $ poolMetadataFetchError
+  pure $ fmap entityVal res
+
+queryPoolMetadataFetchErrorByTime poolId (Just fromTime) = do
+  res <- select . from $ \(poolMetadataFetchError :: SqlExpr (Entity PoolMetadataFetchError)) -> do
+            where_ (poolMetadataFetchError ^. PoolMetadataFetchErrorPoolId ==. val poolId
+                &&. poolMetadataFetchError ^. PoolMetadataFetchErrorFetchTime >=. val fromTime)
+
             pure $ poolMetadataFetchError
   pure $ fmap entityVal res
 

@@ -298,14 +298,15 @@ metadata for the stake pool.
 Currently there is a way to check if there are any errors while trying to download the pool metadata. It could be that the hash is wrong, that the server URL return 404, or something else.
 This is a nice way to check what went wrong.
 
-So if you want to see all the errors that were recorded, you can simply query:
-```
-http://localhost:3100/api/v1/errors
-```
-
 If you have a specific pool id you want to check, you can add that pool id (`c0b0e43213a8c898e373928fbfc3df81ee77c0df7dadc3ad6e5bae17`) in there:
 ```
-http://localhost:3100/api/v1/errors?poolId=c0b0e43213a8c898e373928fbfc3df81ee77c0df7dadc3ad6e5bae17
+http://localhost:3100/api/v1/errors/c0b0e43213a8c898e373928fbfc3df81ee77c0df7dadc3ad6e5bae17
+```
+
+**This shows all the errors for the pool from a day ago**.
+However, you can filter just the ones you want by using a date you want to filter from, like this (using DD.MM.YYYY):
+```
+http://localhost:3100/api/v1/errors/6b6164af70861c5537cc9c8e50fdae35139ca2c8c6fbb42e8b7e6bfb?fromDate=13.10.2020
 ```
 
 The returned list consists of objects that contain:

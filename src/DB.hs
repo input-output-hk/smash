@@ -19,6 +19,7 @@ import           Cardano.Prelude
 
 import           Data.IORef                   (IORef, modifyIORef, readIORef)
 import qualified Data.Map                     as Map
+import           Data.Time.Clock              (UTCTime)
 import           Data.Time.Clock.POSIX        (utcTimeToPOSIXSeconds)
 
 import           Types
@@ -77,7 +78,7 @@ data DataLayer = DataLayer
 
     -- TODO(KS): Switch to PoolFetchError!
     , dlAddFetchError           :: PoolMetadataFetchError -> IO (Either DBFail PoolMetadataFetchErrorId)
-    , dlGetFetchErrors          :: Maybe PoolId -> IO (Either DBFail [PoolFetchError])
+    , dlGetFetchErrors          :: PoolId -> Maybe UTCTime -> IO (Either DBFail [PoolFetchError])
     } deriving (Generic)
 
 -- | Simple stubbed @DataLayer@ for an example.
@@ -189,8 +190,8 @@ postgresqlDataLayer = DataLayer
     , dlAddFetchError       = \poolMetadataFetchError -> do
         poolMetadataFetchErrorId <- runDbAction Nothing $ insertPoolMetadataFetchError poolMetadataFetchError
         return $ Right poolMetadataFetchErrorId
-    , dlGetFetchErrors      = \mPoolId -> do
-        poolMetadataFetchErrors <- runDbAction Nothing (queryPoolMetadataFetchError mPoolId)
+    , dlGetFetchErrors      = \poolId mTimeFrom -> do
+        poolMetadataFetchErrors <- runDbAction Nothing (queryPoolMetadataFetchErrorByTime poolId mTimeFrom)
         pure $ sequence $ Right <$> map convertPoolMetadataFetchError poolMetadataFetchErrors
     }
 

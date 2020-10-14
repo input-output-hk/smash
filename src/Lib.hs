@@ -1,10 +1,10 @@
-{-# LANGUAGE CPP                   #-}
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Lib
     ( Configuration (..)
@@ -22,6 +22,8 @@ import           Data.Aeson                  (eitherDecode')
 import qualified Data.ByteString.Lazy        as BL
 import           Data.IORef                  (newIORef)
 import           Data.Swagger                (Info (..), Swagger (..))
+import           Data.Time                   (UTCTime, addUTCTime,
+                                              getCurrentTime, nominalDay)
 
 import           Network.Wai.Handler.Warp    (defaultSettings, runSettings,
                                               setBeforeMainLoop, setPort)
@@ -32,10 +34,9 @@ import           Servant                     (Application, BasicAuth,
                                               BasicAuthData (..),
                                               BasicAuthResult (..), Capture,
                                               Context (..), Get, Handler (..),
-                                              HasServer (..), Header, Headers,
-                                              JSON, Patch, QueryParam, ReqBody,
-                                              Server, ServerT, err403, err404,
-                                              serveWithContext)
+                                              Header, Headers, JSON, Patch,
+                                              QueryParam, ReqBody, Server,
+                                              err403, err404, serveWithContext)
 import           Servant.API.ResponseHeaders (addHeader)
 import           Servant.Swagger
 
@@ -46,28 +47,27 @@ import           Types
 -- | Shortcut for common api result types.
 type ApiRes verb a = verb '[JSON] (ApiResult DBFail a)
 
+-- The basic auth.
+type BasicAuthURL = BasicAuth "smash" User
+
 -- GET api/v1/metadata/{hash}
 type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> Get '[JSON] (Headers '[Header "Cache" Text] (ApiResult DBFail PoolMetadataWrapped))
 
 -- GET api/v1/delisted
 type DelistedPoolsAPI = "api" :> "v1" :> "delisted" :> ApiRes Get [PoolId]
 
+-- GET api/v1/errors
+type FetchPoolErrorAPI = "api" :> "v1" :> "errors" :> Capture "poolId" PoolId :> QueryParam "fromDate" TimeStringFormat :> ApiRes Get [PoolFetchError]
+
 #ifdef DISABLE_BASIC_AUTH
 -- POST api/v1/delist
 type DelistPoolAPI = "api" :> "v1" :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 
 type EnlistPoolAPI = "api" :> "v1" :> "enlist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
-
-type FetchPoolErrorAPI = "api" :> "v1" :> "errors" :> QueryParam "poolId" PoolId :> ApiRes Get [PoolFetchError]
 #else
--- The basic auth.
-type BasicAuthURL = BasicAuth "smash" User
-
 type DelistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 
 type EnlistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "enlist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
-
-type FetchPoolErrorAPI = BasicAuthURL :> "api" :> "v1" :> "errors" :> QueryParam "poolId" PoolId :> ApiRes Get [PoolFetchError]
 #endif
 
 type RetiredPoolsAPI = "api" :> "v1" :> "retired" :> ApiRes Get [PoolId]
@@ -288,8 +288,10 @@ getPoolOfflineMetadata dataLayer poolId poolHash = fmap (addHeader "always") . c
 -- |Get all delisted pools
 getDelistedPools :: DataLayer -> Handler (ApiResult DBFail [PoolId])
 getDelistedPools dataLayer = convertIOToHandler $ do
+
     let getAllDelisted = dlGetDelistedPools dataLayer
     allDelistedPools <- getAllDelisted
+
     return . ApiResult . Right $ allDelistedPools
 
 
@@ -320,7 +322,7 @@ enlistPool dataLayer poolId = convertIOToHandler $ do
     delistedPool' <- removeDelistedPool poolId
 
     case delistedPool' of
-        Left err -> throwIO err404
+        Left err      -> throwIO err404
         Right poolId' -> return . ApiResult . Right $ poolId
 #else
 enlistPool :: DataLayer -> User -> PoolId -> Handler (ApiResult DBFail PoolId)
@@ -330,40 +332,46 @@ enlistPool dataLayer user poolId = convertIOToHandler $ do
     delistedPool' <- removeDelistedPool poolId
 
     case delistedPool' of
-        Left err -> throwIO err404
+        Left err      -> throwIO err404
         Right poolId' -> return . ApiResult . Right $ poolId'
 #endif
 
-
-#ifdef DISABLE_BASIC_AUTH
-getPoolErrorAPI :: DataLayer -> Maybe PoolId -> Handler (ApiResult DBFail [PoolFetchError])
-getPoolErrorAPI dataLayer mPoolId = convertIOToHandler $ do
+getPoolErrorAPI :: DataLayer -> PoolId -> Maybe TimeStringFormat -> Handler (ApiResult DBFail [PoolFetchError])
+getPoolErrorAPI dataLayer poolId mTimeInt = convertIOToHandler $ do
 
     let getFetchErrors = dlGetFetchErrors dataLayer
-    fetchErrors <- getFetchErrors mPoolId
+
+    -- Unless the user defines the date from which he wants to display the errors,
+    -- all the errors from the past day will be shown. We don't want to overwhelm
+    -- the operators.
+    fetchErrors <- case mTimeInt of
+        Nothing -> do
+            utcDayAgo <- getUTCTimeDayAgo
+            getFetchErrors poolId (Just utcDayAgo)
+
+        Just (TimeStringFormat time) -> getFetchErrors poolId (Just time)
 
     return . ApiResult $ fetchErrors
-#else
-getPoolErrorAPI :: DataLayer -> User -> Maybe PoolId -> Handler (ApiResult DBFail [PoolFetchError])
-getPoolErrorAPI dataLayer _user mPoolId = convertIOToHandler $ do
-
-    let getFetchErrors = dlGetFetchErrors dataLayer
-    fetchErrors <- getFetchErrors mPoolId
-
-    return . ApiResult $ fetchErrors
-#endif
+  where
+    getUTCTimeDayAgo :: IO UTCTime
+    getUTCTimeDayAgo =
+        addUTCTime (-nominalDay) <$> getCurrentTime
 
 getRetiredPools :: DataLayer -> Handler (ApiResult DBFail [PoolId])
 getRetiredPools dataLayer = convertIOToHandler $ do
+
     let getRetiredPools = dlGetRetiredPools dataLayer
     retiredPools <- getRetiredPools
+
     return . ApiResult $ retiredPools
 
 #ifdef TESTING_MODE
 retirePool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
 retirePool dataLayer poolId = convertIOToHandler $ do
+
     let addRetiredPool = dlAddRetiredPool dataLayer
     retiredPoolId <- addRetiredPool poolId
+
     return . ApiResult $ retiredPoolId
 #endif
 
