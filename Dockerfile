@@ -10,6 +10,7 @@ RUN apt-get update -y && apt-get install -y \
   automake=1:1.16.1-4ubuntu6 \
   build-essential \
   g++=4:9.3.0-1ubuntu2 \
+  curl \
   git \
   jq \
   libffi-dev=3.3-4 \
@@ -60,7 +61,13 @@ RUN cabal install smash \
 # Cleanup for runtiume-base copy of /usr/local/lib
 RUN rm -rf /usr/local/lib/ghc-${GHC_VERSION} /usr/local/lib/pkgconfig
 
+# Install postgresql
 FROM ubuntu:${UBUNTU_VERSION}
+RUN apt-get update -y && apt-get install -y \
+  curl \
+  gnupg \
+  wget \
+  lsb-release
 RUN curl --proto '=https' --tlsv1.2 -sSf -L https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
 RUN echo "deb http://apt.postgresql.org/pub/repos/apt/ `lsb_release -cs`-pgdg main" | tee  /etc/apt/sources.list.d/pgdg.list
 RUN apt-get update && apt-get install -y --no-install-recommends \

@@ -135,6 +135,13 @@ You can also run a mainnet node using a Nix command:
 nix-build -A scripts.mainnet.node -o mainnet-node-local./mainnet-node-local
 ```
 
+## How to build SMASH using Docker
+
+The current Docker build is based on `Cabal`, you can build it using the build from the project root:
+```
+docker build --tag smash:1.1 .
+```
+
 ## What does SMASH do?
 
 SMASH synchronizes with the blockchain and fetches the pool metadata off the chain. Then, it stores that metadata in the database and allows people/wallets/clients to check it.
