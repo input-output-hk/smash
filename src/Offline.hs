@@ -1,47 +1,61 @@
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Offline
   ( fetchInsertNewPoolMetadata
   , runOfflineFetchThread
   ) where
 
-import           Cardano.Prelude hiding (from, groupBy, retry)
+import           Cardano.Prelude                  hiding (from, groupBy, retry)
 
-import           Cardano.BM.Trace (Trace, logWarning, logInfo)
+import           Cardano.BM.Trace                 (Trace, logInfo, logWarning)
 
-import           Control.Concurrent (threadDelay)
-import           Control.Monad.Trans.Except.Extra (handleExceptT, hoistEither, left)
+import           Control.Concurrent               (threadDelay)
+import           Control.Monad.Trans.Except.Extra (handleExceptT, hoistEither,
+                                                   left)
 
-import           DB (DataLayer (..), PoolMetadataReference (..), PoolMetadataReferenceId, PoolMetadataFetchError (..), postgresqlDataLayer, runDbAction)
+import           DB                               (DataLayer (..),
+                                                   PoolMetadataFetchError (..),
+                                                   PoolMetadataReference (..),
+                                                   PoolMetadataReferenceId,
+                                                   postgresqlDataLayer,
+                                                   runDbAction)
 import           FetchQueue
-import           Types (PoolId, PoolMetadataHash (..), PoolFetchError (..), FetchError (..), getPoolMetadataHash, getPoolUrl, pomTicker)
+import           Types                            (FetchError (..),
+                                                   PoolFetchError (..),
+                                                   PoolId (..),
+                                                   PoolMetadataHash (..),
+                                                   getPoolMetadataHash,
+                                                   getPoolUrl, pomTicker)
 
-import           Data.Aeson (eitherDecode')
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Time.Clock.POSIX as Time
-import           Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import           Data.Aeson                       (eitherDecode')
+import qualified Data.ByteString.Lazy             as LBS
+import qualified Data.Text                        as Text
+import qualified Data.Text.Encoding               as Text
+import           Data.Time.Clock.POSIX            (posixSecondsToUTCTime)
+import qualified Data.Time.Clock.POSIX            as Time
 
-import qualified Cardano.Crypto.Hash.Class as Crypto
-import qualified Cardano.Crypto.Hash.Blake2b as Crypto
-import qualified Cardano.Db.Schema as DB
+import qualified Cardano.Crypto.Hash.Blake2b      as Crypto
+import qualified Cardano.Crypto.Hash.Class        as Crypto
+import qualified Cardano.Db.Schema                as DB
 
-import qualified Data.ByteString.Base16 as B16
+import qualified Data.ByteString.Base16           as B16
 
-import           Database.Esqueleto (Entity (..), SqlExpr, ValueList, (^.), (==.),
-                    entityKey, entityVal, from, groupBy, in_, just, max_, notExists,
-                    select, subList_select, where_)
-import           Database.Persist.Sql (SqlBackend)
+import           Database.Esqueleto               (Entity (..), SqlExpr,
+                                                   ValueList, entityKey,
+                                                   entityVal, from, groupBy,
+                                                   in_, just, max_, notExists,
+                                                   select, subList_select,
+                                                   where_, (==.), (^.))
+import           Database.Persist.Sql             (SqlBackend)
 
-import           Network.HTTP.Client (HttpException (..))
-import qualified Network.HTTP.Client as Http
-import           Network.HTTP.Client.TLS (tlsManagerSettings)
-import qualified Network.HTTP.Types.Status as Http
+import           Network.HTTP.Client              (HttpException (..))
+import qualified Network.HTTP.Client              as Http
+import           Network.HTTP.Client.TLS          (tlsManagerSettings)
+import qualified Network.HTTP.Types.Status        as Http
 
-import qualified Shelley.Spec.Ledger.BaseTypes as Shelley
-import qualified Shelley.Spec.Ledger.TxData as Shelley
+import qualified Shelley.Spec.Ledger.BaseTypes    as Shelley
+import qualified Shelley.Spec.Ledger.TxData       as Shelley
 
 -- This is an incredibly rough hack that adds asynchronous fetching of offline metadata.
 -- This is not my best work.
@@ -70,11 +84,14 @@ fetchInsertNewPoolMetadataOld
     -> PoolFetchRetry
     -> IO (Maybe PoolFetchRetry)
 fetchInsertNewPoolMetadataOld dataLayer tracer pfr = do
-    res <- runExceptT fetchInsert
+
+    -- We extract the @PoolId@ before so we can map the error to that @PoolId@.
+    let poolId = pfrPoolIdWtf pfr
+
+    res <- runExceptT (fetchInsert poolId)
     case res of
         Right () -> pure Nothing
         Left err -> do
-            let poolId = pfrPoolIdWtf pfr
             let poolHash = PoolMetadataHash . decodeUtf8 . B16.encode $ pfrPoolMDHash pfr
             let poolMetadataReferenceId = pfrReferenceId pfr
             let fetchError = renderFetchError err
@@ -100,25 +117,28 @@ fetchInsertNewPoolMetadataOld dataLayer tracer pfr = do
 
             pure . Just $ pfr { pfrRetry = nextRetry now (pfrRetry pfr) }
   where
-    fetchInsert :: ExceptT FetchError IO ()
-    fetchInsert = do
+    -- |We pass in the @PoolId@ so we can know from which pool the error occured.
+    fetchInsert :: PoolId -> ExceptT FetchError IO ()
+    fetchInsert poolId = do
         -- This is a bit bad to do each time, but good enough for now.
         manager <- liftIO $ Http.newManager tlsManagerSettings
 
-        liftIO . logInfo tracer $ "Request: " <> pfrPoolUrl pfr
+        let poolMetadataURL = pfrPoolUrl pfr
 
-        request <- handleExceptT (\(_ :: HttpException) -> FEUrlParseFail $ pfrPoolUrl pfr)
+        liftIO . logInfo tracer $ "Request: " <> poolMetadataURL
+
+        request <- handleExceptT (\(_ :: HttpException) -> FEUrlParseFail poolId poolMetadataURL (pfrPoolUrl pfr))
                     $ Http.parseRequest (toS $ pfrPoolUrl pfr)
 
-        (respBS, status) <- httpGetMax512Bytes request manager
+        (respBS, status) <- httpGetMax512Bytes poolId poolMetadataURL request manager
 
         when (Http.statusCode status /= 200) .
-          left $ FEHttpResponse (Http.statusCode status)
+          left $ FEHttpResponse poolId poolMetadataURL (Http.statusCode status)
 
         liftIO . logInfo tracer $ "Response: " <> show (Http.statusCode status)
 
         decodedMetadata <- case eitherDecode' (LBS.fromStrict respBS) of
-                            Left err -> left $ FEJsonDecodeFail (toS err)
+                            Left err     -> left $ FEJsonDecodeFail poolId poolMetadataURL (toS err)
                             Right result -> pure result
 
         -- Let's check the hash
@@ -126,7 +146,7 @@ fetchInsertNewPoolMetadataOld dataLayer tracer pfr = do
             expectedHash = renderByteStringHex (pfrPoolMDHash pfr)
 
         if hashFromMetadata /= pfrPoolMDHash pfr
-          then left $ FEHashMismatch expectedHash (renderByteStringHex hashFromMetadata)
+          then left $ FEHashMismatch poolId expectedHash (renderByteStringHex hashFromMetadata) poolMetadataURL
           else liftIO . logInfo tracer $ "Inserting pool data with hash: " <> expectedHash
 
         _ <- liftIO $
@@ -170,9 +190,14 @@ fetchLoop dataLayer trce =
           rs <- catMaybes <$> mapM (fetchInsertNewPoolMetadataOld dataLayer trce) runnable
           loop $ insertFetchQueue rs unrunnable
 
-httpGetMax512Bytes :: Http.Request -> Http.Manager -> ExceptT FetchError IO (ByteString, Http.Status)
-httpGetMax512Bytes request manager = do
-    res <- handleExceptT convertHttpException $
+httpGetMax512Bytes
+    :: PoolId
+    -> Text
+    -> Http.Request
+    -> Http.Manager
+    -> ExceptT FetchError IO (ByteString, Http.Status)
+httpGetMax512Bytes poolId poolMetadataURL request manager = do
+    res <- handleExceptT (convertHttpException poolId poolMetadataURL) $
             Http.withResponse request manager $ \responseBR -> do
               -- We read the first chunk that should contain all the bytes from the reponse.
               responseBSFirstChunk <- Http.brReadSome (Http.responseBody responseBR) 512
@@ -181,20 +206,20 @@ httpGetMax512Bytes request manager = do
               responseBSSecondChunk <- Http.brReadSome (Http.responseBody responseBR) 1
               if LBS.null responseBSSecondChunk
                 then pure $ Right (LBS.toStrict responseBSFirstChunk, Http.responseStatus responseBR)
-                else pure $ Left FEDataTooLong
+                else pure $ Left $ FEDataTooLong poolId poolMetadataURL
+
     hoistEither res
 
-convertHttpException :: HttpException -> FetchError
-convertHttpException he =
+convertHttpException :: PoolId -> Text -> HttpException -> FetchError
+convertHttpException poolId poolMetadataURL he =
   case he of
     HttpExceptionRequest _req hec ->
       case hec of
-        Http.ResponseTimeout -> FETimeout "Response"
-        Http.ConnectionTimeout -> FETimeout "Connection"
-        Http.ConnectionFailure {} -> FEConnectionFailure
-        other -> FEHttpException (show other)
-    InvalidUrlException url _ -> FEUrlParseFail (Text.pack url)
-
+        Http.ResponseTimeout      -> FETimeout poolId poolMetadataURL "Response"
+        Http.ConnectionTimeout    -> FETimeout poolId poolMetadataURL "Connection"
+        Http.ConnectionFailure {} -> FEConnectionFailure poolId poolMetadataURL
+        other                     -> FEHttpException poolId poolMetadataURL (show other)
+    InvalidUrlException url _ -> FEUrlParseFail poolId poolMetadataURL (Text.pack url)
 
 -- select * from pool_metadata_reference
 --     where id in (select max(id) from pool_metadata_reference group by pool_id)
@@ -229,19 +254,84 @@ queryPoolFetchRetry retry = do
           , pfrRetry = retry
           }
 
-
 renderByteStringHex :: ByteString -> Text
 renderByteStringHex = Text.decodeUtf8 . B16.encode
 
 renderFetchError :: FetchError -> Text
 renderFetchError fe =
   case fe of
-    FEHashMismatch xpt act -> mconcat [ "Hash mismatch. Expected ", xpt, " but got ", act, "." ]
-    FEDataTooLong -> "Offline pool data exceeded 512 bytes."
-    FEUrlParseFail err -> "URL parse error: " <> err
-    FEJsonDecodeFail err -> "JSON decode error: " <> err
-    FEHttpException err -> "HTTP Exception: " <> err
-    FEHttpResponse sc -> "HTTP Response : " <> show sc
+    FEHashMismatch poolId xpt act poolMetaUrl ->
+        mconcat
+            [ "Hash mismatch from poolId '"
+            , getPoolId poolId
+            , "' when fetching metadata from '"
+            , poolMetaUrl
+            , "'. Expected "
+            , xpt
+            , " but got "
+            , act
+            , "."
+            ]
+    FEDataTooLong poolId poolMetaUrl ->
+        mconcat
+            [ "Offline pool data from poolId '"
+            , getPoolId poolId
+            , "' when fetching metadata from '"
+            , poolMetaUrl
+            , "' exceeded 512 bytes."
+            ]
+    FEUrlParseFail poolId poolMetaUrl err ->
+        mconcat
+            [ "URL parse error from poolId '"
+            , getPoolId poolId
+            , "' when fetching metadata from '"
+            , poolMetaUrl
+            , "' resulted in : "
+            , err
+            ]
+    FEJsonDecodeFail poolId poolMetaUrl err ->
+        mconcat
+            [ "JSON decode error from poolId "
+            , getPoolId poolId
+            , "' when fetching metadata from '"
+            , poolMetaUrl
+            , "' resulted in : "
+            , err
+            ]
+    FEHttpException poolId poolMetaUrl err ->
+        mconcat
+            [ "HTTP Exception from poolId "
+            , getPoolId poolId
+            , "' when fetching metadata from '"
+            , poolMetaUrl
+            , "' resulted in : "
+            , err
+            ]
+    FEHttpResponse poolId poolMetaUrl sc ->
+        mconcat
+            [ "HTTP Response from poolId "
+            , getPoolId poolId
+            , "' when fetching metadata from '"
+            , poolMetaUrl
+            , "' resulted in : "
+            , show sc
+            ]
+    FETimeout poolId poolMetaUrl ctx ->
+        mconcat
+            [ ctx
+            , " timeout from poolId "
+            , getPoolId poolId
+            , "' when fetching metadata from '"
+            , poolMetaUrl
+            , "'."
+            ]
+    FEConnectionFailure poolId poolMetaUrl ->
+        mconcat
+            [ "Connection failure from poolId "
+            , getPoolId poolId
+            , "' when fetching metadata from '"
+            , poolMetaUrl
+            , "'."
+            ]
     FEIOException err -> "IO Exception: " <> err
-    FETimeout ctx -> ctx <> " timeout"
-    FEConnectionFailure -> "Connection failure"
+
