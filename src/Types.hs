@@ -288,15 +288,15 @@ instance (ToJSON err, ToJSON a) => ToJSON (ApiResult err a) where
 
 -- |Fetch error for the HTTP client fetching the pool.
 data FetchError
-  = FEHashMismatch !Text !Text
-  | FEDataTooLong
-  | FEUrlParseFail !Text
-  | FEJsonDecodeFail !Text
-  | FEHttpException !Text
-  | FEHttpResponse !Int
+  = FEHashMismatch !PoolId !Text !Text !Text
+  | FEDataTooLong !PoolId !Text
+  | FEUrlParseFail !PoolId !Text !Text
+  | FEJsonDecodeFail !PoolId !Text !Text
+  | FEHttpException !PoolId !Text !Text
+  | FEHttpResponse !PoolId !Text !Int
   | FEIOException !Text
-  | FETimeout !Text
-  | FEConnectionFailure
+  | FETimeout !PoolId !Text !Text
+  | FEConnectionFailure !PoolId !Text
 
 -- |Fetch error for the specific @PoolId@ and the @PoolMetadataHash@.
 data PoolFetchError = PoolFetchError !Time.POSIXTime !PoolId !PoolMetadataHash !Text !Word
