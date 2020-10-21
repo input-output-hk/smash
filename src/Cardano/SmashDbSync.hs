@@ -14,7 +14,6 @@ module Cardano.SmashDbSync
   ( ConfigFile (..)
   , SmashDbSyncNodeParams (..)
   , DbSyncNodePlugin (..)
-  , GenesisHash (..)
   , NetworkName (..)
   , SocketPath (..)
 
@@ -43,15 +42,15 @@ import           Cardano.Db.Database
 import           Cardano.Metrics
 
 import           Cardano.DbSync.Config
+import           Cardano.DbSync.DbAction
 import           Cardano.DbSync.Era
 import           Cardano.DbSync.Error
 import           Cardano.DbSync.Plugin                                 (DbSyncNodePlugin (..))
 import           Cardano.DbSync.Tracing.ToObjectOrphans                ()
-import           Cardano.DbSync.Types                                  (ConfigFile (..),
+import           Cardano.DbSync.Types                                  (SlotDetails(..), EpochSlot(..))
+import           Cardano.DbSync.Config.Types                           (ConfigFile (..),
                                                                         DbSyncEnv (..),
-                                                                        SocketPath (..),
-                                                                        SlotDetails(..),
-                                                                        EpochSlot(..))
+                                                                        SocketPath (..))
 import           Cardano.DbSync.Util
 
 import           Cardano.Prelude                                       hiding
@@ -150,7 +149,7 @@ import qualified Ouroboros.Network.Snocket                             as Snocke
 import           Ouroboros.Network.Subscription                        (SubscriptionTrace)
 
 import           Ouroboros.Consensus.Shelley.Node                      (ShelleyGenesis (..))
-import           Ouroboros.Consensus.Shelley.Protocol                  (TPraosStandardCrypto)
+import           Ouroboros.Consensus.Shelley.Protocol.Crypto (StandardCrypto)
 import           Ouroboros.Consensus.Cardano.Block
 
 import qualified Shelley.Spec.Ledger.Genesis                           as Shelley
@@ -176,11 +175,11 @@ runDbSyncNode :: DbSyncNodePlugin -> SmashDbSyncNodeParams -> IO ()
 runDbSyncNode plugin enp =
   withIOManager $ \iomgr -> do
 
-    enc <- readDbSyncNodeConfig (unConfigFile $ senpConfigFile enp)
+    enc <- readDbSyncNodeConfig (senpConfigFile enp)
 
-    trce <- if not (encEnableLogging enc)
+    trce <- if not (dncEnableLogging enc)
               then pure Logging.nullTracer
-              else liftIO $ Logging.setupTrace (Right $ encLoggingConfig enc) "smash-node"
+              else liftIO $ Logging.setupTrace (Right $ dncLoggingConfig enc) "smash-node"
 
     logInfo trce $ "Running migrations."
 
@@ -191,8 +190,8 @@ runDbSyncNode plugin enp =
     orDie renderDbSyncNodeError $ do
       liftIO . logInfo trce $ "Reading genesis config."
 
-      genCfg <- readGenesisConfig enc
-      genesisEnv <- hoistEither $ genesisConfigToEnv genCfg
+      genCfg <- readCardanoGenesisConfig enc
+      genesisEnv <- hoistEither $ genesisConfigToEnv undefined genCfg
 
       liftIO . logInfo trce $ "Starting DB."
 
@@ -202,12 +201,11 @@ runDbSyncNode plugin enp =
         runDbStartup trce plugin
         logInfo trce $ "DB startup complete."
         case genCfg of
-          GenesisCardano bCfg sCfg -> do
-            orDie renderDbSyncNodeError $ insertValidateGenesisDistSmash trce (encNetworkName enc) sCfg
+          GenesisCardano _ bCfg sCfg -> do
+            orDie renderDbSyncNodeError $ insertValidateGenesisDistSmash trce (dncNetworkName enc) (scConfig sCfg)
             runDbSyncNodeNodeClient genesisEnv
                 iomgr trce plugin cardanoCodecConfig (senpSocketPath enp)
             where
-              cardanoCodecConfig :: CardanoCodecConfig TPraosStandardCrypto
               cardanoCodecConfig =
                 CardanoCodecConfig (mkByronCodecConfig bCfg)
                                    ShelleyCodecConfig
@@ -215,7 +213,7 @@ runDbSyncNode plugin enp =
 -- | Idempotent insert the initial Genesis distribution transactions into the DB.
 -- If these transactions are already in the DB, they are validated.
 insertValidateGenesisDistSmash
-    :: Trace IO Text -> NetworkName -> ShelleyGenesis TPraosStandardCrypto
+    :: Trace IO Text -> NetworkName -> ShelleyGenesis (ShelleyEra StandardCrypto)
     -> ExceptT DbSyncNodeError IO ()
 insertValidateGenesisDistSmash tracer (NetworkName networkName) cfg =
     newExceptT $ DB.runDbIohkLogging tracer insertAction
@@ -254,7 +252,7 @@ insertValidateGenesisDistSmash tracer (NetworkName networkName) cfg =
 -- | Validate that the initial Genesis distribution in the DB matches the Genesis data.
 validateGenesisDistribution
     :: (MonadIO m)
-    => Trace IO Text -> Text -> ShelleyGenesis TPraosStandardCrypto
+    => Trace IO Text -> Text -> ShelleyGenesis (ShelleyEra StandardCrypto)
     -> ReaderT SqlBackend m (Either DbSyncNodeError ())
 validateGenesisDistribution tracer networkName cfg =
   runExceptT $ do
@@ -304,26 +302,26 @@ validateGenesisDistribution tracer networkName cfg =
 ---------------------------------------------------------------------------------------------------
 
 
-configGenesisHash :: ShelleyGenesis TPraosStandardCrypto -> ByteString
+configGenesisHash :: ShelleyGenesis (ShelleyEra StandardCrypto) -> ByteString
 configGenesisHash _ = fakeGenesisHash
   where
     -- | This is both the Genesis Hash and the hash of the previous block.
     fakeGenesisHash :: ByteString
     fakeGenesisHash = BS.take 32 ("GenesisHash " <> BS.replicate 32 '\0')
 
-protocolConstant :: ShelleyGenesis TPraosStandardCrypto -> Word64
+protocolConstant :: ShelleyGenesis (ShelleyEra StandardCrypto) -> Word64
 protocolConstant = Shelley.sgSecurityParam
 
 -- | The genesis data is a NominalDiffTime (in picoseconds) and we need
 -- it as milliseconds.
-configSlotDuration :: ShelleyGenesis TPraosStandardCrypto -> Word64
+configSlotDuration :: ShelleyGenesis (ShelleyEra StandardCrypto) -> Word64
 configSlotDuration =
   fromIntegral . slotLengthToMillisec . mkSlotLength . sgSlotLength
 
-configSlotsPerEpoch :: ShelleyGenesis TPraosStandardCrypto -> Word64
+configSlotsPerEpoch :: ShelleyGenesis (ShelleyEra StandardCrypto) -> Word64
 configSlotsPerEpoch sg = unEpochSize (Shelley.sgEpochLength sg)
 
-configStartTime :: ShelleyGenesis TPraosStandardCrypto -> UTCTime
+configStartTime :: ShelleyGenesis (ShelleyEra StandardCrypto) -> UTCTime
 configStartTime = roundToMillseconds . Shelley.sgSystemStart
 
 roundToMillseconds :: UTCTime -> UTCTime
@@ -336,7 +334,7 @@ roundToMillseconds (UTCTime day picoSecs) =
 ---------------------------------------------------------------------------------------------------
 
 runDbSyncNodeNodeClient
-    :: forall blk. (MkDbAction blk, RunNode blk)
+    :: forall blk. (RunNode blk, blk ~ HardForkBlock (CardanoEras StandardCrypto))
     => DbSyncEnv -> IOManager -> Trace IO Text -> DbSyncNodePlugin -> CodecConfig blk-> SocketPath
     -> IO ()
 runDbSyncNodeNodeClient env iomgr trce plugin codecConfig (SocketPath socketPath) = do
@@ -378,7 +376,7 @@ runDbSyncNodeNodeClient env iomgr trce plugin codecConfig (SocketPath socketPath
     handshakeTracer = toLogObject $ appendName "Handshake" trce
 
 dbSyncProtocols
-  :: forall blk. (MkDbAction blk, RunNode blk)
+  :: forall blk. (RunNode blk, blk ~ HardForkBlock (CardanoEras StandardCrypto))
   => Trace IO Text
   -> DbSyncEnv
   -> DbSyncNodePlugin
@@ -495,7 +493,7 @@ getCurrentTipBlockNo = do
 --    rollback, see 'clientStNext' below.
 --
 chainSyncClient
-  :: forall blk m. (MonadTimer m, MonadIO m, RunNode blk, MkDbAction blk)
+  :: forall blk m. (MonadTimer m, MonadIO m, RunNode blk, blk ~ HardForkBlock (CardanoEras StandardCrypto))
   => Trace IO Text -> Metrics -> [Point blk] -> WithOrigin BlockNo -> DbActionQueue -> ChainSyncClientPipelined blk (Tip blk) m ()
 chainSyncClient trce metrics latestPoints currentTip actionQueue =
     ChainSyncClientPipelined $ pure $
@@ -543,7 +541,8 @@ chainSyncClient trce metrics latestPoints currentTip actionQueue =
                           (mNodeHeight metrics)
                 let dummySlotDetails =
                       SlotDetails {
-                        sdTime      = UTCTime (Time.fromGregorian 1970 1 1) 0
+                        sdSlotTime  = UTCTime (Time.fromGregorian 1970 1 1) 0
+                      , sdCurrentTime  = UTCTime (Time.fromGregorian 1970 1 1) 0 -- ??
                       , sdEpochNo   = 0
                       , sdEpochSlot = EpochSlot 0
                       , sdEpochSize = 0
@@ -558,7 +557,7 @@ chainSyncClient trce metrics latestPoints currentTip actionQueue =
               logException trce "recvMsgRollBackward: " $ do
                 -- This will get the current tip rather than what we roll back to
                 -- but will only be incorrect for a short time span.
-                atomically $ writeDbActionQueue actionQueue $ mkDbRollback point
+                atomically $ writeDbActionQueue actionQueue $ mkDbRollback $ toRollbackSlot point
                 newTip <- getCurrentTipBlockNo
                 pure $ finish newTip tip
         }

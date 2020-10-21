@@ -38,20 +38,22 @@ import qualified Cardano.Db.Query                            as DB
 import qualified Cardano.Db.Schema                           as DB
 
 import           Cardano.DbSync.Error
-import           Cardano.DbSync.Types                        as DbSync
+import           Cardano.DbSync.Types                        as DbSync hiding ( ShelleyBlock )
 
 import           Cardano.DbSync                              (DbSyncNodePlugin (..))
 
+import Cardano.DbSync.Config.Types ( DbSyncEnv )
 import qualified Cardano.DbSync.Era.Shelley.Util             as Shelley
 import qualified Cardano.DbSync.Era.Byron.Util               as Byron
 
 import           Shelley.Spec.Ledger.BaseTypes               (strictMaybeToMaybe)
 import qualified Shelley.Spec.Ledger.BaseTypes               as Shelley
-import qualified Shelley.Spec.Ledger.TxData                  as Shelley
+import qualified Shelley.Spec.Ledger.TxBody                  as Shelley
 
 import           Ouroboros.Consensus.Byron.Ledger            (ByronBlock (..))
 import           Ouroboros.Consensus.Shelley.Ledger.Block    (ShelleyBlock)
-import           Ouroboros.Consensus.Shelley.Protocol.Crypto (TPraosStandardCrypto)
+import           Ouroboros.Consensus.Shelley.Protocol.Crypto (StandardCrypto)
+import           Ouroboros.Consensus.Cardano.Block           (HardForkBlock(..), ShelleyEra)
 
 -- |Pass in the @DataLayer@.
 poolMetadataDbSyncNodePlugin :: DbSyncNodePlugin
@@ -62,16 +64,10 @@ poolMetadataDbSyncNodePlugin =
     , plugRollbackBlock = []
     }
 
-insertCardanoBlock
-    :: DataLayer
-    -> Trace IO Text
-    -> DbSyncEnv
-    -> DbSync.BlockDetails
-    -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
-insertCardanoBlock dataLayer tracer _env block = do
+insertCardanoBlock dataLayer tracer _env _ block = do
   case block of
-    ByronBlockDetails blk details -> Right <$> insertByronBlock tracer blk details
-    ShelleyBlockDetails blk _details -> insertShelleyBlock dataLayer tracer blk
+    BlockDetails (BlockByron blk) details -> Right <$> insertByronBlock tracer blk details
+    BlockDetails (BlockShelley blk) _details -> insertShelleyBlock dataLayer tracer blk
 
 -- We don't care about Byron, no pools there
 insertByronBlock
@@ -91,7 +87,7 @@ insertByronBlock tracer blk _details = do
 insertShelleyBlock
     :: DataLayer
     -> Trace IO Text
-    -> ShelleyBlock TPraosStandardCrypto
+    -> ShelleyBlock (ShelleyEra StandardCrypto)
     -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
 insertShelleyBlock dataLayer tracer blk = do
   runExceptT $ do
@@ -156,7 +152,7 @@ insertPoolCert dataLayer tracer pCert =
 
     -- RetirePool (KeyHash 'StakePool era) _ = PoolId
     Shelley.RetirePool poolPubKey _epochNum -> do
-        let poolIdHash = B16.encode . Shelley.unKeyHashBS $ poolPubKey
+        let poolIdHash = B16.encode . Shelley.unKeyHashRaw $ poolPubKey
         let poolId = PoolId . decodeUtf8 $ poolIdHash
 
         liftIO . logInfo tracer $ "Retiring pool with poolId: " <> show poolId
@@ -176,7 +172,7 @@ insertPoolRegister
     -> ShelleyPoolParams
     -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
 insertPoolRegister dataLayer tracer params = do
-  let poolIdHash = B16.encode . Shelley.unKeyHashBS $ Shelley._poolPubKey params
+  let poolIdHash = B16.encode . Shelley.unKeyHashRaw $ Shelley._poolPubKey params
   let poolId = PoolId . decodeUtf8 $ poolIdHash
 
   liftIO . logInfo tracer $ "Inserting pool register with pool id: " <> decodeUtf8 poolIdHash

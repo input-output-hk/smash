@@ -55,7 +55,7 @@ import           Network.HTTP.Client.TLS          (tlsManagerSettings)
 import qualified Network.HTTP.Types.Status        as Http
 
 import qualified Shelley.Spec.Ledger.BaseTypes    as Shelley
-import qualified Shelley.Spec.Ledger.TxData       as Shelley
+import qualified Shelley.Spec.Ledger.TxBody       as Shelley
 
 -- This is an incredibly rough hack that adds asynchronous fetching of offline metadata.
 -- This is not my best work.
