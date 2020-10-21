@@ -25,14 +25,15 @@ import           Prelude                                               (String)
 import qualified Prelude
 
 import           Control.Monad.Trans.Except.Extra                      (firstExceptT,
-                                                                        newExceptT,
-                                                                        hoistEither)
+                                                                        hoistEither,
+                                                                        newExceptT)
 import           Control.Tracer                                        (Tracer)
 
 import           Cardano.BM.Data.Tracer                                (ToLogObject (..))
 import qualified Cardano.BM.Setup                                      as Logging
 import           Cardano.BM.Trace                                      (Trace, appendName,
-                                                                        modifyName, logInfo)
+                                                                        logInfo,
+                                                                        modifyName)
 import qualified Cardano.BM.Trace                                      as Logging
 
 import           Cardano.Client.Subscription                           (subscribe)
@@ -49,9 +50,9 @@ import           Cardano.DbSync.Plugin                                 (DbSyncNo
 import           Cardano.DbSync.Tracing.ToObjectOrphans                ()
 import           Cardano.DbSync.Types                                  (ConfigFile (..),
                                                                         DbSyncEnv (..),
-                                                                        SocketPath (..),
-                                                                        SlotDetails(..),
-                                                                        EpochSlot(..))
+                                                                        EpochSlot (..),
+                                                                        SlotDetails (..),
+                                                                        SocketPath (..))
 import           Cardano.DbSync.Util
 
 import           Cardano.Prelude                                       hiding
@@ -85,7 +86,7 @@ import           Network.Socket                                        (SockAddr
 
 import           Network.TypedProtocol.Pipelined                       (Nat (Succ, Zero))
 
-import           Offline (runOfflineFetchThread)
+import           Offline                                               (runOfflineFetchThread)
 
 import           Ouroboros.Network.Driver.Simple                       (runPipelinedPeer)
 
@@ -149,11 +150,12 @@ import           Ouroboros.Network.Protocol.ChainSync.Type             (ChainSyn
 import qualified Ouroboros.Network.Snocket                             as Snocket
 import           Ouroboros.Network.Subscription                        (SubscriptionTrace)
 
+import           Ouroboros.Consensus.Cardano.Block
 import           Ouroboros.Consensus.Shelley.Node                      (ShelleyGenesis (..))
 import           Ouroboros.Consensus.Shelley.Protocol                  (TPraosStandardCrypto)
-import           Ouroboros.Consensus.Cardano.Block
 
 import qualified Shelley.Spec.Ledger.Genesis                           as Shelley
+import           System.FilePath
 
 import qualified System.Metrics.Prometheus.Metric.Gauge                as Gauge
 
@@ -171,16 +173,31 @@ data SmashDbSyncNodeParams = SmashDbSyncNodeParams
   , senpMaybeRollback :: !(Maybe SlotNo)
   }
 
+adjustGenesisFilePath :: (FilePath -> FilePath) -> GenesisFile -> GenesisFile
+adjustGenesisFilePath f (GenesisFile p) = GenesisFile (f p)
+
+mkAdjustPath :: ConfigFile -> (FilePath -> FilePath)
+mkAdjustPath (ConfigFile configFile) fp = takeDirectory configFile </> fp
 
 runDbSyncNode :: DbSyncNodePlugin -> SmashDbSyncNodeParams -> IO ()
 runDbSyncNode plugin enp =
   withIOManager $ \iomgr -> do
 
-    enc <- readDbSyncNodeConfig (unConfigFile $ senpConfigFile enp)
+    let configFile = senpConfigFile enp
+    readEnc <- readDbSyncNodeConfig (unConfigFile configFile)
+
+    -- Fix genesis paths to be relative to the config file directory.
+    let enc = readEnc
+            { encByronGenesisFile = adjustGenesisFilePath (mkAdjustPath configFile) (encByronGenesisFile readEnc)
+            , encShelleyGenesisFile = adjustGenesisFilePath (mkAdjustPath configFile) (encShelleyGenesisFile readEnc)
+            }
 
     trce <- if not (encEnableLogging enc)
               then pure Logging.nullTracer
               else liftIO $ Logging.setupTrace (Right $ encLoggingConfig enc) "smash-node"
+
+    logInfo trce $ "Using byron genesis file from: " <> (show . unGenesisFile $ encByronGenesisFile enc)
+    logInfo trce $ "Using shelley genesis file from: " <> (show . unGenesisFile $ encShelleyGenesisFile enc)
 
     logInfo trce $ "Running migrations."
 
