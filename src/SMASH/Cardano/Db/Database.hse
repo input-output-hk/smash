@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module Cardano.Db.Database
+module SMASH.Cardano.Db.Database
   ( DbAction (..)
   , DbActionQueue (..)
   , MkDbAction (..)

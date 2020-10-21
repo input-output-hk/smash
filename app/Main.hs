@@ -2,12 +2,12 @@ module Main where
 
 import           Cardano.Prelude
 
-import           DB
-import           DbSyncPlugin          (poolMetadataDbSyncNodePlugin)
-import           Lib
-import           Types
+import           SMASH.DB
+import           SMASH.DbSyncPlugin          (poolMetadataDbSyncNodePlugin)
+import           SMASH.Lib
+import           SMASH.Types
 
-import           Cardano.SmashDbSync   (ConfigFile (..),
+import           SMASH.Cardano.SmashDbSync   (ConfigFile (..),
                                         SmashDbSyncNodeParams (..),
                                         SocketPath (..), runDbSyncNode)
 

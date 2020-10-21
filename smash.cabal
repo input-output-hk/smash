@@ -35,31 +35,31 @@ library
     cpp-options:       -DTESTING_MODE
 
   exposed-modules:
-      Lib
-      Offline
-      FetchQueue
-      FetchQueue.Retry
-    , Types
-    , DB
-    , DbSyncPlugin
+      SMASH.DB
+    , SMASH.DbSyncPlugin
+    , SMASH.FetchQueue
+    , SMASH.FetchQueue.Retry
+    , SMASH.Lib
+    , SMASH.Offline
+    , SMASH.Types
     -- DbSync
-    , Cardano.SmashDbSync
-    , Cardano.Metrics
+    , SMASH.Cardano.Metrics
+    , SMASH.Cardano.SmashDbSync
     -- Migration
-    , Cardano.Db.Database
-    , Cardano.Db.Migration
-    , Cardano.Db.Migration.Haskell
-    , Cardano.Db.Migration.Version
+    , SMASH.Cardano.Db.Database
+    , SMASH.Cardano.Db.Migration
+    , SMASH.Cardano.Db.Migration.Haskell
+    , SMASH.Cardano.Db.Migration.Version
     -- Config
-    , Cardano.Db.PGConfig
-    , Cardano.Db.Run
-    , Cardano.Db.Schema
+    , SMASH.Cardano.Db.PGConfig
+    , SMASH.Cardano.Db.Run
+    , SMASH.Cardano.Db.Schema
     -- DB operations
-    , Cardano.Db.Error
-    , Cardano.Db.Insert
-    , Cardano.Db.Delete
-    , Cardano.Db.Query
-    , Cardano.Db.Types
+    , SMASH.Cardano.Db.Delete
+    , SMASH.Cardano.Db.Error
+    , SMASH.Cardano.Db.Insert
+    , SMASH.Cardano.Db.Query
+    , SMASH.Cardano.Db.Types
 
   other-modules:
       Paths_smash
@@ -67,6 +67,7 @@ library
       src
   build-depends:
       base >=4.7 && <5
+    , aeson
     , cardano-prelude
     , containers
     , quiet
@@ -76,13 +77,12 @@ library
     , swagger2
     , wai
     , warp
-    , aeson
     -- DB
+    , esqueleto
     , persistent
     , persistent-postgresql
     , persistent-template >= 2.7.0
     , postgresql-simple
-    , esqueleto
     -- CARDANO
     , cardano-binary
     , cardano-client
@@ -92,42 +92,42 @@ library
     -- REMOVE!
     , cardano-config
     , cardano-db-sync
-    , cardano-slotting
     , cardano-ledger
-    , shelley-spec-ledger
-    , ouroboros-consensus
-    , ouroboros-consensus-byron
-    , ouroboros-consensus-shelley
-    , ouroboros-consensus-cardano
-    , iohk-monitoring
-    , prometheus
+    , cardano-slotting
     , cborg
     , io-sim-classes
+    , iohk-monitoring
     , network
     , network-mux
+    , ouroboros-consensus
+    , ouroboros-consensus-byron
+    , ouroboros-consensus-cardano
+    , ouroboros-consensus-shelley
     , ouroboros-network
     , ouroboros-network-framework
+    , prometheus
+    , shelley-spec-ledger
     , typed-protocols
     -- REST
+    , base16-bytestring
+    , bytestring
+    , conduit-extra
+    , contra-tracer
+    , directory
+    , extra
+    , fast-logger
+    , filepath
     , http-client
     , http-client-tls
     , http-types
-    , base16-bytestring
     , monad-logger
-    , transformers
-    , transformers-except
     , resourcet
-    , extra
-    , conduit-extra
-    , bytestring
+    , template-haskell
     , text
     , time
-    , directory
-    , filepath
-    , template-haskell
-    , fast-logger
+    , transformers
+    , transformers-except
     , unix
-    , contra-tracer
   default-language:    Haskell2010
   default-extensions:  NoImplicitPrelude
                        OverloadedStrings
@@ -148,11 +148,11 @@ executable smash-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
-    , cardano-prelude
-    , smash
     , cardano-db-sync
+    , cardano-prelude
     , cardano-slotting
     , optparse-applicative
+    , smash
   default-language:    Haskell2010
   default-extensions:  NoImplicitPrelude
                        OverloadedStrings
@@ -176,12 +176,12 @@ test-suite smash-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , QuickCheck
     , cardano-prelude
     , containers
-    , smash
     , hspec
-    , QuickCheck
     , quickcheck-state-machine >= 0.6
+    , smash
     , tree-diff
     -- * Required for generation of keys
     , ed25519

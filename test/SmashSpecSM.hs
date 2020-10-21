@@ -31,9 +31,9 @@ import           Test.StateMachine
 import           Test.StateMachine.Types
 import qualified Test.StateMachine.Types.Rank2 as Rank2
 
-import           Lib
-import           Types
-import           DB
+import           SMASH.Lib
+import           SMASH.Types
+import           SMASH.DB
 
 -- Ewwww. Should be burned.
 import           System.IO.Unsafe (unsafePerformIO)

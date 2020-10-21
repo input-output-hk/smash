@@ -16,8 +16,8 @@ import           Test.QuickCheck         (Arbitrary (..), Gen, Property,
                                           elements, generate, listOf)
 import           Test.QuickCheck.Monadic (assert, monadicIO, run)
 
-import           DB
-import           Types
+import           SMASH.DB
+import           SMASH.Types
 
 -- | Test spec for smash
 smashSpec :: Spec
