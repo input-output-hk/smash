@@ -24,6 +24,7 @@ import           Data.IORef                  (newIORef)
 import           Data.Swagger                (Info (..), Swagger (..))
 import           Data.Time                   (UTCTime, addUTCTime,
                                               getCurrentTime, nominalDay)
+import           Data.Version                (showVersion)
 
 import           Network.Wai.Handler.Warp    (defaultSettings, runSettings,
                                               setBeforeMainLoop, setPort)
@@ -43,6 +44,11 @@ import           Servant.Swagger
 import           DB
 import           Types
 
+import           Paths_smash                 (version)
+
+
+-- |For api versioning.
+type APIVersion = "v1"
 
 -- | Shortcut for common api result types.
 type ApiRes verb a = verb '[JSON] (ApiResult DBFail a)
@@ -50,31 +56,35 @@ type ApiRes verb a = verb '[JSON] (ApiResult DBFail a)
 -- The basic auth.
 type BasicAuthURL = BasicAuth "smash" User
 
+-- GET api/v1/status
+type HealthStatusAPI = "api" :> APIVersion :> "status" :> ApiRes Get HealthStatus
+
 -- GET api/v1/metadata/{hash}
-type OfflineMetadataAPI = "api" :> "v1" :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> Get '[JSON] (Headers '[Header "Cache" Text] (ApiResult DBFail PoolMetadataWrapped))
+type OfflineMetadataAPI = "api" :> APIVersion :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> Get '[JSON] (Headers '[Header "Cache" Text] (ApiResult DBFail PoolMetadataWrapped))
 
 -- GET api/v1/delisted
-type DelistedPoolsAPI = "api" :> "v1" :> "delisted" :> ApiRes Get [PoolId]
+type DelistedPoolsAPI = "api" :> APIVersion :> "delisted" :> ApiRes Get [PoolId]
 
 -- GET api/v1/errors
-type FetchPoolErrorAPI = "api" :> "v1" :> "errors" :> Capture "poolId" PoolId :> QueryParam "fromDate" TimeStringFormat :> ApiRes Get [PoolFetchError]
+type FetchPoolErrorAPI = "api" :> APIVersion :> "errors" :> Capture "poolId" PoolId :> QueryParam "fromDate" TimeStringFormat :> ApiRes Get [PoolFetchError]
 
 #ifdef DISABLE_BASIC_AUTH
 -- POST api/v1/delist
-type DelistPoolAPI = "api" :> "v1" :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+type DelistPoolAPI = "api" :> APIVersion :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 
-type EnlistPoolAPI = "api" :> "v1" :> "enlist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+type EnlistPoolAPI = "api" :> APIVersion :> "enlist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 #else
-type DelistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+type DelistPoolAPI = BasicAuthURL :> "api" :> APIVersion :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 
-type EnlistPoolAPI = BasicAuthURL :> "api" :> "v1" :> "enlist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+type EnlistPoolAPI = BasicAuthURL :> "api" :> APIVersion :> "enlist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 #endif
 
-type RetiredPoolsAPI = "api" :> "v1" :> "retired" :> ApiRes Get [PoolId]
+type RetiredPoolsAPI = "api" :> APIVersion :> "retired" :> ApiRes Get [PoolId]
 
 
 -- The full API.
 type SmashAPI =  OfflineMetadataAPI
+            :<|> HealthStatusAPI
             :<|> DelistedPoolsAPI
             :<|> DelistPoolAPI
             :<|> EnlistPoolAPI
@@ -83,7 +93,7 @@ type SmashAPI =  OfflineMetadataAPI
 #ifdef TESTING_MODE
             :<|> RetirePoolAPI
 
-type RetirePoolAPI = "api" :> "v1" :> "retired" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+type RetirePoolAPI = "api" :> APIVersion :> "retired" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 #endif
 
 
@@ -238,6 +248,7 @@ server :: Configuration -> DataLayer -> Server API
 server configuration dataLayer
     =       return todoSwagger
     :<|>    getPoolOfflineMetadata dataLayer
+    :<|>    getHealthStatus
     :<|>    getDelistedPools dataLayer
     :<|>    delistPool dataLayer
     :<|>    enlistPool dataLayer
@@ -284,6 +295,13 @@ getPoolOfflineMetadata dataLayer poolId poolHash = fmap (addHeader "always") . c
                         then return . ApiResult . Right $ PoolMetadataWrapped poolMetadata
                         else throwIO err404
 
+-- |Simple health status, there are ideas for improvement.
+getHealthStatus :: Handler (ApiResult DBFail HealthStatus)
+getHealthStatus = return . ApiResult . Right $
+    HealthStatus
+        { hsStatus = "OK"
+        , hsVersion = toS $ showVersion version
+        }
 
 -- |Get all delisted pools
 getDelistedPools :: DataLayer -> Handler (ApiResult DBFail [PoolId])
