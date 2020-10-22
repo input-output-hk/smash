@@ -26,6 +26,7 @@ module Types
     , createPoolOfflineMetadata
     , examplePoolOfflineMetadata
     -- * Configuration
+    , HealthStatus (..)
     , Configuration (..)
     , defaultConfiguration
     -- * API
@@ -331,6 +332,29 @@ instance FromHttpApiData TimeStringFormat where
 
 instance ToParamSchema TimeStringFormat where
     toParamSchema _ = mempty
+
+-- |The data for returning the health check for SMASH.
+data HealthStatus = HealthStatus
+    { hsStatus :: !Text
+    , hsVersion :: !Text
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON HealthStatus where
+    toJSON (HealthStatus hsStatus' hsVersion') =
+        object
+            [ "status"      .= hsStatus'
+            , "version"     .= hsVersion'
+            ]
+
+instance FromJSON HealthStatus where
+    parseJSON = withObject "healthStatus" $ \o -> do
+        status          <- o .: "status"
+        version         <- o .: "version"
+
+        return $ HealthStatus
+            { hsStatus  = status
+            , hsVersion = version
+            }
 
 -- We need a "conversion" layer between custom DB types and the rest of the
 -- codebase se we can have a clean separation and replace them at any point.
