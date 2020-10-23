@@ -2,23 +2,25 @@ module Main where
 
 import           Cardano.Prelude
 
-import           DB
-import           DbSyncPlugin          (poolMetadataDbSyncNodePlugin)
-import           Lib
-import           Types
+import           Cardano.SMASH.DB
+import           Cardano.SMASH.DBSyncPlugin       (poolMetadataDbSyncNodePlugin)
+import           Cardano.SMASH.Lib
+import           Cardano.SMASH.Types
 
-import           Cardano.SmashDbSync   (ConfigFile (..),
-                                        SmashDbSyncNodeParams (..),
-                                        SocketPath (..), runDbSyncNode)
+import           Cardano.SMASH.DBSync.SmashDbSync (ConfigFile (..),
+                                                   SmashDbSyncNodeParams (..),
+                                                   SocketPath (..),
+                                                   runDbSyncNode)
 
-import           Cardano.Slotting.Slot (SlotNo (..))
+import           Cardano.Slotting.Slot            (SlotNo (..))
 
-import           Control.Applicative   (optional)
+import           Control.Applicative              (optional)
 
-import           Data.Monoid           ((<>))
+import           Data.Monoid                      ((<>))
 
-import           Options.Applicative   (Parser, ParserInfo, ParserPrefs)
-import qualified Options.Applicative   as Opt
+import           Options.Applicative              (Parser, ParserInfo,
+                                                   ParserPrefs)
+import qualified Options.Applicative              as Opt
 
 
 main :: IO ()

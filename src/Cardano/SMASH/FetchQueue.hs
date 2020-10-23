@@ -1,4 +1,4 @@
-module FetchQueue
+module Cardano.SMASH.FetchQueue
   ( FetchQueue -- opaque
   , PoolFetchRetry (..)
   , Retry -- opaque
@@ -15,14 +15,14 @@ module FetchQueue
 
 import           Cardano.Prelude
 
-import           Data.Time.Clock.POSIX (POSIXTime)
-import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
+import           Data.Map.Strict                (Map)
+import qualified Data.Map.Strict                as Map
+import           Data.Time.Clock.POSIX          (POSIXTime)
 
-import           Cardano.Db.Schema (PoolMetadataReferenceId)
-import           Cardano.Db.Types (PoolId)
+import           Cardano.SMASH.DBSync.Db.Schema (PoolMetadataReferenceId)
+import           Cardano.SMASH.DBSync.Db.Types  (PoolId)
 
-import           FetchQueue.Retry
+import           Cardano.SMASH.FetchQueue.Retry
 
 
 -- Unfortunately I am way too pressed for time and way too tired to make this less savage.
@@ -33,10 +33,10 @@ newtype FetchQueue = FetchQueue (Map Text PoolFetchRetry)
 
 data PoolFetchRetry = PoolFetchRetry
   { pfrReferenceId :: !PoolMetadataReferenceId
-  , pfrPoolIdWtf :: !PoolId
-  , pfrPoolUrl :: !Text
-  , pfrPoolMDHash :: !ByteString
-  , pfrRetry :: !Retry
+  , pfrPoolIdWtf   :: !PoolId
+  , pfrPoolUrl     :: !Text
+  , pfrPoolMDHash  :: !ByteString
+  , pfrRetry       :: !Retry
   }
 
 emptyFetchQueue :: FetchQueue

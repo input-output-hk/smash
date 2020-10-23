@@ -1,33 +1,33 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
-module Cardano.Db.Schema where
+module Cardano.SMASH.DBSync.Db.Schema where
 
-import Cardano.Prelude hiding (Meta)
+import           Cardano.Prelude               hiding (Meta)
 
-import Data.ByteString.Char8 (ByteString)
-import Data.Text (Text)
-import Data.Time.Clock (UTCTime)
-import Data.Word (Word64)
+import           Data.ByteString.Char8         (ByteString)
+import           Data.Text                     (Text)
+import           Data.Time.Clock               (UTCTime)
+import           Data.Word                     (Word64)
 
 -- Do not use explicit imports from this module as the imports can change
 -- from version to version due to changes to the TH code in Persistent.
-import Database.Persist.TH
+import           Database.Persist.TH
 
-import qualified Cardano.Db.Types as Types
+import qualified Cardano.SMASH.DBSync.Db.Types as Types
 
 
 -- In the schema definition we need to match Haskell types with with the

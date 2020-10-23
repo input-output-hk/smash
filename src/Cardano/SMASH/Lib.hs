@@ -6,7 +6,7 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 
-module Lib
+module Cardano.SMASH.Lib
     ( Configuration (..)
     , DBFail (..) -- We need to see errors clearly outside
     , defaultConfiguration
@@ -41,8 +41,8 @@ import           Servant                     (Application, BasicAuth,
 import           Servant.API.ResponseHeaders (addHeader)
 import           Servant.Swagger
 
-import           DB
-import           Types
+import           Cardano.SMASH.DB
+import           Cardano.SMASH.Types
 
 import           Paths_smash                 (version)
 

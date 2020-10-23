@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
-module FetchQueue.Retry
+module Cardano.SMASH.FetchQueue.Retry
   ( Retry (..)
   , newRetry
   , nextRetry

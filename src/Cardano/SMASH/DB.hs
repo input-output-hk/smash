@@ -5,7 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators       #-}
 
-module DB
+module Cardano.SMASH.DB
     ( module X
     , DataLayer (..)
     , stubbedDataLayer
@@ -17,41 +17,44 @@ module DB
 
 import           Cardano.Prelude
 
-import           Data.IORef                   (IORef, modifyIORef, readIORef)
-import qualified Data.Map                     as Map
-import           Data.Time.Clock              (UTCTime)
-import           Data.Time.Clock.POSIX        (utcTimeToPOSIXSeconds)
+import           Data.IORef                                (IORef, modifyIORef,
+                                                            readIORef)
+import qualified Data.Map                                  as Map
+import           Data.Time.Clock                           (UTCTime)
+import           Data.Time.Clock.POSIX                     (utcTimeToPOSIXSeconds)
 
-import           Types
+import           Cardano.SMASH.Types
 
-import           Cardano.Db.Delete            (deleteDelistedPool)
-import           Cardano.Db.Insert            (insertDelistedPool,
-                                               insertPoolMetadata,
-                                               insertPoolMetadataFetchError,
-                                               insertPoolMetadataReference,
-                                               insertReservedTicker,
-                                               insertRetiredPool)
-import           Cardano.Db.Query             (DBFail (..), queryPoolMetadata)
+import           Cardano.SMASH.DBSync.Db.Delete            (deleteDelistedPool)
+import           Cardano.SMASH.DBSync.Db.Insert            (insertDelistedPool,
+                                                            insertPoolMetadata,
+                                                            insertPoolMetadataFetchError,
+                                                            insertPoolMetadataReference,
+                                                            insertReservedTicker,
+                                                            insertRetiredPool)
+import           Cardano.SMASH.DBSync.Db.Query             (DBFail (..),
+                                                            queryPoolMetadata)
 
-import           Cardano.Db.Error             as X
-import           Cardano.Db.Migration         as X
-import           Cardano.Db.Migration.Version as X
-import           Cardano.Db.PGConfig          as X
-import           Cardano.Db.Query             as X
-import           Cardano.Db.Run               as X
-import           Cardano.Db.Schema            as X (AdminUser (..), Block (..),
-                                                    DelistedPool (..),
-                                                    Meta (..),
-                                                    PoolMetadata (..),
-                                                    PoolMetadataFetchError (..),
-                                                    PoolMetadataFetchErrorId,
-                                                    PoolMetadataReference (..),
-                                                    PoolMetadataReferenceId,
-                                                    ReservedTicker (..),
-                                                    ReservedTickerId (..),
-                                                    RetiredPool (..),
-                                                    poolMetadataMetadata)
-import qualified Cardano.Db.Types             as Types
+import           Cardano.SMASH.DBSync.Db.Error             as X
+import           Cardano.SMASH.DBSync.Db.Migration         as X
+import           Cardano.SMASH.DBSync.Db.Migration.Version as X
+import           Cardano.SMASH.DBSync.Db.PGConfig          as X
+import           Cardano.SMASH.DBSync.Db.Query             as X
+import           Cardano.SMASH.DBSync.Db.Run               as X
+import           Cardano.SMASH.DBSync.Db.Schema            as X (AdminUser (..),
+                                                                 Block (..),
+                                                                 DelistedPool (..),
+                                                                 Meta (..),
+                                                                 PoolMetadata (..),
+                                                                 PoolMetadataFetchError (..),
+                                                                 PoolMetadataFetchErrorId,
+                                                                 PoolMetadataReference (..),
+                                                                 PoolMetadataReferenceId,
+                                                                 ReservedTicker (..),
+                                                                 ReservedTickerId (..),
+                                                                 RetiredPool (..),
+                                                                 poolMetadataMetadata)
+import qualified Cardano.SMASH.DBSync.Db.Types             as Types
 
 -- | This is the data layer for the DB.
 -- The resulting operation has to be @IO@, it can be made more granular,

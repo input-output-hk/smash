@@ -10,7 +10,7 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
 
-module Cardano.SmashDbSync
+module Cardano.SMASH.DBSync.SmashDbSync
   ( ConfigFile (..)
   , SmashDbSyncNodeParams (..)
   , DbSyncNodePlugin (..)
@@ -38,10 +38,10 @@ import qualified Cardano.BM.Trace                                      as Loggin
 
 import           Cardano.Client.Subscription                           (subscribe)
 
-import qualified DB                                                    as DB
+import qualified Cardano.SMASH.DB                                      as DB
 
-import           Cardano.Db.Database
-import           Cardano.Metrics
+import           Cardano.SMASH.DBSync.Db.Database
+import           Cardano.SMASH.DBSync.Metrics
 
 import           Cardano.DbSync.Config
 import           Cardano.DbSync.Era
@@ -86,7 +86,7 @@ import           Network.Socket                                        (SockAddr
 
 import           Network.TypedProtocol.Pipelined                       (Nat (Succ, Zero))
 
-import           Offline                                               (runOfflineFetchThread)
+import           Cardano.SMASH.Offline                                 (runOfflineFetchThread)
 
 import           Ouroboros.Network.Driver.Simple                       (runPipelinedPeer)
 
@@ -159,7 +159,7 @@ import           System.FilePath
 
 import qualified System.Metrics.Prometheus.Metric.Gauge                as Gauge
 
-import qualified Cardano.Db.Insert                                     as DB
+import qualified Cardano.SMASH.DBSync.Db.Insert                        as DB
 
 
 data Peer = Peer SockAddr SockAddr deriving Show

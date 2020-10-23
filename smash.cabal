@@ -35,31 +35,31 @@ library
     cpp-options:       -DTESTING_MODE
 
   exposed-modules:
-      Lib
-      Offline
-      FetchQueue
-      FetchQueue.Retry
-    , Types
-    , DB
-    , DbSyncPlugin
+      Cardano.SMASH.Lib
+      Cardano.SMASH.Offline
+      Cardano.SMASH.FetchQueue
+      Cardano.SMASH.FetchQueue.Retry
+    , Cardano.SMASH.Types
+    , Cardano.SMASH.DB
+    , Cardano.SMASH.DBSyncPlugin
     -- DbSync
-    , Cardano.SmashDbSync
-    , Cardano.Metrics
+    , Cardano.SMASH.DBSync.SmashDbSync
+    , Cardano.SMASH.DBSync.Metrics
     -- Migration
-    , Cardano.Db.Database
-    , Cardano.Db.Migration
-    , Cardano.Db.Migration.Haskell
-    , Cardano.Db.Migration.Version
+    , Cardano.SMASH.DBSync.Db.Database
+    , Cardano.SMASH.DBSync.Db.Migration
+    , Cardano.SMASH.DBSync.Db.Migration.Haskell
+    , Cardano.SMASH.DBSync.Db.Migration.Version
     -- Config
-    , Cardano.Db.PGConfig
-    , Cardano.Db.Run
-    , Cardano.Db.Schema
+    , Cardano.SMASH.DBSync.Db.PGConfig
+    , Cardano.SMASH.DBSync.Db.Run
+    , Cardano.SMASH.DBSync.Db.Schema
     -- DB operations
-    , Cardano.Db.Error
-    , Cardano.Db.Insert
-    , Cardano.Db.Delete
-    , Cardano.Db.Query
-    , Cardano.Db.Types
+    , Cardano.SMASH.DBSync.Db.Error
+    , Cardano.SMASH.DBSync.Db.Insert
+    , Cardano.SMASH.DBSync.Db.Delete
+    , Cardano.SMASH.DBSync.Db.Query
+    , Cardano.SMASH.DBSync.Db.Types
 
   other-modules:
       Paths_smash

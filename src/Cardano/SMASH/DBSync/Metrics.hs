@@ -1,7 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Cardano.Metrics
+module Cardano.SMASH.DBSync.Metrics
   ( Metrics (..)
   , makeMetrics
   , registerMetricsServer

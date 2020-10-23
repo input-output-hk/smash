@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module DbSyncPlugin
+module Cardano.SMASH.DBSyncPlugin
   ( poolMetadataDbSyncNodePlugin
   -- * For future testing
   , insertCardanoBlock
@@ -18,11 +18,11 @@ import           Control.Monad.Trans.Except.Extra            (firstExceptT,
                                                               runExceptT)
 import           Control.Monad.Trans.Reader                  (ReaderT)
 
-import           DB                                          (DBFail (..),
+import           Cardano.SMASH.DB                            (DBFail (..),
                                                               DataLayer (..),
                                                               postgresqlDataLayer)
-import           Offline                                     (fetchInsertNewPoolMetadata)
-import           Types                                       (PoolId (..), PoolMetadataHash (..),
+import           Cardano.SMASH.Offline                       (fetchInsertNewPoolMetadata)
+import           Cardano.SMASH.Types                         (PoolId (..), PoolMetadataHash (..),
                                                               PoolUrl (..))
 
 import qualified Cardano.Chain.Block                         as Byron
@@ -33,17 +33,17 @@ import           Database.Persist.Sql                        (IsolationLevel (..
                                                               SqlBackend,
                                                               transactionSaveWithIsolation)
 
-import qualified Cardano.Db.Insert                           as DB
-import qualified Cardano.Db.Query                            as DB
-import qualified Cardano.Db.Schema                           as DB
+import qualified Cardano.SMASH.DBSync.Db.Insert              as DB
+import qualified Cardano.SMASH.DBSync.Db.Query               as DB
+import qualified Cardano.SMASH.DBSync.Db.Schema              as DB
 
 import           Cardano.DbSync.Error
 import           Cardano.DbSync.Types                        as DbSync
 
 import           Cardano.DbSync                              (DbSyncNodePlugin (..))
 
-import qualified Cardano.DbSync.Era.Shelley.Util             as Shelley
 import qualified Cardano.DbSync.Era.Byron.Util               as Byron
+import qualified Cardano.DbSync.Era.Shelley.Util             as Shelley
 
 import           Shelley.Spec.Ledger.BaseTypes               (strictMaybeToMaybe)
 import qualified Shelley.Spec.Ledger.BaseTypes               as Shelley

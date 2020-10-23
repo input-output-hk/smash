@@ -3,7 +3,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralisedNewtypeDeriving #-}
 
-module Cardano.Db.Types where
+module Cardano.SMASH.DBSync.Db.Types where
 
 import Cardano.Prelude
 

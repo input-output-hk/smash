@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Cardano.Db.Run
+module Cardano.SMASH.DBSync.Db.Run
   ( getBackendGhci
   , ghciDebugQuery
   , runDbAction
@@ -38,7 +38,7 @@ import           Database.Persist.Sql (SqlBackend, IsolationLevel (..), runSqlCo
 import           Database.Esqueleto
 import           Database.Esqueleto.Internal.Sql
 
-import           Cardano.Db.PGConfig
+import           Cardano.SMASH.DBSync.Db.PGConfig
 
 import           Language.Haskell.TH.Syntax (Loc)
 

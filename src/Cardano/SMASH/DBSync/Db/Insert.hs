@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Cardano.Db.Insert
+module Cardano.SMASH.DBSync.Db.Insert
   ( insertBlock
   , insertMeta
   , insertPoolMetadata
@@ -26,8 +26,8 @@ import           Database.Persist.Class (AtLeastOneUniqueKey, Key, PersistEntity
 import           Database.Persist.Sql (SqlBackend)
 import           Database.Persist.Types (entityKey)
 
-import           Cardano.Db.Schema
-import           Cardano.Db.Error
+import           Cardano.SMASH.DBSync.Db.Schema
+import           Cardano.SMASH.DBSync.Db.Error
 
 insertBlock :: (MonadIO m) => Block -> ReaderT SqlBackend m BlockId
 insertBlock = insertByReturnKey
