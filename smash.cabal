@@ -29,6 +29,10 @@ flag testing-mode
   description: A flag for allowing operations that promote easy testing.
   default:     False
 
+flag stub-mode
+  description: Only enable the stub server, disable cardano-db-sync
+  default:     False
+
 library
   if flag(disable-basic-auth)
     cpp-options: -DDISABLE_BASIC_AUTH
@@ -36,10 +40,19 @@ library
   if flag(testing-mode)
     cpp-options: -DTESTING_MODE
 
+  if flag(stub-mode)
+    cpp-options: -DSTUB_MODE
+  else
+    build-depends:
+      cardano-db-sync
+    exposed-modules:
+      Cardano.SMASH.DBSyncPlugin
+      Cardano.SMASH.DBSync.SmashDbSync
+      Cardano.SMASH.DBSync.Db.Database
+
   exposed-modules:
     Cardano.SMASH.API
     Cardano.SMASH.DB
-    Cardano.SMASH.DBSync.Db.Database
     Cardano.SMASH.DBSync.Db.Delete
     Cardano.SMASH.DBSync.Db.Error
     Cardano.SMASH.DBSync.Db.Insert
@@ -52,8 +65,6 @@ library
     Cardano.SMASH.DBSync.Db.Schema
     Cardano.SMASH.DBSync.Db.Types
     Cardano.SMASH.DBSync.Metrics
-    Cardano.SMASH.DBSync.SmashDbSync
-    Cardano.SMASH.DBSyncPlugin
     Cardano.SMASH.FetchQueue
     Cardano.SMASH.FetchQueue.Retry
     Cardano.SMASH.Lib
@@ -73,7 +84,6 @@ library
     , cardano-crypto
     , cardano-crypto-class
     , cardano-crypto-wrapper
-    , cardano-db-sync
     , cardano-ledger
     , cardano-prelude
     , cardano-slotting
@@ -138,7 +148,6 @@ executable smash-exe
   ghc-options:        -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base                  >=4.7 && <5
-    , cardano-db-sync
     , cardano-prelude
     , cardano-slotting
     , optparse-applicative
@@ -155,6 +164,12 @@ executable smash-exe
 
   if flag(testing-mode)
     cpp-options: -DTESTING_MODE
+
+  if flag(stub-mode)
+    cpp-options: -DSTUB_MODE
+  else
+    build-depends:
+      cardano-db-sync
 
 test-suite smash-test
   type:               exitcode-stdio-1.0
