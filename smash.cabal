@@ -153,6 +153,9 @@ executable smash-exe
     -Wall -Wcompat -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields
 
+  if flag(testing-mode)
+    cpp-options: -DTESTING_MODE
+
 test-suite smash-test
   type:               exitcode-stdio-1.0
   main-is:            Spec.hs

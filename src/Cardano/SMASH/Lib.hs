@@ -139,17 +139,10 @@ mkApp configuration = do
     convertToAppUsers (AdminUser username' password') = ApplicationUser username' password'
 
 --runPoolInsertion poolMetadataJsonPath poolHash
-runPoolInsertion :: FilePath -> PoolId -> PoolMetadataHash -> IO (Either DBFail Text)
-runPoolInsertion poolMetadataJsonPath poolId poolHash = do
-    putTextLn $ "Inserting pool! " <> (toS poolMetadataJsonPath) <> " " <> (show poolId)
+runPoolInsertion :: DataLayer -> Text -> PoolId -> PoolMetadataHash -> IO (Either DBFail Text)
+runPoolInsertion dataLayer poolMetadataJson poolId poolHash = do
+    putTextLn $ "Inserting pool! " <> (show poolId)
 
-    let dataLayer :: DataLayer
-        dataLayer = postgresqlDataLayer
-
-    --PoolHash -> ByteString -> IO (Either DBFail PoolHash)
-    poolMetadataJson <- readFile poolMetadataJsonPath
-
-    -- Let us try to decode the contents to JSON.
     decodedMetadata <-  case (eitherDecode' $ BL.fromStrict (encodeUtf8 poolMetadataJson)) of
                             Left err     -> panic $ toS err
                             Right result -> return result
@@ -198,7 +191,7 @@ convertIOToHandler = Handler . ExceptT . try
 
 -- | Combined server of a Smash service with Swagger documentation.
 server :: Configuration -> DataLayer -> Server API
-server _configuration dataLayer
+server configuration dataLayer
     =       return todoSwagger
     :<|>    getPoolOfflineMetadata dataLayer
     :<|>    getHealthStatus
@@ -209,6 +202,7 @@ server _configuration dataLayer
     :<|>    getRetiredPools dataLayer
 #ifdef TESTING_MODE
     :<|>    retirePool dataLayer
+    :<|>    addPool dataLayer
 #endif
 
 
@@ -344,5 +338,12 @@ retirePool dataLayer poolId = convertIOToHandler $ do
     retiredPoolId <- addRetiredPool poolId
 
     return . ApiResult $ retiredPoolId
+
+addPool :: DataLayer -> PoolId -> PoolMetadataHash -> PoolMetadataWrapped -> Handler (ApiResult DBFail PoolId)
+addPool dataLayer poolId poolHash (PoolMetadataWrapped poolMetadataJson) =
+  fmap ApiResult
+    $ convertIOToHandler
+    $ (fmap . second) (const poolId)
+    $ runPoolInsertion dataLayer poolMetadataJson poolId poolHash
 #endif
 
