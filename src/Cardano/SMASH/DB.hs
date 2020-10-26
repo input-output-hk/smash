@@ -88,24 +88,26 @@ data DataLayer = DataLayer
 -- We do need state here. _This is thread safe._
 -- __This is really our model here.__
 stubbedDataLayer
-    :: IORef (Map (PoolId, PoolMetadataHash) Text)
+    :: IORef (Map (PoolId, PoolMetadataHash) (Text, Text))
     -> IORef [PoolId]
     -> DataLayer
 stubbedDataLayer ioDataMap ioDelistedPool = DataLayer
     { dlGetPoolMetadata     = \poolId poolmdHash -> do
         ioDataMap' <- readIORef ioDataMap
         case (Map.lookup (poolId, poolmdHash) ioDataMap') of
-            Just poolOfflineMetadata'   -> return . Right $ ("Test", poolOfflineMetadata')
+            Just (poolTicker', poolOfflineMetadata')
+              -> return . Right $ (poolTicker', poolOfflineMetadata')
             Nothing                     -> return $ Left (DbLookupPoolMetadataHash poolId poolmdHash)
     , dlAddPoolMetadata     = \ _ poolId poolmdHash poolMetadata poolTicker -> do
         -- TODO(KS): What if the pool metadata already exists?
-        _ <- modifyIORef ioDataMap (Map.insert (poolId, poolmdHash) poolMetadata)
+        _ <- modifyIORef ioDataMap (Map.insert (poolId, poolmdHash)
+          (getPoolTicker poolTicker, poolMetadata))
         return . Right $ poolMetadata
 
     , dlAddMetaDataReference = \poolId poolUrl poolMetadataHash -> panic "!"
 
     , dlAddReservedTicker = \tickerName poolMetadataHash -> panic "!"
-    , dlCheckReservedTicker = \tickerName -> panic "!"
+    , dlCheckReservedTicker = \tickerName -> pure Nothing
 
     , dlGetDelistedPools = readIORef ioDelistedPool
     , dlCheckDelistedPool = \poolId -> do
@@ -128,9 +130,9 @@ stubbedDataLayer ioDataMap ioDelistedPool = DataLayer
     }
 
 -- The approximation for the table.
-stubbedInitialDataMap :: Map (PoolId, PoolMetadataHash) Text
+stubbedInitialDataMap :: Map (PoolId, PoolMetadataHash) (Text, Text)
 stubbedInitialDataMap = Map.fromList
-    [ ((PoolId "AAAAC3NzaC1lZDI1NTE5AAAAIKFx4CnxqX9mCaUeqp/4EI1+Ly9SfL23/Uxd0Ieegspc", PoolMetadataHash "HASH"), show examplePoolOfflineMetadata)
+    [ ((PoolId "AAAAC3NzaC1lZDI1NTE5AAAAIKFx4CnxqX9mCaUeqp/4EI1+Ly9SfL23/Uxd0Ieegspc", PoolMetadataHash "HASH"), ("Test", show examplePoolOfflineMetadata))
     ]
 
 -- The approximation for the table.

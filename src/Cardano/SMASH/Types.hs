@@ -44,7 +44,7 @@ import           Cardano.Prelude
 import           Control.Monad.Fail            (fail)
 
 import           Data.Aeson                    (FromJSON (..), ToJSON (..),
-                                                object, withObject, (.:), (.=))
+                                                object, pairs, withObject, (.:), (.=))
 import qualified Data.Aeson                    as Aeson
 import           Data.Aeson.Encoding           (unsafeToEncoding)
 import qualified Data.Aeson.Types              as Aeson
@@ -58,10 +58,13 @@ import           Data.Swagger                  (NamedSchema (..),
                                                 ToSchema (..))
 import           Data.Text.Encoding            (encodeUtf8Builder)
 
-import           Servant                       (FromHttpApiData (..))
+import           Servant                       (FromHttpApiData (..), MimeUnrender (..), OctetStream)
 
 import           Cardano.SMASH.DBSync.Db.Error
 import           Cardano.SMASH.DBSync.Db.Types
+
+import qualified Data.Text.Encoding as E
+import qualified Data.ByteString.Lazy        as BL
 
 -- | The basic @Configuration@.
 data Configuration = Configuration
@@ -258,6 +261,9 @@ instance ToSchema PoolOfflineMetadata
 
 newtype PoolMetadataWrapped = PoolMetadataWrapped Text
     deriving (Eq, Ord, Show, Generic)
+
+instance MimeUnrender OctetStream PoolMetadataWrapped where
+    mimeUnrender _ = Right . PoolMetadataWrapped . E.decodeUtf8 . BL.toStrict
 
 -- Here we are usingg the unsafe encoding since we already have the JSON format
 -- from the database.

@@ -73,8 +73,10 @@ type SmashAPI =  OfflineMetadataAPI
             :<|> RetiredPoolsAPI
 #ifdef TESTING_MODE
             :<|> RetirePoolAPI
+            :<|> AddPoolAPI
 
 type RetirePoolAPI = "api" :> APIVersion :> "retired" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+type AddPoolAPI = "api" :> APIVersion :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> ReqBody '[OctetStream] PoolMetadataWrapped :> ApiRes Post PoolId
 #endif
 
 -- | API for serving @swagger.json@.

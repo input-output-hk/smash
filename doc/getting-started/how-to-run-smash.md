@@ -121,3 +121,20 @@ Or if you have Basic Auth enabled (replace with you username/pass you have in yo
 curl -u ksaric:cirask -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7"}'
 ```
 
+## Running stub server for local testing purposes
+
+Make sure to build SMASH in testing mode:
+
+```
+stack install --flag 'smash:testing-mode' --flag 'smash:disable-basic-auth'
+
+smash-exe run-stub-app
+
+curl -X POST -v \
+	-H 'content-type: application/octet-stream' \
+	--data-binary @test_pool.json \
+	http://localhost:3100/api/v1/metadata/5ee7591bf30eaa4f5dce70b4a676eb02d5be8012d188f04fe3beffb0/cc019105f084aef2a956b2f7f2c0bf4e747bf7696705312c244620089429df6f
+
+curl -X GET -v \
+	http://localhost:3100/api/v1/metadata/5ee7591bf30eaa4f5dce70b4a676eb02d5be8012d188f04fe3beffb0/cc019105f084aef2a956b2f7f2c0bf4e747bf7696705312c244620089429df6f
+```

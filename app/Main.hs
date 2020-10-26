@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP                 #-}
+
 module Main where
 
 import           Cardano.Prelude
@@ -42,6 +44,9 @@ data Command
   = CreateMigration SmashMigrationDir
   | RunMigrations SmashMigrationDir (Maybe SmashLogFileDir)
   | RunApplication
+#ifdef TESTING_MODE
+  | RunStubApplication
+#endif
   | RunApplicationWithDbSync SmashDbSyncNodeParams
   | InsertPool FilePath PoolId PoolMetadataHash
   | ReserveTickerName Text PoolMetadataHash
@@ -52,13 +57,17 @@ runCommand cmd =
     CreateMigration mdir -> doCreateMigration mdir
     RunMigrations mdir mldir -> runMigrations (\pgConfig -> pgConfig) False mdir mldir
     RunApplication -> runApp defaultConfiguration
+#ifdef TESTING_MODE
+    RunStubApplication -> runAppStubbed defaultConfiguration
+#endif
     RunApplicationWithDbSync dbSyncNodeParams ->
         race_
             (runDbSyncNode poolMetadataDbSyncNodePlugin dbSyncNodeParams)
             (runApp defaultConfiguration)
     InsertPool poolMetadataJsonPath poolId poolHash -> do
         putTextLn "Inserting pool metadata!"
-        result <- runPoolInsertion poolMetadataJsonPath poolId poolHash
+        poolMetadataJson <- readFile poolMetadataJsonPath
+        result <- runPoolInsertion postgresqlDataLayer poolMetadataJson poolId poolHash
         either
             (\err -> putTextLn $ "Error occured. " <> renderLookupFail err)
             (\_ -> putTextLn "Insertion completed!")
@@ -146,6 +155,12 @@ pCommand =
         ( Opt.info pRunApp
           $ Opt.progDesc "Run the application that just serves the pool info."
           )
+#ifdef TESTING_MODE
+    <> Opt.command "run-stub-app"
+        ( Opt.info pRunStubApp
+          $ Opt.progDesc "Run the stub application that just serves the pool info."
+          )
+#endif
     <> Opt.command "run-app-with-db-sync"
         ( Opt.info pRunAppWithDbSync
           $ Opt.progDesc "Run the application that syncs up the pool info and serves it."
@@ -172,6 +187,12 @@ pCommand =
     pRunApp :: Parser Command
     pRunApp =
       pure RunApplication
+
+#ifdef TESTING_MODE
+    pRunStubApp :: Parser Command
+    pRunStubApp =
+      pure RunStubApplication
+#endif
 
     -- Empty right now but we might add some params over time. Like ports and stuff?
     pRunAppWithDbSync :: Parser Command
