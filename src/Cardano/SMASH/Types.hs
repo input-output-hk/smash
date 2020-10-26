@@ -3,7 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 
-module Types
+module Cardano.SMASH.Types
     ( ApplicationUser (..)
     , ApplicationUsers (..)
     , stubbedApplicationUsers
@@ -41,26 +41,27 @@ module Types
 
 import           Cardano.Prelude
 
-import           Control.Monad.Fail    (fail)
+import           Control.Monad.Fail            (fail)
 
-import           Data.Aeson            (FromJSON (..), ToJSON (..), object,
-                                        withObject, (.:), (.=))
-import qualified Data.Aeson            as Aeson
-import           Data.Aeson.Encoding   (unsafeToEncoding)
-import qualified Data.Aeson.Types      as Aeson
-import           Data.Time.Clock       (UTCTime)
-import qualified Data.Time.Clock.POSIX as Time
-import           Data.Time.Format      (defaultTimeLocale, formatTime,
-                                        parseTimeM)
+import           Data.Aeson                    (FromJSON (..), ToJSON (..),
+                                                object, withObject, (.:), (.=))
+import qualified Data.Aeson                    as Aeson
+import           Data.Aeson.Encoding           (unsafeToEncoding)
+import qualified Data.Aeson.Types              as Aeson
+import           Data.Time.Clock               (UTCTime)
+import qualified Data.Time.Clock.POSIX         as Time
+import           Data.Time.Format              (defaultTimeLocale, formatTime,
+                                                parseTimeM)
 
-import           Data.Swagger          (NamedSchema (..), ToParamSchema (..),
-                                        ToSchema (..))
-import           Data.Text.Encoding    (encodeUtf8Builder)
+import           Data.Swagger                  (NamedSchema (..),
+                                                ToParamSchema (..),
+                                                ToSchema (..))
+import           Data.Text.Encoding            (encodeUtf8Builder)
 
-import           Servant               (FromHttpApiData (..))
+import           Servant                       (FromHttpApiData (..))
 
-import           Cardano.Db.Error
-import           Cardano.Db.Types
+import           Cardano.SMASH.DBSync.Db.Error
+import           Cardano.SMASH.DBSync.Db.Types
 
 -- | The basic @Configuration@.
 data Configuration = Configuration
@@ -335,7 +336,7 @@ instance ToParamSchema TimeStringFormat where
 
 -- |The data for returning the health check for SMASH.
 data HealthStatus = HealthStatus
-    { hsStatus :: !Text
+    { hsStatus  :: !Text
     , hsVersion :: !Text
     } deriving (Eq, Show, Generic)
 

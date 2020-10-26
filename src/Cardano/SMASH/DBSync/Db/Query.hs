@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Cardano.Db.Query
+module Cardano.SMASH.DBSync.Db.Query
   ( DBFail (..)
   , queryPoolMetadata
   , queryBlockCount
@@ -22,30 +22,31 @@ module Cardano.Db.Query
   , queryAllRetiredPools
   ) where
 
-import           Cardano.Prelude            hiding (Meta, from, isJust,
-                                             isNothing, maybeToEither)
+import           Cardano.Prelude                hiding (Meta, from, isJust,
+                                                 isNothing, maybeToEither)
 
-import           Control.Monad              (join)
-import           Control.Monad.Extra        (mapMaybeM)
-import           Control.Monad.Trans.Reader (ReaderT)
+import           Control.Monad                  (join)
+import           Control.Monad.Extra            (mapMaybeM)
+import           Control.Monad.Trans.Reader     (ReaderT)
 
-import           Data.ByteString.Char8      (ByteString)
-import           Data.Maybe                 (catMaybes, listToMaybe)
-import           Data.Time.Clock            (UTCTime)
-import           Data.Word                  (Word64)
+import           Data.ByteString.Char8          (ByteString)
+import           Data.Maybe                     (catMaybes, listToMaybe)
+import           Data.Time.Clock                (UTCTime)
+import           Data.Word                      (Word64)
 
-import           Database.Esqueleto         (Entity, PersistField, SqlExpr,
-                                             Value, ValueList, countRows, desc,
-                                             entityVal, from, isNothing, just,
-                                             limit, notIn, not_, orderBy,
-                                             select, subList_select, unValue,
-                                             val, where_, (&&.), (==.), (>=.),
-                                             (^.))
-import           Database.Persist.Sql       (SqlBackend, selectList)
+import           Database.Esqueleto             (Entity, PersistField, SqlExpr,
+                                                 Value, ValueList, countRows,
+                                                 desc, entityVal, from,
+                                                 isNothing, just, limit, notIn,
+                                                 not_, orderBy, select,
+                                                 subList_select, unValue, val,
+                                                 where_, (&&.), (==.), (>=.),
+                                                 (^.))
+import           Database.Persist.Sql           (SqlBackend, selectList)
 
-import           Cardano.Db.Error
-import           Cardano.Db.Schema
-import qualified Cardano.Db.Types           as Types
+import           Cardano.SMASH.DBSync.Db.Error
+import           Cardano.SMASH.DBSync.Db.Schema
+import qualified Cardano.SMASH.DBSync.Db.Types  as Types
 
 -- | Get the 'Block' associated with the given hash.
 -- We use the @Types.PoolId@ to get the nice error message out.

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Cardano.Db.Error
+module Cardano.SMASH.DBSync.Db.Error
   ( DBFail (..)
   , renderLookupFail
   ) where
@@ -12,7 +12,7 @@ import           Data.Aeson (ToJSON (..), (.=), object, Value (..))
 
 import           Data.ByteString.Char8 (ByteString)
 
-import           Cardano.Db.Types
+import           Cardano.SMASH.DBSync.Db.Types
 
 
 -- | Errors, not exceptions.

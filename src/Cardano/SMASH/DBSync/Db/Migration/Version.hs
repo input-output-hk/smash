@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Cardano.Db.Migration.Version
+module Cardano.SMASH.DBSync.Db.Migration.Version
   ( MigrationVersion (..)
   , parseMigrationVersionFromFile
   , nextMigrationVersion

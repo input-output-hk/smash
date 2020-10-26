@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Offline
+module Cardano.SMASH.Offline
   ( fetchInsertNewPoolMetadata
   , runOfflineFetchThread
   ) where
@@ -14,14 +14,14 @@ import           Control.Concurrent               (threadDelay)
 import           Control.Monad.Trans.Except.Extra (handleExceptT, hoistEither,
                                                    left)
 
-import           DB                               (DataLayer (..),
+import           Cardano.SMASH.DB                 (DataLayer (..),
                                                    PoolMetadataFetchError (..),
                                                    PoolMetadataReference (..),
                                                    PoolMetadataReferenceId,
                                                    postgresqlDataLayer,
                                                    runDbAction)
-import           FetchQueue
-import           Types                            (FetchError (..),
+import           Cardano.SMASH.FetchQueue
+import           Cardano.SMASH.Types              (FetchError (..),
                                                    PoolFetchError (..),
                                                    PoolId (..),
                                                    PoolMetadataHash (..),
@@ -37,7 +37,7 @@ import qualified Data.Time.Clock.POSIX            as Time
 
 import qualified Cardano.Crypto.Hash.Blake2b      as Crypto
 import qualified Cardano.Crypto.Hash.Class        as Crypto
-import qualified Cardano.Db.Schema                as DB
+import qualified Cardano.SMASH.DBSync.Db.Schema   as DB
 
 import qualified Data.ByteString.Base16           as B16
 
@@ -162,7 +162,7 @@ fetchInsertNewPoolMetadataOld dataLayer tracer pfr = do
 runOfflineFetchThread :: Trace IO Text -> IO ()
 runOfflineFetchThread trce = do
     liftIO $ logInfo trce "Runing Offline fetch thread"
-    fetchLoop DB.postgresqlDataLayer trce emptyFetchQueue
+    fetchLoop postgresqlDataLayer trce emptyFetchQueue
 
 -- -------------------------------------------------------------------------------------------------
 

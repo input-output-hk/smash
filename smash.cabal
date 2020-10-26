@@ -1,197 +1,184 @@
-cabal-version: 1.12
+cabal-version:      1.12
+name:               smash
+version:            1.1.0
+description:
+  Please see the README on GitHub at <https://github.com/input-output-hk/smash#readme>
 
-name:           smash
-version:        1.1.0
-description:    Please see the README on GitHub at <https://github.com/input-output-hk/smash#readme>
-homepage:       https://github.com/input-output-hk/smash#readme
-bug-reports:    https://github.com/input-output-hk/smash/issues
-author:         IOHK
-maintainer:     operations@iohk.io
-license:        Apache-2.0
-license-file:   LICENSE
-build-type:     Simple
+homepage:           https://github.com/input-output-hk/smash#readme
+bug-reports:        https://github.com/input-output-hk/smash/issues
+author:             IOHK
+maintainer:         operations@iohk.io
+license:            Apache-2.0
+license-file:       LICENSE
+build-type:         Simple
 extra-source-files:
-    README.rst
-    ChangeLog.md
+  README.rst
+  ChangeLog.md
 
 source-repository head
-  type: git
+  type:     git
   location: https://github.com/input-output-hk/smash
 
-Flag disable-basic-auth
-  description:         Disable basic authentication scheme for other authentication mechanisms.
-  default:             False
+flag disable-basic-auth
+  description:
+    Disable basic authentication scheme for other authentication mechanisms.
 
-Flag testing-mode
-  description:         A flag for allowing operations that promote easy testing.
-  default:             False
+  default:     False
+
+flag testing-mode
+  description: A flag for allowing operations that promote easy testing.
+  default:     False
 
 library
-
   if flag(disable-basic-auth)
-    cpp-options:       -DDISABLE_BASIC_AUTH
+    cpp-options: -DDISABLE_BASIC_AUTH
 
   if flag(testing-mode)
-    cpp-options:       -DTESTING_MODE
+    cpp-options: -DTESTING_MODE
 
   exposed-modules:
-      Lib
-      Offline
-      FetchQueue
-      FetchQueue.Retry
-    , Types
-    , DB
-    , DbSyncPlugin
-    -- DbSync
-    , Cardano.SmashDbSync
-    , Cardano.Metrics
-    -- Migration
-    , Cardano.Db.Database
-    , Cardano.Db.Migration
-    , Cardano.Db.Migration.Haskell
-    , Cardano.Db.Migration.Version
-    -- Config
-    , Cardano.Db.PGConfig
-    , Cardano.Db.Run
-    , Cardano.Db.Schema
-    -- DB operations
-    , Cardano.Db.Error
-    , Cardano.Db.Insert
-    , Cardano.Db.Delete
-    , Cardano.Db.Query
-    , Cardano.Db.Types
+    Cardano.SMASH.API
+    Cardano.SMASH.DB
+    Cardano.SMASH.DBSync.Db.Database
+    Cardano.SMASH.DBSync.Db.Delete
+    Cardano.SMASH.DBSync.Db.Error
+    Cardano.SMASH.DBSync.Db.Insert
+    Cardano.SMASH.DBSync.Db.Migration
+    Cardano.SMASH.DBSync.Db.Migration.Haskell
+    Cardano.SMASH.DBSync.Db.Migration.Version
+    Cardano.SMASH.DBSync.Db.PGConfig
+    Cardano.SMASH.DBSync.Db.Query
+    Cardano.SMASH.DBSync.Db.Run
+    Cardano.SMASH.DBSync.Db.Schema
+    Cardano.SMASH.DBSync.Db.Types
+    Cardano.SMASH.DBSync.Metrics
+    Cardano.SMASH.DBSync.SmashDbSync
+    Cardano.SMASH.DBSyncPlugin
+    Cardano.SMASH.FetchQueue
+    Cardano.SMASH.FetchQueue.Retry
+    Cardano.SMASH.Lib
+    Cardano.SMASH.Offline
+    Cardano.SMASH.Types
 
-  other-modules:
-      Paths_smash
-  hs-source-dirs:
-      src
+  other-modules:      Paths_smash
+  hs-source-dirs:     src
   build-depends:
-      base >=4.7 && <5
-    , cardano-prelude
-    , containers
-    , quiet
-    , servant
-    , servant-server
-    , servant-swagger
-    , swagger2
-    , wai
-    , warp
-    , aeson
-    -- DB
-    , persistent
-    , persistent-postgresql
-    , persistent-template >= 2.7.0
-    , postgresql-simple
-    , esqueleto
-    -- CARDANO
+      aeson
+    , base                         >=4.7   && <5
+    , base16-bytestring
+    , bytestring
     , cardano-binary
     , cardano-client
+    , cardano-config
     , cardano-crypto
     , cardano-crypto-class
     , cardano-crypto-wrapper
-    -- REMOVE!
-    , cardano-config
     , cardano-db-sync
-    , cardano-slotting
     , cardano-ledger
-    , shelley-spec-ledger
-    , ouroboros-consensus
-    , ouroboros-consensus-byron
-    , ouroboros-consensus-shelley
-    , ouroboros-consensus-cardano
-    , iohk-monitoring
-    , prometheus
+    , cardano-prelude
+    , cardano-slotting
     , cborg
-    , io-sim-classes
-    , network
-    , network-mux
-    , ouroboros-network
-    , ouroboros-network-framework
-    , typed-protocols
-    -- REST
+    , conduit-extra
+    , containers
+    , contra-tracer
+    , directory
+    , esqueleto
+    , extra
+    , fast-logger
+    , filepath
     , http-client
     , http-client-tls
     , http-types
-    , base16-bytestring
+    , io-sim-classes
+    , iohk-monitoring
     , monad-logger
-    , transformers
-    , transformers-except
+    , network
+    , network-mux
+    , ouroboros-consensus
+    , ouroboros-consensus-byron
+    , ouroboros-consensus-cardano
+    , ouroboros-consensus-shelley
+    , ouroboros-network
+    , ouroboros-network-framework
+    , persistent
+    , persistent-postgresql
+    , persistent-template          >=2.7.0
+    , postgresql-simple
+    , prometheus
+    , quiet
     , resourcet
-    , extra
-    , conduit-extra
-    , bytestring
+    , servant
+    , servant-server
+    , servant-swagger
+    , shelley-spec-ledger
+    , swagger2
+    , template-haskell
     , text
     , time
-    , directory
-    , filepath
-    , template-haskell
-    , fast-logger
+    , transformers
+    , transformers-except
+    , typed-protocols
     , unix
-    , contra-tracer
-  default-language:    Haskell2010
-  default-extensions:  NoImplicitPrelude
-                       OverloadedStrings
+    , wai
+    , warp
 
-  ghc-options:         -Wall
-                       -Wcompat
-                       -Wincomplete-record-updates
-                       -Wincomplete-uni-patterns
-                       -Wredundant-constraints
-                       -Wpartial-fields
+  default-language:   Haskell2010
+  default-extensions:
+    NoImplicitPrelude
+    OverloadedStrings
+
+  ghc-options:
+    -Wall -Wcompat -Wincomplete-record-updates
+    -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields
 
 executable smash-exe
-  main-is: Main.hs
-  other-modules:
-      Paths_smash
-  hs-source-dirs:
-      app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  main-is:            Main.hs
+  other-modules:      Paths_smash
+  hs-source-dirs:     app
+  ghc-options:        -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
-    , cardano-prelude
-    , smash
+      base                  >=4.7 && <5
     , cardano-db-sync
+    , cardano-prelude
     , cardano-slotting
     , optparse-applicative
-  default-language:    Haskell2010
-  default-extensions:  NoImplicitPrelude
-                       OverloadedStrings
+    , smash
 
-  ghc-options:         -Wall
-                       -Wcompat
-                       -Wincomplete-record-updates
-                       -Wincomplete-uni-patterns
-                       -Wredundant-constraints
-                       -Wpartial-fields
+  default-language:   Haskell2010
+  default-extensions:
+    NoImplicitPrelude
+    OverloadedStrings
+
+  ghc-options:
+    -Wall -Wcompat -Wincomplete-record-updates
+    -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields
 
 test-suite smash-test
-  type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  type:               exitcode-stdio-1.0
+  main-is:            Spec.hs
   other-modules:
-      Paths_smash
-    , SmashSpec
-    , SmashSpecSM
-  hs-source-dirs:
-      test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    Paths_smash
+    SmashSpec
+    SmashSpecSM
+
+  hs-source-dirs:     test
+  ghc-options:        -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      base                      >=4.7 && <5
     , cardano-prelude
     , containers
-    , smash
+    , ed25519
     , hspec
     , QuickCheck
-    , quickcheck-state-machine >= 0.6
+    , quickcheck-state-machine  >=0.6
+    , smash
     , tree-diff
-    -- * Required for generation of keys
-    , ed25519
-  default-language:    Haskell2010
-  default-extensions:  NoImplicitPrelude
-                       OverloadedStrings
 
-  ghc-options:         -Wall
-                       -Wcompat
-                       -Wincomplete-record-updates
-                       -Wincomplete-uni-patterns
-                       -Wredundant-constraints
-                       -Wpartial-fields
+  default-language:   Haskell2010
+  default-extensions:
+    NoImplicitPrelude
+    OverloadedStrings
+
+  ghc-options:
+    -Wall -Wcompat -Wincomplete-record-updates
+    -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields

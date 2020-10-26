@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Cardano.Db.Delete
+module Cardano.SMASH.DBSync.Db.Delete
   ( deleteDelistedPool
   ) where
 
@@ -15,9 +15,9 @@ import           Database.Persist.Class (AtLeastOneUniqueKey, Key, PersistEntity
 import           Database.Persist.Sql (SqlBackend, (==.), deleteCascade, selectKeysList)
 import           Database.Persist.Types (entityKey)
 
-import           Cardano.Db.Schema
-import           Cardano.Db.Error
-import qualified Cardano.Db.Types as Types
+import           Cardano.SMASH.DBSync.Db.Schema
+import           Cardano.SMASH.DBSync.Db.Error
+import qualified Cardano.SMASH.DBSync.Db.Types as Types
 
 -- | Delete a delisted pool if it exists. Returns 'True' if it did exist and has been
 -- deleted and 'False' if it did not exist.

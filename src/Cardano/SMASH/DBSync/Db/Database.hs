@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module Cardano.Db.Database
+module Cardano.SMASH.DBSync.Db.Database
   ( DbAction (..)
   , DbActionQueue (..)
   , MkDbAction (..)
@@ -24,8 +24,8 @@ import           Control.Monad.Trans.Except.Extra (left, newExceptT, runExceptT)
 
 import           Cardano.Slotting.Slot (SlotNo)
 
-import qualified DB as DB
-import           Cardano.Metrics
+import qualified Cardano.SMASH.DB as DB
+import           Cardano.SMASH.DBSync.Metrics
 
 import           Cardano.DbSync.DbAction
 import           Cardano.DbSync.Error

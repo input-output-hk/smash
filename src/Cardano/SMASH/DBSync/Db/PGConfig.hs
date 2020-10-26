@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Cardano.Db.PGConfig
+module Cardano.SMASH.DBSync.Db.PGConfig
   ( PGConfig (..)
   , PGPassFile (..)
   , readPGPassFileEnv

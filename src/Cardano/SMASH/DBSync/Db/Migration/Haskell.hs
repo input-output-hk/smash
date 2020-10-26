@@ -1,7 +1,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Cardano.Db.Migration.Haskell
+module Cardano.SMASH.DBSync.Db.Migration.Haskell
   ( runHaskellMigration
   ) where
 
@@ -16,8 +16,8 @@ import qualified Data.Map.Strict as Map
 
 import           Database.Persist.Sql (SqlBackend)
 
-import           Cardano.Db.Migration.Version
-import           Cardano.Db.Run
+import           Cardano.SMASH.DBSync.Db.Migration.Version
+import           Cardano.SMASH.DBSync.Db.Run
 
 import           System.Exit (exitFailure)
 import           System.IO (Handle, hClose, hFlush, stdout)
