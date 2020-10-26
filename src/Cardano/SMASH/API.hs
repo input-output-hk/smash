@@ -16,7 +16,7 @@ import           Cardano.Prelude
 
 import           Data.Swagger        (Swagger (..))
 
-import           Servant             ((:<|>) (..), (:>))
+import           Servant             ((:<|>) (..), (:>), OctetStream, Post)
 import           Servant             (BasicAuth, Capture, Get, Header, Headers,
                                       JSON, Patch, QueryParam, ReqBody)
 
