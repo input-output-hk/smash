@@ -29,72 +29,38 @@ import           Data.Version                (showVersion)
 import           Network.Wai.Handler.Warp    (defaultSettings, runSettings,
                                               setBeforeMainLoop, setPort)
 
-import           Servant                     ((:<|>) (..), (:>))
-import           Servant                     (Application, BasicAuth,
-                                              BasicAuthCheck (..),
+import           Servant                     ((:<|>) (..))
+import           Servant                     (Application, BasicAuthCheck (..),
                                               BasicAuthData (..),
-                                              BasicAuthResult (..), Capture,
-                                              Context (..), Get, Handler (..),
-                                              Header, Headers, JSON, Patch,
-                                              QueryParam, ReqBody, Server,
-                                              err403, err404, serveWithContext)
+                                              BasicAuthResult (..),
+                                              Context (..), Handler (..),
+                                              Header, Headers, Server, err403,
+                                              err404, serveWithContext)
 import           Servant.API.ResponseHeaders (addHeader)
-import           Servant.Swagger
+import           Servant.Swagger             (toSwagger)
 
-import           Cardano.SMASH.DB
-import           Cardano.SMASH.Types
+import           Cardano.SMASH.API           (API, fullAPI, smashApi)
+import           Cardano.SMASH.DB            (AdminUser (..), DBFail (..),
+                                              DataLayer (..), ReservedTickerId,
+                                              postgresqlDataLayer,
+                                              reservedTickerPoolHash,
+                                              stubbedDataLayer,
+                                              stubbedDelistedPools,
+                                              stubbedInitialDataMap)
+import           Cardano.SMASH.Types         (ApiResult (..),
+                                              ApplicationUser (..),
+                                              ApplicationUsers (..),
+                                              Configuration (..),
+                                              HealthStatus (..), PoolFetchError,
+                                              PoolId, PoolMetadataHash,
+                                              PoolMetadataWrapped (..),
+                                              TimeStringFormat (..), User,
+                                              UserValidity (..),
+                                              checkIfUserValid,
+                                              defaultConfiguration, pomTicker,
+                                              stubbedApplicationUsers)
 
 import           Paths_smash                 (version)
-
-
--- |For api versioning.
-type APIVersion = "v1"
-
--- | Shortcut for common api result types.
-type ApiRes verb a = verb '[JSON] (ApiResult DBFail a)
-
--- The basic auth.
-type BasicAuthURL = BasicAuth "smash" User
-
--- GET api/v1/status
-type HealthStatusAPI = "api" :> APIVersion :> "status" :> ApiRes Get HealthStatus
-
--- GET api/v1/metadata/{hash}
-type OfflineMetadataAPI = "api" :> APIVersion :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> Get '[JSON] (Headers '[Header "Cache" Text] (ApiResult DBFail PoolMetadataWrapped))
-
--- GET api/v1/delisted
-type DelistedPoolsAPI = "api" :> APIVersion :> "delisted" :> ApiRes Get [PoolId]
-
--- GET api/v1/errors
-type FetchPoolErrorAPI = "api" :> APIVersion :> "errors" :> Capture "poolId" PoolId :> QueryParam "fromDate" TimeStringFormat :> ApiRes Get [PoolFetchError]
-
-#ifdef DISABLE_BASIC_AUTH
--- POST api/v1/delist
-type DelistPoolAPI = "api" :> APIVersion :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
-
-type EnlistPoolAPI = "api" :> APIVersion :> "enlist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
-#else
-type DelistPoolAPI = BasicAuthURL :> "api" :> APIVersion :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
-
-type EnlistPoolAPI = BasicAuthURL :> "api" :> APIVersion :> "enlist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
-#endif
-
-type RetiredPoolsAPI = "api" :> APIVersion :> "retired" :> ApiRes Get [PoolId]
-
-
--- The full API.
-type SmashAPI =  OfflineMetadataAPI
-            :<|> HealthStatusAPI
-            :<|> DelistedPoolsAPI
-            :<|> DelistPoolAPI
-            :<|> EnlistPoolAPI
-            :<|> FetchPoolErrorAPI
-            :<|> RetiredPoolsAPI
-#ifdef TESTING_MODE
-            :<|> RetirePoolAPI
-
-type RetirePoolAPI = "api" :> APIVersion :> "retired" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
-#endif
 
 
 -- | Swagger spec for Todo API.
@@ -112,19 +78,6 @@ todoSwagger =
         Nothing
         Nothing
         "1.1.0"
-
--- | API for serving @swagger.json@.
-type SwaggerAPI = "swagger.json" :> Get '[JSON] Swagger
-
--- | Combined API of a Todo service with Swagger documentation.
-type API = SwaggerAPI :<|> SmashAPI
-
-fullAPI :: Proxy API
-fullAPI = Proxy
-
--- | Just the @Proxy@ for the API type.
-smashApi :: Proxy SmashAPI
-smashApi = Proxy
 
 runApp :: Configuration -> IO ()
 runApp configuration = do
@@ -183,7 +136,7 @@ mkApp configuration = do
         (server configuration dataLayer)
   where
     convertToAppUsers :: AdminUser -> ApplicationUser
-    convertToAppUsers (AdminUser username password) = ApplicationUser username password
+    convertToAppUsers (AdminUser username' password') = ApplicationUser username' password'
 
 --runPoolInsertion poolMetadataJsonPath poolHash
 runPoolInsertion :: FilePath -> PoolId -> PoolMetadataHash -> IO (Either DBFail Text)
@@ -225,9 +178,9 @@ basicAuthServerContext applicationUsers = (authCheck applicationUsers) :. EmptyC
     authCheck applicationUsers' =
 
         let check' :: BasicAuthData -> IO (BasicAuthResult User)
-            check' (BasicAuthData username password) = do
-                let usernameText = decodeUtf8 username
-                let passwordText = decodeUtf8 password
+            check' (BasicAuthData username' password') = do
+                let usernameText = decodeUtf8 username'
+                let passwordText = decodeUtf8 password'
 
                 let applicationUser  = ApplicationUser usernameText passwordText
                 let userAuthValidity = checkIfUserValid applicationUsers' applicationUser
@@ -245,7 +198,7 @@ convertIOToHandler = Handler . ExceptT . try
 
 -- | Combined server of a Smash service with Swagger documentation.
 server :: Configuration -> DataLayer -> Server API
-server configuration dataLayer
+server _configuration dataLayer
     =       return todoSwagger
     :<|>    getPoolOfflineMetadata dataLayer
     :<|>    getHealthStatus
@@ -281,7 +234,7 @@ getPoolOfflineMetadata dataLayer poolId poolHash = fmap (addHeader "always") . c
 
     case poolRecord of
         -- We return 404 when the hash is not found.
-        Left err -> throwIO err404
+        Left _err -> throwIO err404
         Right (tickerName, poolMetadata) -> do
             let checkReservedTicker = dlCheckReservedTicker dataLayer
 
@@ -323,7 +276,7 @@ delistPool dataLayer poolId = convertIOToHandler $ do
     return . ApiResult $ delistedPool'
 #else
 delistPool :: DataLayer -> User -> PoolId -> Handler (ApiResult DBFail PoolId)
-delistPool dataLayer user poolId = convertIOToHandler $ do
+delistPool dataLayer _user poolId = convertIOToHandler $ do
 
     let addDelistedPool = dlAddDelistedPool dataLayer
     delistedPool' <- addDelistedPool poolId
@@ -340,17 +293,17 @@ enlistPool dataLayer poolId = convertIOToHandler $ do
     delistedPool' <- removeDelistedPool poolId
 
     case delistedPool' of
-        Left err      -> throwIO err404
+        Left _err     -> throwIO err404
         Right poolId' -> return . ApiResult . Right $ poolId
 #else
 enlistPool :: DataLayer -> User -> PoolId -> Handler (ApiResult DBFail PoolId)
-enlistPool dataLayer user poolId = convertIOToHandler $ do
+enlistPool dataLayer _user poolId = convertIOToHandler $ do
 
     let removeDelistedPool = dlRemoveDelistedPool dataLayer
     delistedPool' <- removeDelistedPool poolId
 
     case delistedPool' of
-        Left err      -> throwIO err404
+        Left _err     -> throwIO err404
         Right poolId' -> return . ApiResult . Right $ poolId'
 #endif
 
@@ -378,8 +331,8 @@ getPoolErrorAPI dataLayer poolId mTimeInt = convertIOToHandler $ do
 getRetiredPools :: DataLayer -> Handler (ApiResult DBFail [PoolId])
 getRetiredPools dataLayer = convertIOToHandler $ do
 
-    let getRetiredPools = dlGetRetiredPools dataLayer
-    retiredPools <- getRetiredPools
+    let getRetiredPools' = dlGetRetiredPools dataLayer
+    retiredPools <- getRetiredPools'
 
     return . ApiResult $ retiredPools
 
@@ -392,8 +345,4 @@ retirePool dataLayer poolId = convertIOToHandler $ do
 
     return . ApiResult $ retiredPoolId
 #endif
-
--- For now, we just ignore the @BasicAuth@ definition.
-instance (HasSwagger api) => HasSwagger (BasicAuth name typo :> api) where
-    toSwagger _ = toSwagger (Proxy :: Proxy api)
 
