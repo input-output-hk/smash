@@ -1,5 +1,19 @@
 # Changelog for smash
 
+## 1.2.0
+
+### Story
+
+- [CAD-1358] - Return the caching headers for the HTTP server to work with that
+- [CAD-1823] - Stake pools with issues list
+- [CAD-1824] - List of delisted Stake pools
+- [CAD-1838] - Add whitelisting (listing) to return delisted
+- [CAD-1926] - Retired pools should be ignored
+- [CAD-2061] - Logs improvement, add information to why an error occured
+- [CAD-2074] - Health check endpoint
+- [CAD-2085] - Create migration scripts for SMASH
+- [CAD-2088] - Resolve paths relative to the config file, not the executable
+- [CAD-2093] - Use qualified module names
 
 ## 1.1.0
 
