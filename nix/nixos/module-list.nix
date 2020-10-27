@@ -1,0 +1,3 @@
+[
+  ./smash-service.nix
+]

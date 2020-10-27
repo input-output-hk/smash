@@ -2,6 +2,8 @@
 , crossSystem ? null
 # allows to cutomize haskellNix (ghc and profiling, see ./nix/haskell.nix)
 , config ? {}
+# override scripts with custom configuration
+, customConfig ? {}
 # allows to override dependencies of the project without modifications,
 # eg. to test build against local checkout of iohk-nix:
 # nix build -f default.nix cardano-node --arg sourcesOverride '{
@@ -14,13 +16,19 @@
 }:
 with pkgs; with commonLib;
 let
+  customConfig' = if customConfig ? services then customConfig else {
+    services.smash = customConfig;
+  };
 
   haskellPackages = recRecurseIntoAttrs
     # we are only intersted in listing the project packages:
     (selectProjectPackages smashHaskellPackages);
+  scripts = callPackage ./nix/scripts.nix {
+    customConfig = customConfig';
+  };
 
-  self = {
-    inherit haskellPackages;
+  packages = {
+    inherit haskellPackages scripts smash-exe;
     inherit (haskellPackages.smash.identifier) version;
 
     # `tests` are the test suites which have been built.
@@ -44,4 +52,4 @@ let
       withHoogle = true;
     };
 };
-in self
+in packages

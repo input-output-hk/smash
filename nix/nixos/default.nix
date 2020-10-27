@@ -1,5 +1,4 @@
+
 {
-  imports = [
-    ./smash-service.nix
-  ];
+  imports = import ./module-list.nix;
 }
