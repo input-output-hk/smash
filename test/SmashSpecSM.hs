@@ -52,19 +52,10 @@ smashSpecSM = do
 prop_smash :: Property
 prop_smash = do
 
-    -- Placeholder
-    let testdDL =   stubbedDataLayer
-                        (unsafePerformIO $ newIORef stubbedInitialDataMap)
-                        (unsafePerformIO $ newIORef stubbedDelistedPools)
-
-    forAllCommands (smUnused testdDL) (Just 100) $ \cmds -> monadicIO $ do
+    forAllCommands smUnused (Just 100) $ \cmds -> monadicIO $ do
 
         --TODO(KS): Initialize the REAL DB!
-        ioDataMap           <- run $ newIORef stubbedInitialDataMap
-        ioDelistedPools  <- run $ newIORef stubbedDelistedPools
-
-        let dataLayer :: DataLayer
-            dataLayer = stubbedDataLayer ioDataMap ioDelistedPools
+        dataLayer <- run createStubbedDataLayer
 
         -- Run the actual commands
         (hist, _model, res) <- runCommands (smashSM dataLayer) cmds
@@ -72,9 +63,25 @@ prop_smash = do
         -- Pretty the commands
         prettyCommands (smashSM dataLayer) hist $ checkCommandNames cmds (res === Ok)
 
--- | Weird, but ok.
-smUnused :: DataLayer -> StateMachine Model Action IO Response
-smUnused dataLayer = smashSM dataLayer
+smUnused :: StateMachine Model Action IO Response
+smUnused = smashSM $ unsafePerformIO createStubbedDataLayer
+
+---- | Weird, but ok.
+--smUnused :: DataLayer -> StateMachine Model Action IO Response
+--smUnused dataLayer = smashSM dataLayer
+
+--initialModel :: Model r
+--initialModel = DBModel [] [] [] [] [] [] [] []
+
+data DBModel = DBModel
+    { poolsMetadata         :: [(Text, Text)]
+    , metadataReferences    :: [PoolMetadataReferenceId]
+    , reservedTickers       :: [ReservedTickerId]
+    , delistedPools         :: [PoolId]
+    , retiredPools          :: [PoolId]
+    , adminUsers            :: [AdminUser]
+    , fetchErrors           :: [PoolFetchError]
+    }
 
 -------------------------------------------------------------------------------
 -- Language

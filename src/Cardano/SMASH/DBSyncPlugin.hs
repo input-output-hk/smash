@@ -62,6 +62,8 @@ poolMetadataDbSyncNodePlugin =
     , plugRollbackBlock = []
     }
 
+-- |TODO(KS): We need to abstract over these blocks so we can test this functionality
+-- separatly from the actual blockchain, using tests only.
 insertCardanoBlock
     :: DataLayer
     -> Trace IO Text
@@ -126,7 +128,6 @@ insertTx
     -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
 insertTx dataLayer tracer _blockIndex tx =
     mapM_ (insertCertificate dataLayer tracer) (Shelley.txCertificates tx)
-
 
 insertCertificate
     :: (MonadIO m)

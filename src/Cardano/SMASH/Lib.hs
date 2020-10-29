@@ -20,7 +20,6 @@ import           Cardano.Prelude             hiding (Handler)
 
 import           Data.Aeson                  (eitherDecode')
 import qualified Data.ByteString.Lazy        as BL
-import           Data.IORef                  (newIORef)
 import           Data.Swagger                (Info (..), Swagger (..))
 import           Data.Time                   (UTCTime, addUTCTime,
                                               getCurrentTime, nominalDay)
@@ -42,11 +41,9 @@ import           Servant.Swagger             (toSwagger)
 import           Cardano.SMASH.API           (API, fullAPI, smashApi)
 import           Cardano.SMASH.DB            (AdminUser (..), DBFail (..),
                                               DataLayer (..), ReservedTickerId,
+                                              createStubbedDataLayer,
                                               postgresqlDataLayer,
-                                              reservedTickerPoolHash,
-                                              stubbedDataLayer,
-                                              stubbedDelistedPools,
-                                              stubbedInitialDataMap)
+                                              reservedTickerPoolHash)
 import           Cardano.SMASH.Types         (ApiResult (..),
                                               ApplicationUser (..),
                                               ApplicationUsers (..),
@@ -102,11 +99,7 @@ runAppStubbed configuration = do
 mkAppStubbed :: Configuration -> IO Application
 mkAppStubbed configuration = do
 
-    ioDataMap        <- newIORef stubbedInitialDataMap
-    ioDelistedPools  <- newIORef stubbedDelistedPools
-
-    let dataLayer :: DataLayer
-        dataLayer = stubbedDataLayer ioDataMap ioDelistedPools
+    dataLayer <- createStubbedDataLayer
 
     return $ serveWithContext
         fullAPI
@@ -191,7 +184,7 @@ convertIOToHandler = Handler . ExceptT . try
 
 -- | Combined server of a Smash service with Swagger documentation.
 server :: Configuration -> DataLayer -> Server API
-server configuration dataLayer
+server _configuration dataLayer
     =       return todoSwagger
     :<|>    getPoolOfflineMetadata dataLayer
     :<|>    getHealthStatus

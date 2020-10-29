@@ -9,16 +9,20 @@ module Cardano.SMASH.DB
     ( module X
     , DataLayer (..)
     , stubbedDataLayer
+    , createStubbedDataLayer
     , postgresqlDataLayer
     -- * Examples
+    , DelistedPoolsIORef (..)
+    , RetiredPoolsIORef (..)
     , stubbedInitialDataMap
     , stubbedDelistedPools
+    , stubbedRetiredPools
     ) where
 
 import           Cardano.Prelude
 
 import           Data.IORef                                (IORef, modifyIORef,
-                                                            readIORef)
+                                                            newIORef, readIORef)
 import qualified Data.Map                                  as Map
 import           Data.Time.Clock                           (UTCTime)
 import           Data.Time.Clock.POSIX                     (utcTimeToPOSIXSeconds)
@@ -84,14 +88,21 @@ data DataLayer = DataLayer
     , dlGetFetchErrors          :: PoolId -> Maybe UTCTime -> IO (Either DBFail [PoolFetchError])
     } deriving (Generic)
 
+newtype DelistedPoolsIORef = DelistedPoolsIORef (IORef [PoolId])
+    deriving (Eq)
+
+newtype RetiredPoolsIORef = RetiredPoolsIORef (IORef [PoolId])
+    deriving (Eq)
+
 -- | Simple stubbed @DataLayer@ for an example.
 -- We do need state here. _This is thread safe._
 -- __This is really our model here.__
 stubbedDataLayer
     :: IORef (Map (PoolId, PoolMetadataHash) (Text, Text))
-    -> IORef [PoolId]
+    -> DelistedPoolsIORef
+    -> RetiredPoolsIORef
     -> DataLayer
-stubbedDataLayer ioDataMap ioDelistedPool = DataLayer
+stubbedDataLayer ioDataMap (DelistedPoolsIORef ioDelistedPool) (RetiredPoolsIORef ioRetiredPools) = DataLayer
     { dlGetPoolMetadata     = \poolId poolmdHash -> do
         ioDataMap' <- readIORef ioDataMap
         case (Map.lookup (poolId, poolmdHash) ioDataMap') of
@@ -120,8 +131,10 @@ stubbedDataLayer ioDataMap ioDelistedPool = DataLayer
         _ <- modifyIORef ioDelistedPool (\pools -> filter (/= poolId) pools)
         return $ Right poolId
 
-    , dlAddRetiredPool      = \poolId -> panic "!"
-    , dlGetRetiredPools     = panic "!"
+    , dlAddRetiredPool      = \poolId -> do
+        _ <- modifyIORef ioRetiredPools (\pools -> [poolId] ++ pools)
+        return . Right $ poolId
+    , dlGetRetiredPools     = Right <$> readIORef ioRetiredPools
 
     , dlGetAdminUsers       = return $ Right []
 
@@ -130,14 +143,31 @@ stubbedDataLayer ioDataMap ioDelistedPool = DataLayer
     }
 
 -- The approximation for the table.
-stubbedInitialDataMap :: Map (PoolId, PoolMetadataHash) (Text, Text)
-stubbedInitialDataMap = Map.fromList
+stubbedInitialDataMap :: IO (IORef (Map (PoolId, PoolMetadataHash) (Text, Text)))
+stubbedInitialDataMap = newIORef $ Map.fromList
     [ ((PoolId "AAAAC3NzaC1lZDI1NTE5AAAAIKFx4CnxqX9mCaUeqp/4EI1+Ly9SfL23/Uxd0Ieegspc", PoolMetadataHash "HASH"), ("Test", show examplePoolOfflineMetadata))
     ]
 
 -- The approximation for the table.
-stubbedDelistedPools :: [PoolId]
-stubbedDelistedPools = []
+stubbedDelistedPools :: IO DelistedPoolsIORef
+stubbedDelistedPools = DelistedPoolsIORef <$> newIORef []
+
+-- The approximation for the table.
+stubbedRetiredPools :: IO RetiredPoolsIORef
+stubbedRetiredPools = RetiredPoolsIORef <$> newIORef []
+
+-- Init the data layer with the in-memory stubs.
+createStubbedDataLayer :: IO DataLayer
+createStubbedDataLayer = do
+
+    ioDataMap        <- stubbedInitialDataMap
+    ioDelistedPools  <- stubbedDelistedPools
+    ioRetiredPools   <- stubbedRetiredPools
+
+    let dataLayer :: DataLayer
+        dataLayer = stubbedDataLayer ioDataMap ioDelistedPools ioRetiredPools
+
+    return dataLayer
 
 postgresqlDataLayer :: DataLayer
 postgresqlDataLayer = DataLayer
