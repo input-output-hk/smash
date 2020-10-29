@@ -11,9 +11,6 @@ maintainer:         operations@iohk.io
 license:            Apache-2.0
 license-file:       LICENSE
 build-type:         Simple
-extra-source-files:
-  README.rst
-  ChangeLog.md
 
 source-repository head
   type:     git
