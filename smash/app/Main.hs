@@ -18,14 +18,12 @@ import           Options.Applicative              (Parser, ParserInfo,
                                                    ParserPrefs)
 import qualified Options.Applicative              as Opt
 
-#ifndef STUB_MODE
 import           Cardano.Slotting.Slot            (SlotNo (..))
 import           Cardano.SMASH.DBSyncPlugin       (poolMetadataDbSyncNodePlugin)
 import           Cardano.SMASH.DBSync.SmashDbSync (ConfigFile (..),
                                                    SmashDbSyncNodeParams (..),
                                                    SocketPath (..),
                                                    runDbSyncNode)
-#endif
 
 
 main :: IO ()
@@ -50,10 +48,8 @@ data Command
 #ifdef TESTING_MODE
   | RunStubApplication
 #endif
-#ifndef STUB_MODE
   | RunApplicationWithDbSync SmashDbSyncNodeParams
   | InsertPool FilePath PoolId PoolMetadataHash
-#endif
   | ReserveTickerName Text PoolMetadataHash
 
 runCommand :: Command -> IO ()
@@ -65,7 +61,6 @@ runCommand cmd =
 #ifdef TESTING_MODE
     RunStubApplication -> runAppStubbed defaultConfiguration
 #endif
-#ifndef STUB_MODE
     RunApplicationWithDbSync dbSyncNodeParams ->
         race_
             (runDbSyncNode poolMetadataDbSyncNodePlugin dbSyncNodeParams)
@@ -78,7 +73,6 @@ runCommand cmd =
             (\err -> putTextLn $ "Error occured. " <> renderLookupFail err)
             (\_ -> putTextLn "Insertion completed!")
             result
-#endif
     ReserveTickerName tickerName poolHash -> do
         putTextLn "Reserving ticker name!"
         result <- runTickerNameInsertion tickerName poolHash
@@ -96,7 +90,6 @@ doCreateMigration mdir = do
 
 -------------------------------------------------------------------------------
 
-#ifndef STUB_MODE
 pCommandLine :: Parser SmashDbSyncNodeParams
 pCommandLine =
   SmashDbSyncNodeParams
@@ -139,7 +132,6 @@ pSlotNo =
     <> Opt.help "Force a rollback to the specified slot (mainly for testing and debugging)."
     <> Opt.metavar "WORD"
     )
-#endif
 
 pVersion :: Parser (a -> a)
 pVersion =
@@ -170,7 +162,6 @@ pCommand =
           $ Opt.progDesc "Run the stub application that just serves the pool info."
           )
 #endif
-#ifndef STUB_MODE
     <> Opt.command "run-app-with-db-sync"
         ( Opt.info pRunAppWithDbSync
           $ Opt.progDesc "Run the application that syncs up the pool info and serves it."
@@ -179,7 +170,6 @@ pCommand =
         ( Opt.info pInsertPool
           $ Opt.progDesc "Inserts the pool into the database (utility)."
           )
-#endif
     <> Opt.command "reserve-ticker-name"
         ( Opt.info pReserveTickerName
           $ Opt.progDesc "Inserts the ticker name into the database (utility)."
@@ -205,7 +195,6 @@ pCommand =
       pure RunStubApplication
 #endif
 
-#ifndef STUB_MODE
     -- Empty right now but we might add some params over time. Like ports and stuff?
     pRunAppWithDbSync :: Parser Command
     pRunAppWithDbSync =
@@ -215,7 +204,6 @@ pCommand =
     pInsertPool :: Parser Command
     pInsertPool =
       InsertPool <$> pFilePath <*> pPoolId <*> pPoolHash
-#endif
 
     -- For inserting ticker names.
     pReserveTickerName :: Parser Command

@@ -37,18 +37,9 @@ library
   if flag(testing-mode)
     cpp-options: -DTESTING_MODE
 
-  if flag(stub-mode)
-    cpp-options: -DSTUB_MODE
-  else
-    build-depends:
-      cardano-db-sync
-    exposed-modules:
-      Cardano.SMASH.DBSyncPlugin
-      Cardano.SMASH.DBSync.SmashDbSync
-      Cardano.SMASH.DBSync.Db.Database
-
   exposed-modules:
     Cardano.SMASH.DB
+    Cardano.SMASH.DBSync.Db.Database
     Cardano.SMASH.DBSync.Db.Delete
     Cardano.SMASH.DBSync.Db.Insert
     Cardano.SMASH.DBSync.Db.Migration
@@ -59,6 +50,8 @@ library
     Cardano.SMASH.DBSync.Db.Run
     Cardano.SMASH.DBSync.Db.Schema
     Cardano.SMASH.DBSync.Metrics
+    Cardano.SMASH.DBSync.SmashDbSync
+    Cardano.SMASH.DBSyncPlugin
     Cardano.SMASH.FetchQueue
     Cardano.SMASH.FetchQueue.Retry
     Cardano.SMASH.Lib
@@ -77,6 +70,7 @@ library
     , cardano-crypto
     , cardano-crypto-class
     , cardano-crypto-wrapper
+    , cardano-db-sync
     , cardano-ledger
     , cardano-prelude
     , cardano-slotting
@@ -143,6 +137,7 @@ executable smash-exe
   build-depends:
       base                  >=4.7 && <5
     , cardano-prelude
+    , cardano-db-sync
     , cardano-slotting
     , optparse-applicative
     , smash
@@ -159,12 +154,6 @@ executable smash-exe
 
   if flag(testing-mode)
     cpp-options: -DTESTING_MODE
-
-  if flag(stub-mode)
-    cpp-options: -DSTUB_MODE
-  else
-    build-depends:
-      cardano-db-sync
 
 test-suite smash-test
   type:               exitcode-stdio-1.0
