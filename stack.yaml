@@ -14,6 +14,7 @@ compiler: ghc-8.6.5
 #   - wai
 packages:
 - smash
+- smash-servant-types
 
 flags:
   # Bundle VRF crypto in libsodium and do not rely on an external fork to have it.

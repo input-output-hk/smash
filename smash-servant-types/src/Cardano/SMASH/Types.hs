@@ -44,7 +44,7 @@ import           Cardano.Prelude
 import           Control.Monad.Fail            (fail)
 
 import           Data.Aeson                    (FromJSON (..), ToJSON (..),
-                                                object, pairs, withObject, (.:), (.=))
+                                                object, withObject, (.:), (.=))
 import qualified Data.Aeson                    as Aeson
 import           Data.Aeson.Encoding           (unsafeToEncoding)
 import qualified Data.Aeson.Types              as Aeson
