@@ -28,7 +28,7 @@ let
   };
 
   packages = {
-    inherit haskellPackages scripts smash-exe;
+    inherit haskellPackages scripts smash-exe smash-exe-testing;
     inherit (haskellPackages.smash.identifier) version;
 
     # `tests` are the test suites which have been built.
@@ -36,7 +36,9 @@ let
 
     libs = collectComponents' "library" haskellPackages;
 
-    exes = collectComponents' "exes" haskellPackages;
+    exes = lib.recursiveUpdate (collectComponents' "exes" haskellPackages) {
+      smash = { inherit smash-exe-testing; };
+    };
 
     checks = recurseIntoAttrs {
       # `checks.tests` collect results of executing the tests:
