@@ -17,17 +17,11 @@ source-repository head
   location: https://github.com/input-output-hk/smash
 
 flag disable-basic-auth
-  description:
-    Disable basic authentication scheme for other authentication mechanisms.
-
+  description: Disable basic authentication scheme for other authentication mechanisms.
   default:     False
 
 flag testing-mode
   description: A flag for allowing operations that promote easy testing.
-  default:     False
-
-flag stub-mode
-  description: Only enable the stub server, disable cardano-db-sync
   default:     False
 
 library
@@ -130,6 +124,10 @@ library
     -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields
 
 executable smash-exe
+
+  if flag(testing-mode)
+    cpp-options: -DTESTING_MODE
+
   main-is:            Main.hs
   other-modules:      Paths_smash
   hs-source-dirs:     app
@@ -152,10 +150,11 @@ executable smash-exe
     -Wall -Wcompat -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields
 
+test-suite smash-test
+
   if flag(testing-mode)
     cpp-options: -DTESTING_MODE
 
-test-suite smash-test
   type:               exitcode-stdio-1.0
   main-is:            Spec.hs
   other-modules:
@@ -174,6 +173,7 @@ test-suite smash-test
     , QuickCheck
     , quickcheck-state-machine  >=0.6
     , smash
+    , smash-servant-types
     , tree-diff
 
   default-language:   Haskell2010
@@ -184,3 +184,4 @@ test-suite smash-test
   ghc-options:
     -Wall -Wcompat -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields
+

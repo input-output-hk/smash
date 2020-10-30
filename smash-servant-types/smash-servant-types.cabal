@@ -17,9 +17,7 @@ source-repository head
   location: https://github.com/input-output-hk/smash
 
 flag disable-basic-auth
-  description:
-    Disable basic authentication scheme for other authentication mechanisms.
-
+  description: Disable basic authentication scheme for other authentication mechanisms.
   default:     False
 
 flag testing-mode

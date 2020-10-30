@@ -1,9 +1,10 @@
 # Changelog for smash
 
-## ???
+## Next version
 
-- split out servant API types into sub-package 'smash-servant-types'
-- remove redundant 'stub-mode' flag
+### Story
+
+- [CAD-2169] - Expose API types in a separate package
 
 ## 1.2.0
 

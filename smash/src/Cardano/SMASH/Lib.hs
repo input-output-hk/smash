@@ -49,7 +49,7 @@ import           Cardano.SMASH.Types         (ApiResult (..),
                                               ApplicationUsers (..),
                                               Configuration (..),
                                               HealthStatus (..), PoolFetchError,
-                                              PoolId, PoolMetadataHash,
+                                              PoolId (..), PoolMetadataHash,
                                               PoolMetadataWrapped (..),
                                               TimeStringFormat (..), User,
                                               UserValidity (..),
@@ -333,10 +333,12 @@ retirePool dataLayer poolId = convertIOToHandler $ do
     return . ApiResult $ retiredPoolId
 
 addPool :: DataLayer -> PoolId -> PoolMetadataHash -> PoolMetadataWrapped -> Handler (ApiResult DBFail PoolId)
-addPool dataLayer poolId poolHash (PoolMetadataWrapped poolMetadataJson) =
-  fmap ApiResult
-    $ convertIOToHandler
-    $ (fmap . second) (const poolId)
-    $ runPoolInsertion dataLayer poolMetadataJson poolId poolHash
+addPool dataLayer poolId poolHash (PoolMetadataWrapped poolMetadataJson) = convertIOToHandler $ do
+
+    poolMetadataE <- runPoolInsertion dataLayer poolMetadataJson poolId poolHash
+
+    case poolMetadataE of
+        Left dbFail -> return . ApiResult . Left $ dbFail
+        Right poolMetadata -> return . ApiResult . Right $ poolId
 #endif
 

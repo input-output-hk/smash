@@ -58,13 +58,14 @@ import           Data.Swagger                  (NamedSchema (..),
                                                 ToSchema (..))
 import           Data.Text.Encoding            (encodeUtf8Builder)
 
-import           Servant                       (FromHttpApiData (..), MimeUnrender (..), OctetStream)
+import           Servant                       (FromHttpApiData (..),
+                                                MimeUnrender (..), OctetStream)
 
 import           Cardano.SMASH.DBSync.Db.Error
 import           Cardano.SMASH.DBSync.Db.Types
 
-import qualified Data.Text.Encoding as E
-import qualified Data.ByteString.Lazy        as BL
+import qualified Data.ByteString.Lazy          as BL
+import qualified Data.Text.Encoding            as E
 
 -- | The basic @Configuration@.
 data Configuration = Configuration
