@@ -1,7 +1,8 @@
 index-state: 2020-07-15T00:00:00Z
 
 packages:
-    ./
+    ./smash
+    ./smash-servant-types
 
 -- -----------------------------------------------------------------------------
 -- Disable all tests by defauly and yhen enable specific tests in this repo
@@ -9,6 +10,9 @@ packages:
 tests: False
 
 package smash
+  tests: True
+
+package smash-servant-types
   tests: True
 
 test-show-details: direct

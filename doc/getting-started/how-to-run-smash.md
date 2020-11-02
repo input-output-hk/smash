@@ -104,6 +104,18 @@ SMASHPGPASSFILE=config/pgpass ./smash-local run-app-with-db-sync --config config
 
 After this, the SMASH application should start syncing blocks and picking up pools.
 
+## Running tests
+
+You can run tests using Stack:
+```
+stack test --fast -j`nproc` --flag 'smash:testing-mode' --flag 'smash-servant-types:testing-mode'
+```
+
+Or Cabal:
+```
+cabal test all -f testing-mode
+```
+
 ## Checking if it works
 
 For example, after seeing that a pool has be registered, you can try to get it's info by running it's poolid and hash (the example of the hash here is `93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873`):

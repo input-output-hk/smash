@@ -44,7 +44,7 @@ import           Cardano.Prelude
 import           Control.Monad.Fail            (fail)
 
 import           Data.Aeson                    (FromJSON (..), ToJSON (..),
-                                                object, pairs, withObject, (.:), (.=))
+                                                object, withObject, (.:), (.=))
 import qualified Data.Aeson                    as Aeson
 import           Data.Aeson.Encoding           (unsafeToEncoding)
 import qualified Data.Aeson.Types              as Aeson
@@ -58,13 +58,14 @@ import           Data.Swagger                  (NamedSchema (..),
                                                 ToSchema (..))
 import           Data.Text.Encoding            (encodeUtf8Builder)
 
-import           Servant                       (FromHttpApiData (..), MimeUnrender (..), OctetStream)
+import           Servant                       (FromHttpApiData (..),
+                                                MimeUnrender (..), OctetStream)
 
 import           Cardano.SMASH.DBSync.Db.Error
 import           Cardano.SMASH.DBSync.Db.Types
 
-import qualified Data.Text.Encoding as E
-import qualified Data.ByteString.Lazy        as BL
+import qualified Data.ByteString.Lazy          as BL
+import qualified Data.Text.Encoding            as E
 
 -- | The basic @Configuration@.
 data Configuration = Configuration

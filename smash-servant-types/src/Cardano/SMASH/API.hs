@@ -22,7 +22,7 @@ import           Servant             (BasicAuth, Capture, Get, Header, Headers,
 
 import           Servant.Swagger     (HasSwagger (..))
 
-import           Cardano.SMASH.DB    (DBFail)
+import           Cardano.SMASH.DBSync.Db.Error (DBFail)
 import           Cardano.SMASH.Types (ApiResult, HealthStatus, PoolFetchError,
                                       PoolId, PoolMetadataHash,
                                       PoolMetadataWrapped, TimeStringFormat,

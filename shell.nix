@@ -13,7 +13,7 @@ let
   shell = smashHaskellPackages.shellFor {
     name = "cabal-dev-shell";
 
-    packages = ps: lib.attrValues (haskell-nix.haskellLib.selectProjectPackages ps);
+    packages = ps: lib.attrValues (lib.getAttrs projectPackagesNames ps);
 
     # These programs will be available inside the nix-shell.
     buildInputs = with haskellPackages; [

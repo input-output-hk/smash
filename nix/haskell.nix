@@ -7,19 +7,16 @@
 , buildPackages
 , config ? {}
 # GHC attribute name
-, compiler ? config.haskellNix.compiler or "ghc865"
+, compiler
+# Source root directory
+, src
 # Enable profiling
 , profiling ? config.haskellNix.profiling or false
+, projectPackagesNames
+# Disable basic auth by default:
+, flags ? [ "disable-basic-auth" ]
 }:
 let
-
-  src = haskell-nix.haskellLib.cleanGit {
-      name = "smash-src";
-      src = ../.;
-  };
-
-  projectPackages = lib.attrNames (haskell-nix.haskellLib.selectProjectPackages
-    (haskell-nix.cabalProject { inherit src; }));
 
   # This creates the Haskell package set.
   # https://input-output-hk.github.io/haskell.nix/user-guide/projects/
@@ -27,6 +24,7 @@ let
     inherit src;
     compiler-nix-name = compiler;
     modules = [
+
       # Allow reinstallation of Win32
       { nonReinstallablePkgs =
         [ "rts" "ghc-heap" "ghc-prim" "integer-gmp" "integer-simple" "base"
@@ -44,12 +42,14 @@ let
         ];
       }
       {
-        # Disable basic auth:
-        packages.smash.flags.disable-basic-auth = true;
+        # Set flags
+        packages = lib.genAttrs projectPackagesNames (_: {
+          flags = lib.genAttrs flags (_: true);
+        });
       }
       # TODO: Compile all local packages with -Werror:
       #{
-      #  packages = lib.genAttrs projectPackages
+      #  packages = lib.genAttrs projectPackagesNames
       #    (name: { configureFlags = [ "--ghc-option=-Werror" ]; });
       #}
     ];

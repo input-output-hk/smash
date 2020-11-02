@@ -1,5 +1,11 @@
 # Changelog for smash
 
+## Next version
+
+### Story
+
+- [CAD-2169] - Expose API types in a separate package
+
 ## 1.2.0
 
 ### Story

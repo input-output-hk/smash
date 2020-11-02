@@ -11,26 +11,17 @@ maintainer:         operations@iohk.io
 license:            Apache-2.0
 license-file:       LICENSE
 build-type:         Simple
-extra-source-files:
-  README.rst
-  ChangeLog.md
 
 source-repository head
   type:     git
   location: https://github.com/input-output-hk/smash
 
 flag disable-basic-auth
-  description:
-    Disable basic authentication scheme for other authentication mechanisms.
-
+  description: Disable basic authentication scheme for other authentication mechanisms.
   default:     False
 
 flag testing-mode
   description: A flag for allowing operations that promote easy testing.
-  default:     False
-
-flag stub-mode
-  description: Only enable the stub server, disable cardano-db-sync
   default:     False
 
 library
@@ -40,21 +31,10 @@ library
   if flag(testing-mode)
     cpp-options: -DTESTING_MODE
 
-  if flag(stub-mode)
-    cpp-options: -DSTUB_MODE
-  else
-    build-depends:
-      cardano-db-sync
-    exposed-modules:
-      Cardano.SMASH.DBSyncPlugin
-      Cardano.SMASH.DBSync.SmashDbSync
-      Cardano.SMASH.DBSync.Db.Database
-
   exposed-modules:
-    Cardano.SMASH.API
     Cardano.SMASH.DB
+    Cardano.SMASH.DBSync.Db.Database
     Cardano.SMASH.DBSync.Db.Delete
-    Cardano.SMASH.DBSync.Db.Error
     Cardano.SMASH.DBSync.Db.Insert
     Cardano.SMASH.DBSync.Db.Migration
     Cardano.SMASH.DBSync.Db.Migration.Haskell
@@ -63,13 +43,13 @@ library
     Cardano.SMASH.DBSync.Db.Query
     Cardano.SMASH.DBSync.Db.Run
     Cardano.SMASH.DBSync.Db.Schema
-    Cardano.SMASH.DBSync.Db.Types
     Cardano.SMASH.DBSync.Metrics
+    Cardano.SMASH.DBSync.SmashDbSync
+    Cardano.SMASH.DBSyncPlugin
     Cardano.SMASH.FetchQueue
     Cardano.SMASH.FetchQueue.Retry
     Cardano.SMASH.Lib
     Cardano.SMASH.Offline
-    Cardano.SMASH.Types
 
   other-modules:      Paths_smash
   hs-source-dirs:     src
@@ -84,6 +64,7 @@ library
     , cardano-crypto
     , cardano-crypto-class
     , cardano-crypto-wrapper
+    , cardano-db-sync
     , cardano-ledger
     , cardano-prelude
     , cardano-slotting
@@ -121,6 +102,7 @@ library
     , servant-server
     , servant-swagger
     , shelley-spec-ledger
+    , smash-servant-types
     , swagger2
     , template-haskell
     , text
@@ -142,6 +124,10 @@ library
     -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields
 
 executable smash-exe
+
+  if flag(testing-mode)
+    cpp-options: -DTESTING_MODE
+
   main-is:            Main.hs
   other-modules:      Paths_smash
   hs-source-dirs:     app
@@ -149,9 +135,11 @@ executable smash-exe
   build-depends:
       base                  >=4.7 && <5
     , cardano-prelude
+    , cardano-db-sync
     , cardano-slotting
     , optparse-applicative
     , smash
+    , smash-servant-types
 
   default-language:   Haskell2010
   default-extensions:
@@ -162,16 +150,11 @@ executable smash-exe
     -Wall -Wcompat -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields
 
+test-suite smash-test
+
   if flag(testing-mode)
     cpp-options: -DTESTING_MODE
 
-  if flag(stub-mode)
-    cpp-options: -DSTUB_MODE
-  else
-    build-depends:
-      cardano-db-sync
-
-test-suite smash-test
   type:               exitcode-stdio-1.0
   main-is:            Spec.hs
   other-modules:
@@ -190,6 +173,7 @@ test-suite smash-test
     , QuickCheck
     , quickcheck-state-machine  >=0.6
     , smash
+    , smash-servant-types
     , tree-diff
 
   default-language:   Haskell2010
@@ -200,3 +184,4 @@ test-suite smash-test
   ghc-options:
     -Wall -Wcompat -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields
+
