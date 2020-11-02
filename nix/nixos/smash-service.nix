@@ -2,7 +2,7 @@
 
 let
   cfg = config.services.smash;
-  self = config.internal.smashPackages;
+  self = config.smashInternal.smashPackages;
   smashConfig = cfg.explorerConfig // {
     inherit (cfg.nodeConfig) ByronGenesisFile ShelleyGenesisFile ByronGenesisHash ShelleyGenesisHash Protocol RequiresNetworkMagic;
   };
@@ -10,7 +10,7 @@ let
 in {
 
   options = {
-    internal = lib.mkOption {
+    smashInternal = lib.mkOption {
       type = lib.types.attrs;
       internal = true;
       default = { smashPackages = import ../. {}; };
