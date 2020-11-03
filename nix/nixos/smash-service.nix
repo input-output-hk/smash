@@ -2,7 +2,7 @@
 
 let
   cfg = config.services.smash;
-  self = config.internal.smashPackages;
+  inherit (cfg.smashPkgs) smashHaskellPackages smashTestingHaskellPackages iohkNix;
   smashConfig = cfg.explorerConfig // {
     inherit (cfg.nodeConfig) ByronGenesisFile ShelleyGenesisFile ByronGenesisHash ShelleyGenesisHash Protocol RequiresNetworkMagic;
   };
@@ -10,20 +10,31 @@ let
 in {
 
   options = {
-    internal = lib.mkOption {
-      type = lib.types.attrs;
-      internal = true;
-      default = { smashPackages = import ../. {}; };
-    };
     services.smash = {
       enable = lib.mkEnableOption "enable the smash server";
       script = lib.mkOption {
         internal = true;
         type = lib.types.package;
       };
+      smashPkgs = lib.mkOption {
+        type = lib.types.attrs;
+        default = import ../. {};
+        defaultText = "smash pkgs";
+        description = ''
+          The smash packages and library that should be used.
+        '';
+        internal = true;
+      };
+      testing-mode = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "enable testing APIs";
+      };
       package = lib.mkOption {
         type = lib.types.package;
-        default = pkgs.smashHaskellPackages.smash.components.exes.smash-exe or (import ../. {}).smashHaskellPackages.smash.components.exes.smash-exe;
+        default = if cfg.testing-mode
+          then smashTestingHaskellPackages.smash.components.exes.smash-exe
+          else smashHaskellPackages.smash.components.exes.smash-exe;
       };
       explorerConfig = lib.mkOption {
         type = lib.types.attrs;
@@ -35,11 +46,11 @@ in {
       };
       environment = lib.mkOption {
         type = lib.types.nullOr lib.types.attrs;
-        default = self.iohkNix.cardanoLib.environments.${cfg.environmentName};
+        default = iohkNix.cardanoLib.environments.${cfg.environmentName};
       };
       logConfig = lib.mkOption {
         type = lib.types.attrs;
-        default = self.iohkNix.cardanoLib.defaultExplorerLogConfig;
+        default = iohkNix.cardanoLib.defaultExplorerLogConfig;
       };
       environmentName = lib.mkOption {
         type = lib.types.str;
@@ -107,7 +118,7 @@ in {
       export SMASHPGPASSFILE=/$RUNTIME_DIRECTORY/pgpass
       ''}
 
-      ${cfg.package}/bin/smash-exe run-migrations --mdir ${../../schema}
+      ${cfg.package}/bin/smash-exe run-migrations --config ${configFile} --mdir ${../../schema}
       exec ${cfg.package}/bin/smash-exe run-app-with-db-sync \
         --config ${configFile} \
         --socket-path "$CARDANO_NODE_SOCKET_PATH" \
@@ -117,7 +128,7 @@ in {
     systemd.services.smash = {
       path = [ cfg.package pkgs.netcat pkgs.postgresql ];
       preStart = ''
-        for x in {1..10}; do
+        for x in {1..30}; do
           nc -z localhost ${toString config.services.smash.postgres.port} && break
           echo loop $x: waiting for postgresql 2 sec...
           sleep 2

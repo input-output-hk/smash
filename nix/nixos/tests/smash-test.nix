@@ -17,14 +17,24 @@ with pkgs; with commonLib;
       ];
       services.smash = {
         enable = true;
-        environmentName = "shelley_testnet";
+        environmentName = "mainnet";
+        smashPkgs = pkgs;
         inherit (config.services.cardano-node) socketPath;
+      };
+      systemd.services.smash.serviceConfig = {
+        # Put cardano-db-sync in "cardano-node" group so that it can write socket file:
+        SupplementaryGroups = "cardano-node";
       };
       services.cardano-node = {
         enable = true;
-        environment = "shelley_testnet";
+        environment = "mainnet";
         package = smashHaskellPackages.cardano-node.components.exes.cardano-node;
+	      topology = cardanoLib.mkEdgeTopology {
+          port = 3001;
+          edgeNodes = [ "127.0.0.1" ];
+        };
       };
+      systemd.services.cardano-node.serviceConfig.Restart = lib.mkForce "no";
       services.postgresql = {
         enable = true;
         package = postgresql_12;
@@ -50,9 +60,12 @@ with pkgs; with commonLib;
     };
   };
   testScript = ''
-    startAll
-    $machine->waitForUnit("postgresql.service");
-    $machine->waitForUnit("cardano-node.service");
+    start_all()
+    machine.wait_for_unit("postgresql.service")
+    machine.wait_for_unit("cardano-node.service")
+    machine.wait_for_open_port(3001)
+    machine.wait_for_unit("smash.service")
+    machine.wait_for_open_port(3100)
   '';
 
 }

@@ -9,7 +9,7 @@ with pkgs.commonLib;
   forAllSystems = genAttrs supportedSystems;
   importTest = fn: args: system: let
     imported = import fn;
-    test = import (pkgs.path + "/nixos/tests/make-test.nix") imported;
+    test = import (pkgs.path + "/nixos/tests/make-test-python.nix") imported;
   in test ({
     inherit pkgs system config;
   } // args);
