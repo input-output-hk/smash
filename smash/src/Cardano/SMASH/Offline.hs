@@ -149,8 +149,10 @@ fetchInsertNewPoolMetadataOld dataLayer tracer pfr = do
           then left $ FEHashMismatch poolId expectedHash (renderByteStringHex hashFromMetadata) poolMetadataURL
           else liftIO . logInfo tracer $ "Inserting pool data with hash: " <> expectedHash
 
+        let addPoolMetadata = dlAddPoolMetadata postgresqlDataLayer
+
         _ <- liftIO $
-            (dlAddPoolMetadata postgresqlDataLayer)
+                addPoolMetadata
                 (Just $ pfrReferenceId pfr)
                 (pfrPoolIdWtf pfr)
                 (PoolMetadataHash . renderByteStringHex $ pfrPoolMDHash pfr)

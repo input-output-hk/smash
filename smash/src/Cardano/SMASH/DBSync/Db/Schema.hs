@@ -54,6 +54,7 @@ share
     stageOne Int
     stageTwo Int
     stageThree Int
+    deriving Eq
 
   -- The table containing pools' on-chain reference to its off-chain metadata.
 

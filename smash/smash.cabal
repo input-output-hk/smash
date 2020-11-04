@@ -185,3 +185,41 @@ test-suite smash-test
     -Wall -Wcompat -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields
 
+
+test-suite db-spec-test
+
+  if flag(testing-mode)
+    cpp-options: -DTESTING_MODE
+
+  type:               exitcode-stdio-1.0
+  main-is:            DBSpec.hs
+  other-modules:
+    Paths_smash
+    MigrationSpec
+
+  hs-source-dirs:     test
+  ghc-options:        -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base                      >=4.7 && <5
+    , cardano-prelude
+    , filepath
+    , directory
+    , containers
+    , ed25519
+    , hspec
+    , QuickCheck
+    , quickcheck-state-machine  >=0.6
+    , smash
+    , smash-servant-types
+    , tree-diff
+
+  default-language:   Haskell2010
+  default-extensions:
+    NoImplicitPrelude
+    OverloadedStrings
+
+  ghc-options:
+    -Wall -Wcompat -Wincomplete-record-updates
+    -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields
+
+

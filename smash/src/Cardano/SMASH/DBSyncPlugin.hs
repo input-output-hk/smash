@@ -54,11 +54,11 @@ import           Ouroboros.Consensus.Shelley.Ledger.Block    (ShelleyBlock)
 import           Ouroboros.Consensus.Shelley.Protocol.Crypto (TPraosStandardCrypto)
 
 -- |Pass in the @DataLayer@.
-poolMetadataDbSyncNodePlugin :: DbSyncNodePlugin
-poolMetadataDbSyncNodePlugin =
+poolMetadataDbSyncNodePlugin :: DataLayer -> DbSyncNodePlugin
+poolMetadataDbSyncNodePlugin dataLayer =
   DbSyncNodePlugin
     { plugOnStartup = []
-    , plugInsertBlock = [insertCardanoBlock postgresqlDataLayer]
+    , plugInsertBlock = [insertCardanoBlock dataLayer]
     , plugRollbackBlock = []
     }
 
@@ -188,8 +188,6 @@ insertPoolRegister dataLayer tracer params = do
         let metadataUrl = PoolUrl . Shelley.urlToText $ Shelley._poolMDUrl md
         let metadataHash = PoolMetadataHash . decodeUtf8 . B16.encode $ Shelley._poolMDHash md
 
-        -- Ah. We can see there is garbage all over the code. Needs refactoring.
-        -- TODO(KS): Move this above!
         let addMetaDataReference = dlAddMetaDataReference dataLayer
         refId <- lift . liftIO $ addMetaDataReference poolId metadataUrl metadataHash
 
