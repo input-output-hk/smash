@@ -12,11 +12,13 @@ import           Cardano.Prelude
 
 import           Control.Exception                         (SomeException,
                                                             bracket, handle)
-import           Control.Monad                             (forM_, unless)
+import           Control.Monad                             (forM_)
 import           Control.Monad.IO.Class                    (liftIO)
 import           Control.Monad.Logger                      (NoLoggingT)
 import           Control.Monad.Trans.Reader                (ReaderT)
 import           Control.Monad.Trans.Resource              (runResourceT)
+
+import           Cardano.BM.Trace                          (Trace, logInfo)
 
 import qualified Data.ByteString.Char8                     as BS
 import           Data.Conduit.Binary                       (sinkHandle)
@@ -57,28 +59,32 @@ import           System.IO                                 (Handle,
 
 newtype SmashMigrationDir
   = SmashMigrationDir FilePath
+  deriving (Show)
 
 newtype SmashLogFileDir
   = SmashLogFileDir FilePath
+  deriving (Show)
 
 -- | Run the migrations in the provided 'MigrationDir' and write date stamped log file
 -- to 'LogFileDir'.
-runMigrations :: (PGConfig -> PGConfig) -> Bool -> SmashMigrationDir -> Maybe SmashLogFileDir -> IO ()
-runMigrations cfgOverride quiet migrationDir mLogfiledir = do
+runMigrations :: Trace IO Text -> (PGConfig -> PGConfig) -> SmashMigrationDir -> Maybe SmashLogFileDir -> IO ()
+runMigrations tracer cfgOverride migrationDir mLogfiledir = do
     pgconfig <- cfgOverride <$> readPGPassFileEnv
     scripts <- getMigrationScripts migrationDir
+
     case mLogfiledir of
       Nothing -> do
-        putTextLn "Running:"
-        forM_ scripts $ applyMigration quiet pgconfig Nothing stdout
-        putTextLn "Success!"
+        logInfo tracer "Running."
+        forM_ scripts $ applyMigration tracer pgconfig Nothing stdout
+        logInfo tracer "Success!"
 
       Just logfiledir -> do
+        logInfo tracer $ "Running with logfile directory: " <> show logfiledir
         logFilename <- genLogFilename logfiledir
         bracket (openFile logFilename AppendMode) hClose $ \logHandle -> do
-          unless quiet $ putTextLn "Running:"
-          forM_ scripts $ applyMigration quiet pgconfig (Just logFilename) logHandle
-          unless quiet $ putTextLn "Success!"
+          logInfo tracer "Running."
+          forM_ scripts $ applyMigration tracer pgconfig (Just logFilename) logHandle
+          logInfo tracer "Success!"
   where
     genLogFilename :: SmashLogFileDir -> IO FilePath
     genLogFilename (SmashLogFileDir logdir) =
@@ -86,8 +92,8 @@ runMigrations cfgOverride quiet migrationDir mLogfiledir = do
         . formatTime defaultTimeLocale ("migrate-" ++ iso8601DateFormat (Just "%H%M%S") ++ ".log")
         <$> getCurrentTime
 
-applyMigration :: Bool -> PGConfig -> Maybe FilePath -> Handle -> (MigrationVersion, FilePath) -> IO ()
-applyMigration quiet pgconfig mLogFilename logHandle (version, script) = do
+applyMigration :: Trace IO Text -> PGConfig -> Maybe FilePath -> Handle -> (MigrationVersion, FilePath) -> IO ()
+applyMigration tracer pgconfig mLogFilename logHandle (version, script) = do
     -- This assumes that the credentials for 'psql' are already sorted out.
     -- One way to achive this is via a 'PGPASSFILE' environment variable
     -- as per the PostgreSQL documentation.
@@ -105,14 +111,14 @@ applyMigration quiet pgconfig mLogFilename logHandle (version, script) = do
             , "--file='" ++ script ++ "'"
             , "2>&1"                            -- Pipe stderr to stdout.
             ]
-    hPutStrLn logHandle $ "Running : " ++ takeFileName script
-    unless quiet $ putStr ("    " ++ takeFileName script ++ " ... ")
+    logInfo tracer $ toS $ "Running: " ++ takeFileName script
+
     hFlush stdout
     exitCode <- fst <$> handle (errorExit :: SomeException -> IO a)
                         (runResourceT $ sourceCmdWithConsumer command (sinkHandle logHandle))
     case exitCode of
       ExitSuccess -> do
-        unless quiet $ putTextLn "ok"
+        logInfo tracer "ExitSuccess."
         runHaskellMigration logHandle version
       ExitFailure _ -> errorExit exitCode
   where
