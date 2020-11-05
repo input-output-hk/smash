@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE CPP #-}
 
 module Main where
 
@@ -7,6 +7,9 @@ import           Cardano.Prelude
 import           Cardano.SMASH.DB
 import           Cardano.SMASH.Lib
 import           Cardano.SMASH.Types
+
+-- For reading configuration files.
+import           Cardano.DbSync.Config
 
 
 
@@ -18,12 +21,13 @@ import           Options.Applicative              (Parser, ParserInfo,
                                                    ParserPrefs)
 import qualified Options.Applicative              as Opt
 
+import qualified Cardano.BM.Setup                 as Logging
 import           Cardano.Slotting.Slot            (SlotNo (..))
-import           Cardano.SMASH.DBSyncPlugin       (poolMetadataDbSyncNodePlugin)
 import           Cardano.SMASH.DBSync.SmashDbSync (ConfigFile (..),
                                                    SmashDbSyncNodeParams (..),
                                                    SocketPath (..),
                                                    runDbSyncNode)
+import           Cardano.SMASH.DBSyncPlugin       (poolMetadataDbSyncNodePlugin)
 
 
 main :: IO ()
@@ -43,7 +47,7 @@ main = do
 
 data Command
   = CreateMigration SmashMigrationDir
-  | RunMigrations SmashMigrationDir (Maybe SmashLogFileDir)
+  | RunMigrations ConfigFile SmashMigrationDir (Maybe SmashLogFileDir)
   | RunApplication
 #ifdef TESTING_MODE
   | RunStubApplication
@@ -56,7 +60,12 @@ runCommand :: Command -> IO ()
 runCommand cmd =
   case cmd of
     CreateMigration mdir -> doCreateMigration mdir
-    RunMigrations mdir mldir -> runMigrations (\pgConfig -> pgConfig) False mdir mldir
+
+    RunMigrations configFile mdir mldir -> do
+        enc <- readDbSyncNodeConfig (unConfigFile configFile)
+        trce <- Logging.setupTrace (Right $ encLoggingConfig enc) "smash-node"
+        runMigrations trce (\pgConfig -> pgConfig) mdir mldir
+
     RunApplication -> runApp defaultConfiguration
 #ifdef TESTING_MODE
     RunStubApplication -> runAppStubbed defaultConfiguration
@@ -182,7 +191,7 @@ pCommand =
 
     pRunMigrations :: Parser Command
     pRunMigrations =
-      RunMigrations <$> pSmashMigrationDir <*> optional pLogFileDir
+      RunMigrations <$> pConfigFile <*> pSmashMigrationDir <*> optional pLogFileDir
 
     -- Empty right now but we might add some params over time. Like ports and stuff?
     pRunApp :: Parser Command

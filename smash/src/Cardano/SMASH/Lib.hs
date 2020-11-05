@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE NumericUnderscores  #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
@@ -111,6 +112,10 @@ mkApp configuration = do
 
     let dataLayer :: DataLayer
         dataLayer = postgresqlDataLayer
+
+    -- Ugly hack, wait 2s for migrations to run for the admin user to be created.
+    -- You can always run the migrations first.
+    threadDelay 2_000_000
 
     -- Fetch the admin users from the DB.
     let getAdminUsers = dlGetAdminUsers dataLayer
@@ -338,7 +343,7 @@ addPool dataLayer poolId poolHash (PoolMetadataWrapped poolMetadataJson) = conve
     poolMetadataE <- runPoolInsertion dataLayer poolMetadataJson poolId poolHash
 
     case poolMetadataE of
-        Left dbFail -> return . ApiResult . Left $ dbFail
+        Left dbFail        -> return . ApiResult . Left $ dbFail
         Right poolMetadata -> return . ApiResult . Right $ poolId
 #endif
 

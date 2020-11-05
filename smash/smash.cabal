@@ -138,6 +138,7 @@ executable smash-exe
     , cardano-db-sync
     , cardano-slotting
     , optparse-applicative
+    , iohk-monitoring
     , smash
     , smash-servant-types
 

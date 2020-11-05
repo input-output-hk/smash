@@ -187,6 +187,7 @@ runDbSyncNode plugin enp =
     readEnc <- readDbSyncNodeConfig (unConfigFile configFile)
 
     -- Fix genesis paths to be relative to the config file directory.
+    -- Absolute paths are valid!
     let enc = readEnc
             { encByronGenesisFile = adjustGenesisFilePath (mkAdjustPath configFile) (encByronGenesisFile readEnc)
             , encShelleyGenesisFile = adjustGenesisFilePath (mkAdjustPath configFile) (encShelleyGenesisFile readEnc)
@@ -201,7 +202,7 @@ runDbSyncNode plugin enp =
 
     logInfo trce $ "Running migrations."
 
-    DB.runMigrations Prelude.id True (senpMigrationDir enp) (Just $ DB.SmashLogFileDir "/tmp")
+    DB.runMigrations trce Prelude.id (senpMigrationDir enp) (Just $ DB.SmashLogFileDir "/tmp")
 
     logInfo trce $ "Migrations complete."
 
@@ -277,6 +278,9 @@ validateGenesisDistribution tracer networkName cfg =
   runExceptT $ do
     liftIO $ logInfo tracer "Validating Genesis distribution"
     meta <- firstExceptT (\(e :: DB.DBFail) -> NEError $ show e) . newExceptT $ DB.queryMeta
+
+    -- Show configuration we are validating
+    print cfg
 
     when (DB.metaProtocolConst meta /= protocolConstant cfg) $
       dbSyncNodeError $ Text.concat
