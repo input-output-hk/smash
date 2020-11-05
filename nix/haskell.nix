@@ -76,7 +76,7 @@ let
         });
       }
       {
-        packages.cardano-db.components.tests.db-spec-test = {
+        packages.smash.components.tests.db-spec-test = {
           build-tools = [ postgresql ];
           inherit preCheck;
         };
