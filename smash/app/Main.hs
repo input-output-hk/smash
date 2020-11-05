@@ -63,7 +63,7 @@ runCommand cmd =
 #endif
     RunApplicationWithDbSync dbSyncNodeParams ->
         race_
-            (runDbSyncNode poolMetadataDbSyncNodePlugin dbSyncNodeParams)
+            (runDbSyncNode (poolMetadataDbSyncNodePlugin postgresqlDataLayer) dbSyncNodeParams)
             (runApp defaultConfiguration)
     InsertPool poolMetadataJsonPath poolId poolHash -> do
         putTextLn "Inserting pool metadata!"

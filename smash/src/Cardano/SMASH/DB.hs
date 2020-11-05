@@ -27,6 +27,8 @@ import qualified Data.Map                                  as Map
 import           Data.Time.Clock                           (UTCTime)
 import           Data.Time.Clock.POSIX                     (utcTimeToPOSIXSeconds)
 
+import           Cardano.BM.Trace                          (Trace)
+
 import           Cardano.SMASH.Types
 
 import           Cardano.SMASH.DBSync.Db.Delete            (deleteDelistedPool)
@@ -169,6 +171,7 @@ createStubbedDataLayer = do
 
     return dataLayer
 
+-- TODO(KS): Passing the optional tracer.
 postgresqlDataLayer :: DataLayer
 postgresqlDataLayer = DataLayer
     { dlGetPoolMetadata = \poolId poolMetadataHash -> do

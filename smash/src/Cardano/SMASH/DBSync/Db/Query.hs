@@ -5,6 +5,7 @@
 
 module Cardano.SMASH.DBSync.Db.Query
   ( DBFail (..)
+  , querySchemaVersion
   , queryPoolMetadata
   , queryBlockCount
   , queryBlockNo
@@ -47,6 +48,14 @@ import           Database.Persist.Sql           (SqlBackend, selectList)
 import           Cardano.SMASH.DBSync.Db.Error
 import           Cardano.SMASH.DBSync.Db.Schema
 import qualified Cardano.SMASH.DBSync.Db.Types  as Types
+
+-- | Query the schema version of the database.
+querySchemaVersion :: MonadIO m => ReaderT SqlBackend m (Maybe SchemaVersion)
+querySchemaVersion = do
+  res <- select . from $ \ sch -> do
+            orderBy [desc (sch ^. SchemaVersionStageOne)]
+            pure sch
+  pure $ entityVal <$> listToMaybe res
 
 -- | Get the 'Block' associated with the given hash.
 -- We use the @Types.PoolId@ to get the nice error message out.
