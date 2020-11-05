@@ -55,8 +55,19 @@ let
       map (drv: drv // { inherit packageName; }) (collectJobs' package)
     ) ds);
 
+  nonDefaultBuildSystems = tail supportedSystems;
+  # Paths or prefixes of paths of derivations to build only on the default system (ie. linux on hydra):
+  onlyBuildOnDefaultSystem = [
+    ["dockerImage"]
+    ["checks" "tests" "smash" "db-spec-test"] ["haskellPackages" "smash" "checks" "db-spec-test"]
+  ];
+
   jobs = {
-    native = mapTestOn (__trace (__toJSON (packagePlatforms project)) (packagePlatforms project));
+    native =
+      let filteredBuilds = mapAttrsRecursiveCond (a: !(isList a)) (path: value:
+        if (any (p: take (length p) path == p) onlyBuildOnDefaultSystem) then filter (s: !(elem s nonDefaultBuildSystems)) value else value)
+        (packagePlatforms project);
+      in (mapTestOn (__trace (__toJSON filteredBuilds) filteredBuilds));
     # only build nixos tests on first supported system (linux)
   } // (mkRequiredJob (concatLists [
     (collectJobs jobs.native.checks)
