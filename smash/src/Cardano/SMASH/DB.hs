@@ -70,7 +70,7 @@ data DataLayer = DataLayer
     { dlGetPoolMetadata         :: PoolId -> PoolMetadataHash -> IO (Either DBFail (Text, Text))
     , dlAddPoolMetadata         :: Maybe PoolMetadataReferenceId -> PoolId -> PoolMetadataHash -> Text -> PoolTicker -> IO (Either DBFail Text)
 
-    , dlAddMetaDataReference    :: PoolId -> PoolUrl -> PoolMetadataHash -> IO PoolMetadataReferenceId
+    , dlAddMetaDataReference    :: PoolId -> PoolUrl -> PoolMetadataHash -> IO (Either DBFail PoolMetadataReferenceId)
 
     , dlAddReservedTicker       :: Text -> PoolMetadataHash -> IO (Either DBFail ReservedTickerId)
     , dlCheckReservedTicker     :: Text -> IO (Maybe ReservedTicker)
@@ -181,8 +181,11 @@ postgresqlDataLayer = DataLayer
         return $ (,) <$> poolTickerName <*> poolMetadata'
     , dlAddPoolMetadata     = \mRefId poolId poolHash poolMetadata poolTicker -> do
         let poolTickerName = Types.TickerName $ getPoolTicker poolTicker
-        _ <- runDbAction Nothing $ insertPoolMetadata $ PoolMetadata poolId poolTickerName poolHash (Types.PoolMetadataRaw poolMetadata) mRefId
-        return $ Right poolMetadata
+        poolMetadataId <- runDbAction Nothing $ insertPoolMetadata $ PoolMetadata poolId poolTickerName poolHash (Types.PoolMetadataRaw poolMetadata) mRefId
+
+        case poolMetadataId of
+            Left err -> return $ Left err
+            Right _id -> return $ Right poolMetadata
 
     , dlAddMetaDataReference = \poolId poolUrl poolMetadataHash -> do
         poolMetadataRefId <- runDbAction Nothing $ insertPoolMetadataReference $
@@ -206,7 +209,10 @@ postgresqlDataLayer = DataLayer
         runDbAction Nothing $ queryDelistedPool poolId
     , dlAddDelistedPool  = \poolId -> do
         delistedPoolId <- runDbAction Nothing $ insertDelistedPool $ DelistedPool poolId
-        return $ Right poolId
+
+        case delistedPoolId of
+            Left err -> return $ Left err
+            Right _id -> return $ Right poolId
     , dlRemoveDelistedPool = \poolId -> do
         isDeleted <- runDbAction Nothing $ deleteDelistedPool poolId
         -- Up for a discussion, but this might be more sensible in the lower DB layer.
@@ -215,8 +221,11 @@ postgresqlDataLayer = DataLayer
             else return $ Left RecordDoesNotExist
 
     , dlAddRetiredPool  = \poolId -> do
-        _retiredPoolId <- runDbAction Nothing $ insertRetiredPool $ RetiredPool poolId
-        return $ Right poolId
+        retiredPoolId <- runDbAction Nothing $ insertRetiredPool $ RetiredPool poolId
+
+        case retiredPoolId of
+            Left err -> return $ Left err
+            Right _id -> return $ Right poolId
     , dlGetRetiredPools = do
         retiredPools <- runDbAction Nothing $ queryAllRetiredPools
         return $ Right $ map retiredPoolPoolId retiredPools
@@ -227,7 +236,7 @@ postgresqlDataLayer = DataLayer
 
     , dlAddFetchError       = \poolMetadataFetchError -> do
         poolMetadataFetchErrorId <- runDbAction Nothing $ insertPoolMetadataFetchError poolMetadataFetchError
-        return $ Right poolMetadataFetchErrorId
+        return poolMetadataFetchErrorId
     , dlGetFetchErrors      = \poolId mTimeFrom -> do
         poolMetadataFetchErrors <- runDbAction Nothing (queryPoolMetadataFetchErrorByTime poolId mTimeFrom)
         pure $ sequence $ Right <$> map convertPoolMetadataFetchError poolMetadataFetchErrors
