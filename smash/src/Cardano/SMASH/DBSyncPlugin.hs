@@ -19,8 +19,7 @@ import           Control.Monad.Trans.Except.Extra            (firstExceptT,
 import           Control.Monad.Trans.Reader                  (ReaderT)
 
 import           Cardano.SMASH.DB                            (DBFail (..),
-                                                              DataLayer (..),
-                                                              postgresqlDataLayer)
+                                                              DataLayer (..))
 import           Cardano.SMASH.Offline                       (fetchInsertNewPoolMetadata)
 import           Cardano.SMASH.Types                         (PoolId (..), PoolMetadataHash (..),
                                                               PoolUrl (..))
@@ -189,7 +188,10 @@ insertPoolRegister dataLayer tracer params = do
         let metadataHash = PoolMetadataHash . decodeUtf8 . B16.encode $ Shelley._poolMDHash md
 
         let addMetaDataReference = dlAddMetaDataReference dataLayer
-        refId <- lift . liftIO $ addMetaDataReference poolId metadataUrl metadataHash
+
+        -- We need to map this to ExceptT
+        refId <- firstExceptT (\(e :: DBFail) -> NEError $ show e) . newExceptT . liftIO $
+            addMetaDataReference poolId metadataUrl metadataHash
 
         liftIO $ fetchInsertNewPoolMetadata dataLayer tracer refId poolId md
 

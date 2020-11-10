@@ -212,6 +212,7 @@ test-suite db-spec-test
     , quickcheck-state-machine  >=0.6
     , smash
     , smash-servant-types
+    , iohk-monitoring
     , tree-diff
 
   default-language:   Haskell2010

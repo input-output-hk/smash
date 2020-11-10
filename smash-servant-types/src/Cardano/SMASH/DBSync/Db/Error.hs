@@ -27,6 +27,7 @@ data DBFail
   | UnknownError !Text
   | ReservedTickerAlreadyInserted !Text
   | RecordDoesNotExist
+  | DbInsertError !Text
   deriving (Eq, Show, Generic)
 
 {-
@@ -92,6 +93,11 @@ instance ToJSON DBFail where
             [ "code"            .= String "RecordDoesNotExist"
             , "description"     .= String (renderLookupFail failure)
             ]
+    toJSON failure@(DbInsertError _err) =
+        object
+            [ "code"            .= String "DbInsertError"
+            , "description"     .= String (renderLookupFail failure)
+            ]
 
 renderLookupFail :: DBFail -> Text
 renderLookupFail lf =
@@ -106,4 +112,5 @@ renderLookupFail lf =
     UnknownError text -> "Unknown error. Context: " <> text
     ReservedTickerAlreadyInserted tickerName -> "Ticker '" <> tickerName <> "' has already been inserted."
     RecordDoesNotExist -> "The requested record does not exist."
+    DbInsertError text -> "The database got an error while trying to insert a record. Error: " <> text
 

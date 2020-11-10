@@ -11,6 +11,7 @@ import           Test.Hspec                        (Spec, describe)
 import           Test.Hspec.QuickCheck             (modifyMaxSuccess, prop)
 import           Test.QuickCheck.Monadic           (assert, monadicIO, run)
 
+import qualified Cardano.BM.Trace                  as Logging
 import           Cardano.SMASH.DBSync.Db.Migration (SmashLogFileDir (..),
                                                     SmashMigrationDir (..),
                                                     runMigrations)
@@ -32,7 +33,7 @@ migrationSpec = do
 migrationTest :: IO ()
 migrationTest = do
     let schemaDir = SmashMigrationDir "../schema"
-    runMigrations (\x -> x) True schemaDir (Just $ SmashLogFileDir "/tmp")
+    runMigrations Logging.nullTracer (\x -> x) schemaDir (Just $ SmashLogFileDir "/tmp")
 
     -- TODO(KS): This version HAS to be changed manually so we don't mess up the
     -- migration.
