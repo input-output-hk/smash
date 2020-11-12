@@ -13,8 +13,6 @@ module Cardano.SMASH.Lib
     , defaultConfiguration
     , runApp
     , runAppStubbed
-    , runPoolInsertion
-    , runTickerNameInsertion
     ) where
 
 import           Cardano.Prelude             hiding (Handler)
@@ -41,17 +39,19 @@ import           Servant.Swagger             (toSwagger)
 
 import           Cardano.SMASH.API           (API, fullAPI, smashApi)
 import           Cardano.SMASH.DB            (AdminUser (..), DBFail (..),
-                                              DataLayer (..), ReservedTickerId,
+                                              DataLayer (..),
                                               createStubbedDataLayer,
                                               postgresqlDataLayer,
                                               reservedTickerPoolHash)
+
 import           Cardano.SMASH.Types         (ApiResult (..),
                                               ApplicationUser (..),
                                               ApplicationUsers (..),
                                               Configuration (..),
                                               HealthStatus (..), PoolFetchError,
                                               PoolId (..), PoolMetadataHash,
-                                              PoolMetadataWrapped (..),
+                                              PoolMetadataRaw (..),
+                                              TickerName (..),
                                               TimeStringFormat (..), User,
                                               UserValidity (..),
                                               checkIfUserValid,
@@ -136,29 +136,16 @@ mkApp configuration = do
     convertToAppUsers :: AdminUser -> ApplicationUser
     convertToAppUsers (AdminUser username' password') = ApplicationUser username' password'
 
---runPoolInsertion poolMetadataJsonPath poolHash
-runPoolInsertion :: DataLayer -> Text -> PoolId -> PoolMetadataHash -> IO (Either DBFail Text)
-runPoolInsertion dataLayer poolMetadataJson poolId poolHash = do
-    putTextLn $ "Inserting pool! " <> (show poolId)
+runPoolInsertion :: DataLayer -> PoolMetadataRaw -> PoolId -> PoolMetadataHash -> IO (Either DBFail PoolMetadataRaw)
+runPoolInsertion dataLayer poolMetadataRaw poolId poolHash = do
 
-    decodedMetadata <-  case (eitherDecode' $ BL.fromStrict (encodeUtf8 poolMetadataJson)) of
+    decodedMetadata <-  case (eitherDecode' . BL.fromStrict . encodeUtf8 . getPoolMetadata $ poolMetadataRaw) of
                             Left err     -> panic $ toS err
                             Right result -> return result
 
     let addPoolMetadata = dlAddPoolMetadata dataLayer
 
-    addPoolMetadata Nothing poolId poolHash poolMetadataJson (pomTicker decodedMetadata)
-
-runTickerNameInsertion :: Text -> PoolMetadataHash -> IO (Either DBFail ReservedTickerId)
-runTickerNameInsertion tickerName poolMetadataHash = do
-
-    let dataLayer :: DataLayer
-        dataLayer = postgresqlDataLayer
-
-    let addReservedTicker = dlAddReservedTicker dataLayer
-    putTextLn $ "Adding reserved ticker '" <> tickerName <> "' with hash: " <> show poolMetadataHash
-
-    addReservedTicker tickerName poolMetadataHash
+    addPoolMetadata Nothing poolId poolHash poolMetadataRaw (pomTicker decodedMetadata)
 
 -- | We need to supply our handlers with the right Context.
 basicAuthServerContext :: ApplicationUsers -> Context (BasicAuthCheck User ': '[])
@@ -201,6 +188,7 @@ server _configuration dataLayer
 #ifdef TESTING_MODE
     :<|>    retirePool dataLayer
     :<|>    addPool dataLayer
+    :<|>    addTicker dataLayer
 #endif
 
 
@@ -211,7 +199,7 @@ getPoolOfflineMetadata
     :: DataLayer
     -> PoolId
     -> PoolMetadataHash
-    -> Handler ((Headers '[Header "Cache" Text] (ApiResult DBFail PoolMetadataWrapped)))
+    -> Handler ((Headers '[Header "Cache" Text] (ApiResult DBFail PoolMetadataRaw)))
 getPoolOfflineMetadata dataLayer poolId poolHash = fmap (addHeader "always") . convertIOToHandler $ do
 
     let checkDelistedPool = dlCheckDelistedPool dataLayer
@@ -234,10 +222,10 @@ getPoolOfflineMetadata dataLayer poolId poolHash = fmap (addHeader "always") . c
             -- pool hash.
             reservedTicker <- checkReservedTicker tickerName
             case reservedTicker of
-                Nothing -> return . ApiResult . Right $ PoolMetadataWrapped poolMetadata
+                Nothing -> return . ApiResult . Right $ poolMetadata
                 Just foundReservedTicker ->
                     if (reservedTickerPoolHash foundReservedTicker) == poolHash
-                        then return . ApiResult . Right $ PoolMetadataWrapped poolMetadata
+                        then return . ApiResult . Right $ poolMetadata
                         else throwIO err404
 
 -- |Simple health status, there are ideas for improvement.
@@ -337,13 +325,23 @@ retirePool dataLayer poolId = convertIOToHandler $ do
 
     return . ApiResult $ retiredPoolId
 
-addPool :: DataLayer -> PoolId -> PoolMetadataHash -> PoolMetadataWrapped -> Handler (ApiResult DBFail PoolId)
-addPool dataLayer poolId poolHash (PoolMetadataWrapped poolMetadataJson) = convertIOToHandler $ do
+addPool :: DataLayer -> PoolId -> PoolMetadataHash -> PoolMetadataRaw -> Handler (ApiResult DBFail PoolId)
+addPool dataLayer poolId poolHash poolMetadataRaw = convertIOToHandler $ do
 
-    poolMetadataE <- runPoolInsertion dataLayer poolMetadataJson poolId poolHash
+    poolMetadataE <- runPoolInsertion dataLayer poolMetadataRaw poolId poolHash
 
     case poolMetadataE of
-        Left dbFail        -> return . ApiResult . Left $ dbFail
-        Right poolMetadata -> return . ApiResult . Right $ poolId
+        Left dbFail         -> return . ApiResult . Left $ dbFail
+        Right _poolMetadata -> return . ApiResult . Right $ poolId
+
+addTicker :: DataLayer -> TickerName -> PoolMetadataHash -> Handler (ApiResult DBFail TickerName)
+addTicker dataLayer tickerName poolMetadataHash = convertIOToHandler $ do
+
+    let addReservedTicker = dlAddReservedTicker dataLayer
+    reservedTickerE <- addReservedTicker tickerName poolMetadataHash
+
+    case reservedTickerE of
+        Left dbFail           -> return . ApiResult . Left $ dbFail
+        Right _reservedTicker -> return . ApiResult . Right $ tickerName
 #endif
 

@@ -177,7 +177,7 @@ queryAllDelistedPools = do
   pure $ entityVal <$> res
 
 -- | Check if the ticker is in the table.
-queryReservedTicker :: MonadIO m => Text -> ReaderT SqlBackend m (Maybe ReservedTicker)
+queryReservedTicker :: MonadIO m => Types.TickerName -> ReaderT SqlBackend m (Maybe ReservedTicker)
 queryReservedTicker reservedTickerName = do
   res <- select . from $ \(reservedTicker :: SqlExpr (Entity ReservedTicker)) -> do
             where_ (reservedTicker ^. ReservedTickerName ==. val reservedTickerName)

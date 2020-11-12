@@ -14,19 +14,22 @@ module Cardano.SMASH.API
 
 import           Cardano.Prelude
 
-import           Data.Swagger        (Swagger (..))
+import           Data.Swagger                  (Swagger (..))
 
-import           Servant             ((:<|>) (..), (:>), OctetStream, Post)
-import           Servant             (BasicAuth, Capture, Get, Header, Headers,
-                                      JSON, Patch, QueryParam, ReqBody)
+import           Servant                       ((:<|>) (..), (:>), OctetStream,
+                                                Post)
+import           Servant                       (BasicAuth, Capture, Get, Header,
+                                                Headers, JSON, Patch,
+                                                QueryParam, ReqBody)
 
-import           Servant.Swagger     (HasSwagger (..))
+import           Servant.Swagger               (HasSwagger (..))
 
 import           Cardano.SMASH.DBSync.Db.Error (DBFail)
-import           Cardano.SMASH.Types (ApiResult, HealthStatus, PoolFetchError,
-                                      PoolId, PoolMetadataHash,
-                                      PoolMetadataWrapped, TimeStringFormat,
-                                      User)
+import           Cardano.SMASH.Types           (ApiResult, HealthStatus,
+                                                PoolFetchError, PoolId,
+                                                PoolMetadataHash,
+                                                PoolMetadataRaw, TickerName,
+                                                TimeStringFormat, User)
 
 -- |For api versioning.
 type APIVersion = "v1"
@@ -41,7 +44,7 @@ type BasicAuthURL = BasicAuth "smash" User
 type HealthStatusAPI = "api" :> APIVersion :> "status" :> ApiRes Get HealthStatus
 
 -- GET api/v1/metadata/{hash}
-type OfflineMetadataAPI = "api" :> APIVersion :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> Get '[JSON] (Headers '[Header "Cache" Text] (ApiResult DBFail PoolMetadataWrapped))
+type OfflineMetadataAPI = "api" :> APIVersion :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> Get '[JSON] (Headers '[Header "Cache" Text] (ApiResult DBFail PoolMetadataRaw))
 
 -- GET api/v1/delisted
 type DelistedPoolsAPI = "api" :> APIVersion :> "delisted" :> ApiRes Get [PoolId]
@@ -74,9 +77,12 @@ type SmashAPI =  OfflineMetadataAPI
 #ifdef TESTING_MODE
             :<|> RetirePoolAPI
             :<|> AddPoolAPI
+            :<|> AddTickerAPI
 
 type RetirePoolAPI = "api" :> APIVersion :> "retired" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
-type AddPoolAPI = "api" :> APIVersion :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> ReqBody '[OctetStream] PoolMetadataWrapped :> ApiRes Post PoolId
+type AddPoolAPI = "api" :> APIVersion :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> ReqBody '[OctetStream] PoolMetadataRaw :> ApiRes Post PoolId
+type AddTickerAPI = "api" :> APIVersion :> "ticker" :> Capture "id" TickerName :> ReqBody '[JSON] PoolMetadataHash :> ApiRes Post TickerName
+
 #endif
 
 -- | API for serving @swagger.json@.

@@ -25,6 +25,7 @@ import           Cardano.SMASH.Types              (FetchError (..),
                                                    PoolFetchError (..),
                                                    PoolId (..),
                                                    PoolMetadataHash (..),
+                                                   PoolMetadataRaw (..),
                                                    getPoolMetadataHash,
                                                    getPoolUrl, pomTicker)
 
@@ -156,7 +157,7 @@ fetchInsertNewPoolMetadataOld dataLayer tracer pfr = do
                 (Just $ pfrReferenceId pfr)
                 (pfrPoolIdWtf pfr)
                 (PoolMetadataHash . renderByteStringHex $ pfrPoolMDHash pfr)
-                (decodeUtf8 respBS)
+                (PoolMetadataRaw $ decodeUtf8 respBS)
                 (pomTicker decodedMetadata)
 
         liftIO $ logInfo tracer (decodeUtf8 respBS)

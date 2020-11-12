@@ -53,8 +53,6 @@ data Command
   | RunStubApplication
 #endif
   | RunApplicationWithDbSync SmashDbSyncNodeParams
-  | InsertPool FilePath PoolId PoolMetadataHash
-  | ReserveTickerName Text PoolMetadataHash
 
 runCommand :: Command -> IO ()
 runCommand cmd =
@@ -74,21 +72,6 @@ runCommand cmd =
         race_
             (runDbSyncNode (poolMetadataDbSyncNodePlugin postgresqlDataLayer) dbSyncNodeParams)
             (runApp defaultConfiguration)
-    InsertPool poolMetadataJsonPath poolId poolHash -> do
-        putTextLn "Inserting pool metadata!"
-        poolMetadataJson <- readFile poolMetadataJsonPath
-        result <- runPoolInsertion postgresqlDataLayer poolMetadataJson poolId poolHash
-        either
-            (\err -> putTextLn $ "Error occured. " <> renderLookupFail err)
-            (\_ -> putTextLn "Insertion completed!")
-            result
-    ReserveTickerName tickerName poolHash -> do
-        putTextLn "Reserving ticker name!"
-        result <- runTickerNameInsertion tickerName poolHash
-        either
-            (\err -> putTextLn $ "Reserved ticker name not inserted! " <> renderLookupFail err)
-            (\_ -> putTextLn "Ticker name inserted into the database reserved!")
-            result
 
 doCreateMigration :: SmashMigrationDir -> IO ()
 doCreateMigration mdir = do
@@ -175,14 +158,6 @@ pCommand =
         ( Opt.info pRunAppWithDbSync
           $ Opt.progDesc "Run the application that syncs up the pool info and serves it."
           )
-    <> Opt.command "insert-pool"
-        ( Opt.info pInsertPool
-          $ Opt.progDesc "Inserts the pool into the database (utility)."
-          )
-    <> Opt.command "reserve-ticker-name"
-        ( Opt.info pReserveTickerName
-          $ Opt.progDesc "Inserts the ticker name into the database (utility)."
-          )
     )
   where
     pCreateMigration :: Parser Command
@@ -208,16 +183,6 @@ pCommand =
     pRunAppWithDbSync :: Parser Command
     pRunAppWithDbSync =
       RunApplicationWithDbSync <$> pCommandLine
-
-    -- Empty right now but we might add some params over time.
-    pInsertPool :: Parser Command
-    pInsertPool =
-      InsertPool <$> pFilePath <*> pPoolId <*> pPoolHash
-
-    -- For inserting ticker names.
-    pReserveTickerName :: Parser Command
-    pReserveTickerName =
-      ReserveTickerName <$> pTickerName <*> pPoolHash
 
 
 pPoolId :: Parser PoolId

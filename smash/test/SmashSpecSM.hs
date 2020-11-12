@@ -90,14 +90,14 @@ data DBModel = DBModel
 -- | The list of commands/actions the model can take.
 -- The __r__ type here is the polymorphic type param for symbolic and concrete @Action@.
 data Action (r :: Type -> Type)
-    = InsertPool !PoolId !PoolMetadataHash !Text
+    = InsertPool !PoolId !PoolMetadataHash !PoolMetadataRaw
     -- ^ This should really be more type-safe.
     deriving (Show, Generic1, Rank2.Foldable, Rank2.Traversable, Rank2.Functor, CommandNames)
 
 -- | The types of responses of the model.
 -- The __r__ type here is the polymorphic type param for symbolic and concrete @Response@.
 data Response (r :: Type -> Type)
-    = PoolInserted !PoolId !PoolMetadataHash !Text
+    = PoolInserted !PoolId !PoolMetadataHash !PoolMetadataRaw
     | MissingPoolHash !PoolId !PoolMetadataHash
     deriving (Show, Generic1, Rank2.Foldable, Rank2.Traversable, Rank2.Functor)
 
@@ -207,8 +207,8 @@ genPoolHash :: Gen PoolMetadataHash
 genPoolHash = PoolMetadataHash <$> genSafeText
 
 -- |Improve this.
-genPoolOfflineMetadataText :: Gen Text
-genPoolOfflineMetadataText = genSafeText
+genPoolOfflineMetadataText :: Gen PoolMetadataRaw
+genPoolOfflineMetadataText = PoolMetadataRaw <$> genSafeText
 
 genSafeChar :: Gen Char
 genSafeChar = elements ['a'..'z']

@@ -60,20 +60,20 @@ import           Cardano.SMASH.DBSync.Db.Schema            as X (AdminUser (..),
                                                                  ReservedTickerId (..),
                                                                  RetiredPool (..),
                                                                  poolMetadataMetadata)
-import qualified Cardano.SMASH.DBSync.Db.Types             as Types
+import           Cardano.SMASH.DBSync.Db.Types             (TickerName (..))
 
 -- | This is the data layer for the DB.
 -- The resulting operation has to be @IO@, it can be made more granular,
 -- but currently there is no complexity involved for that to be a sane choice.
 -- TODO(KS): Newtype wrapper around @Text@ for the metadata.
 data DataLayer = DataLayer
-    { dlGetPoolMetadata         :: PoolId -> PoolMetadataHash -> IO (Either DBFail (Text, Text))
-    , dlAddPoolMetadata         :: Maybe PoolMetadataReferenceId -> PoolId -> PoolMetadataHash -> Text -> PoolTicker -> IO (Either DBFail Text)
+    { dlGetPoolMetadata         :: PoolId -> PoolMetadataHash -> IO (Either DBFail (TickerName, PoolMetadataRaw))
+    , dlAddPoolMetadata         :: Maybe PoolMetadataReferenceId -> PoolId -> PoolMetadataHash -> PoolMetadataRaw -> PoolTicker -> IO (Either DBFail PoolMetadataRaw)
 
     , dlAddMetaDataReference    :: PoolId -> PoolUrl -> PoolMetadataHash -> IO (Either DBFail PoolMetadataReferenceId)
 
-    , dlAddReservedTicker       :: Text -> PoolMetadataHash -> IO (Either DBFail ReservedTickerId)
-    , dlCheckReservedTicker     :: Text -> IO (Maybe ReservedTicker)
+    , dlAddReservedTicker       :: TickerName -> PoolMetadataHash -> IO (Either DBFail ReservedTickerId)
+    , dlCheckReservedTicker     :: TickerName -> IO (Maybe ReservedTicker)
 
     , dlGetDelistedPools        :: IO [PoolId]
     , dlCheckDelistedPool       :: PoolId -> IO Bool
@@ -100,7 +100,7 @@ newtype RetiredPoolsIORef = RetiredPoolsIORef (IORef [PoolId])
 -- We do need state here. _This is thread safe._
 -- __This is really our model here.__
 stubbedDataLayer
-    :: IORef (Map (PoolId, PoolMetadataHash) (Text, Text))
+    :: IORef (Map (PoolId, PoolMetadataHash) (TickerName, PoolMetadataRaw))
     -> DelistedPoolsIORef
     -> RetiredPoolsIORef
     -> DataLayer
@@ -108,13 +108,11 @@ stubbedDataLayer ioDataMap (DelistedPoolsIORef ioDelistedPool) (RetiredPoolsIORe
     { dlGetPoolMetadata     = \poolId poolmdHash -> do
         ioDataMap' <- readIORef ioDataMap
         case (Map.lookup (poolId, poolmdHash) ioDataMap') of
-            Just (poolTicker', poolOfflineMetadata')
-              -> return . Right $ (poolTicker', poolOfflineMetadata')
-            Nothing                     -> return $ Left (DbLookupPoolMetadataHash poolId poolmdHash)
+            Just (poolTicker', poolOfflineMetadata') -> return . Right $ (poolTicker', poolOfflineMetadata')
+            Nothing -> return $ Left (DbLookupPoolMetadataHash poolId poolmdHash)
     , dlAddPoolMetadata     = \ _ poolId poolmdHash poolMetadata poolTicker -> do
         -- TODO(KS): What if the pool metadata already exists?
-        _ <- modifyIORef ioDataMap (Map.insert (poolId, poolmdHash)
-          (getPoolTicker poolTicker, poolMetadata))
+        _ <- modifyIORef ioDataMap (Map.insert (poolId, poolmdHash) (TickerName $ getPoolTicker poolTicker, poolMetadata))
         return . Right $ poolMetadata
 
     , dlAddMetaDataReference = \poolId poolUrl poolMetadataHash -> panic "!"
@@ -145,9 +143,9 @@ stubbedDataLayer ioDataMap (DelistedPoolsIORef ioDelistedPool) (RetiredPoolsIORe
     }
 
 -- The approximation for the table.
-stubbedInitialDataMap :: IO (IORef (Map (PoolId, PoolMetadataHash) (Text, Text)))
+stubbedInitialDataMap :: IO (IORef (Map (PoolId, PoolMetadataHash) (TickerName, PoolMetadataRaw)))
 stubbedInitialDataMap = newIORef $ Map.fromList
-    [ ((PoolId "AAAAC3NzaC1lZDI1NTE5AAAAIKFx4CnxqX9mCaUeqp/4EI1+Ly9SfL23/Uxd0Ieegspc", PoolMetadataHash "HASH"), ("Test", show examplePoolOfflineMetadata))
+    [ ((PoolId "AAAAC3NzaC1lZDI1NTE5AAAAIKFx4CnxqX9mCaUeqp/4EI1+Ly9SfL23/Uxd0Ieegspc", PoolMetadataHash "HASH"), (TickerName "Test", PoolMetadataRaw $ show examplePoolOfflineMetadata))
     ]
 
 -- The approximation for the table.
@@ -176,15 +174,15 @@ postgresqlDataLayer :: DataLayer
 postgresqlDataLayer = DataLayer
     { dlGetPoolMetadata = \poolId poolMetadataHash -> do
         poolMetadata <- runDbAction Nothing $ queryPoolMetadata poolId poolMetadataHash
-        let poolTickerName = Types.getTickerName . poolMetadataTickerName <$> poolMetadata
-        let poolMetadata' = Types.getPoolMetadata . poolMetadataMetadata <$> poolMetadata
+        let poolTickerName = poolMetadataTickerName <$> poolMetadata
+        let poolMetadata' = poolMetadataMetadata <$> poolMetadata
         return $ (,) <$> poolTickerName <*> poolMetadata'
     , dlAddPoolMetadata     = \mRefId poolId poolHash poolMetadata poolTicker -> do
-        let poolTickerName = Types.TickerName $ getPoolTicker poolTicker
-        poolMetadataId <- runDbAction Nothing $ insertPoolMetadata $ PoolMetadata poolId poolTickerName poolHash (Types.PoolMetadataRaw poolMetadata) mRefId
+        let poolTickerName = TickerName $ getPoolTicker poolTicker
+        poolMetadataId <- runDbAction Nothing $ insertPoolMetadata $ PoolMetadata poolId poolTickerName poolHash poolMetadata mRefId
 
         case poolMetadataId of
-            Left err -> return $ Left err
+            Left err  -> return $ Left err
             Right _id -> return $ Right poolMetadata
 
     , dlAddMetaDataReference = \poolId poolUrl poolMetadataHash -> do
@@ -211,7 +209,7 @@ postgresqlDataLayer = DataLayer
         delistedPoolId <- runDbAction Nothing $ insertDelistedPool $ DelistedPool poolId
 
         case delistedPoolId of
-            Left err -> return $ Left err
+            Left err  -> return $ Left err
             Right _id -> return $ Right poolId
     , dlRemoveDelistedPool = \poolId -> do
         isDeleted <- runDbAction Nothing $ deleteDelistedPool poolId
@@ -224,7 +222,7 @@ postgresqlDataLayer = DataLayer
         retiredPoolId <- runDbAction Nothing $ insertRetiredPool $ RetiredPool poolId
 
         case retiredPoolId of
-            Left err -> return $ Left err
+            Left err  -> return $ Left err
             Right _id -> return $ Right poolId
     , dlGetRetiredPools = do
         retiredPools <- runDbAction Nothing $ queryAllRetiredPools
