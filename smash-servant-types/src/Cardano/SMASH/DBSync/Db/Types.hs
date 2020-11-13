@@ -38,8 +38,16 @@ newtype PoolMetadataHash = PoolMetadataHash { getPoolMetadataHash :: Text }
   deriving stock (Eq, Show, Ord, Generic)
   deriving newtype PersistField
 
---TODO: instance ToJSON PoolMetadataHash
+instance ToJSON PoolMetadataHash where
+    toJSON (PoolMetadataHash poolHash) =
+        object
+            [ "poolHash" .= poolHash
+            ]
 
+instance FromJSON PoolMetadataHash where
+    parseJSON = withObject "PoolMetadataHash" $ \o -> do
+        poolHash <- o .: "poolHash"
+        return $ PoolMetadataHash poolHash
 
 -- | The stake pool metadata. It is JSON format. This type represents it in
 -- its raw original form. The hash of this content is the 'PoolMetadataHash'.
@@ -57,4 +65,15 @@ newtype PoolUrl = PoolUrl { getPoolUrl :: Text }
 newtype TickerName = TickerName { getTickerName :: Text }
   deriving stock (Eq, Show, Ord, Generic)
   deriving newtype PersistField
+
+instance ToJSON TickerName where
+    toJSON (TickerName name) =
+        object
+            [ "name" .= name
+            ]
+
+instance FromJSON TickerName where
+    parseJSON = withObject "TickerName" $ \o -> do
+        name <- o .: "name"
+        return $ TickerName name
 

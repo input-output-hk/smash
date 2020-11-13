@@ -53,7 +53,7 @@ insertReservedTicker reservedTicker = do
     -- If there is no unique constraint violated, insert, otherwise return error.
     case isUnique of
         Nothing -> insertByReturnKey reservedTicker
-        Just _key -> return . Left . ReservedTickerAlreadyInserted $ reservedTickerName reservedTicker
+        Just _key -> return . Left . ReservedTickerAlreadyInserted $ show reservedTicker
 
 insertDelistedPool :: (MonadIO m) => DelistedPool -> ReaderT SqlBackend m (Either DBFail DelistedPoolId)
 insertDelistedPool = insertByReturnKey

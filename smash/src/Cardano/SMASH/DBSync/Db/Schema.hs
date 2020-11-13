@@ -126,9 +126,10 @@ share
   -- A table containing a managed list of reserved ticker names.
   -- For now they are grouped under the specific hash of the pool.
   ReservedTicker
-    name                Text                    sqltype=text
+    name                Types.TickerName        sqltype=text
     poolHash            Types.PoolMetadataHash  sqltype=text
     UniqueReservedTicker name
+    deriving Show
 
   -- A table containin a list of administrator users that can be used to access the secure API endpoints.
   -- Yes, we don't have any hash check mechanisms here, if they get to the database, game over anyway.

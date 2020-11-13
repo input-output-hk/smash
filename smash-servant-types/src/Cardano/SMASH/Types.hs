@@ -15,9 +15,8 @@ module Cardano.SMASH.Types
     , PoolUrl (..)
     , PoolMetadataHash (..)
     , PoolMetadataRaw (..)
+    , TickerName (..)
     -- * Wrapper
-    , PoolMetadataWrapped (..)
-    -- * Pool offline metadata
     , PoolName (..)
     , PoolDescription (..)
     , PoolTicker (..)
@@ -87,6 +86,9 @@ examplePoolOfflineMetadata =
         (PoolTicker "testp")
         (PoolHomepage "https://iohk.io")
 
+instance ToParamSchema TickerName where
+  toParamSchema _ = mempty
+
 instance ToParamSchema PoolId where
   toParamSchema _ = mempty
 
@@ -129,6 +131,9 @@ checkIfUserValid (ApplicationUsers applicationUsers) applicationUser@(Applicatio
     if applicationUser `elem` applicationUsers
         then (UserValid (User usernameText))
         else UserInvalid
+
+instance FromHttpApiData TickerName where
+    parseUrlPiece tickerName = Right $ TickerName tickerName
 
 -- TODO(KS): Temporarily, validation!?
 instance FromHttpApiData PoolId where
@@ -260,21 +265,18 @@ instance ToJSON PoolOfflineMetadata where
 --instance ToParamSchema PoolOfflineMetadata
 instance ToSchema PoolOfflineMetadata
 
-newtype PoolMetadataWrapped = PoolMetadataWrapped Text
-    deriving (Eq, Ord, Show, Generic)
-
-instance MimeUnrender OctetStream PoolMetadataWrapped where
-    mimeUnrender _ = Right . PoolMetadataWrapped . E.decodeUtf8 . BL.toStrict
+instance MimeUnrender OctetStream PoolMetadataRaw where
+    mimeUnrender _ = Right . PoolMetadataRaw . E.decodeUtf8 . BL.toStrict
 
 -- Here we are usingg the unsafe encoding since we already have the JSON format
 -- from the database.
-instance ToJSON PoolMetadataWrapped where
-    toJSON (PoolMetadataWrapped metadata) = toJSON metadata
-    toEncoding (PoolMetadataWrapped metadata) = unsafeToEncoding $ encodeUtf8Builder metadata
+instance ToJSON PoolMetadataRaw where
+    toJSON (PoolMetadataRaw metadata) = toJSON metadata
+    toEncoding (PoolMetadataRaw metadata) = unsafeToEncoding $ encodeUtf8Builder metadata
 
-instance ToSchema PoolMetadataWrapped where
+instance ToSchema PoolMetadataRaw where
   declareNamedSchema _ =
-    return $ NamedSchema (Just "PoolMetadataWrapped") $ mempty
+    return $ NamedSchema (Just "PoolMetadataRaw") $ mempty
 
 instance ToSchema DBFail where
   declareNamedSchema _ =

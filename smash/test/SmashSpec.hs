@@ -126,6 +126,9 @@ genSafeChar = elements ['a'..'z']
 genSafeText :: Gen Text
 genSafeText = toS <$> listOf genSafeChar
 
+instance Arbitrary PoolMetadataRaw where
+    arbitrary = PoolMetadataRaw <$> arbitrary
+
 -- TODO(KS): Generate realistic @PoolId@ and @PoolMetadataHash@ values.
 
 -- TODO(KS): Create more realistic arbitrary instance.
