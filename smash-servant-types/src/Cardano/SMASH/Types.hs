@@ -265,9 +265,6 @@ instance ToJSON PoolOfflineMetadata where
 --instance ToParamSchema PoolOfflineMetadata
 instance ToSchema PoolOfflineMetadata
 
---newtype PoolMetadataWrapped = PoolMetadataWrapped Text
---    deriving (Eq, Ord, Show, Generic)
-
 instance MimeUnrender OctetStream PoolMetadataRaw where
     mimeUnrender _ = Right . PoolMetadataRaw . E.decodeUtf8 . BL.toStrict
 

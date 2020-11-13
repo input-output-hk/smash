@@ -81,7 +81,7 @@ type SmashAPI =  OfflineMetadataAPI
 
 type RetirePoolAPI = "api" :> APIVersion :> "retired" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 type AddPoolAPI = "api" :> APIVersion :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> ReqBody '[OctetStream] PoolMetadataRaw :> ApiRes Post PoolId
-type AddTickerAPI = "api" :> APIVersion :> "ticker" :> Capture "id" TickerName :> ReqBody '[JSON] PoolMetadataHash :> ApiRes Post TickerName
+type AddTickerAPI = "api" :> APIVersion :> "tickers" :> Capture "name" TickerName :> ReqBody '[JSON] PoolMetadataHash :> ApiRes Post TickerName
 
 #endif
 

@@ -148,15 +148,15 @@ Delisting can be done as follows (in case you are an administrator):
 curl --verbose --header "Content-Type: application/json" --request PATCH --data '{"poolId":"<POOL_ID>"}' http://localhost:3100/api/v1/delist
 ```
 
-From the CLI (Command Line Interface) you can use an additional command, which presumes you have to execute them from the server. 
+You can use additional commands, which help test the functionality of the SMASH server.
 You can insert a pool manually:
 ```
-SMASHPGPASSFILE=config/pgpass cabal exec smash-exe -- insert-pool --metadata <POOL_JSON_FILE_PATH> --poolId "<POOL_ID>" --poolhash "<POOL_HASH>"
+curl -X POST -v -H 'content-type: application/octet-stream' http://localhost:3100/api/v1/metadata/i<POOL_ID>/<POOL_HASH> --data-binary @<POOL_JSON_FILE_PATH>
 ```
 
 You can reserve a ticker:
 ```
-SMASHPGPASSFILE=config/pgpass cabal run smash-exe -- reserve-ticker-name --tickerName "<TICKER_NAME>" --poolhash "<POOL_HASH>"
+curl --verbose --header "Content-Type: application/json" --request POST --data '{"poolHash":"<POOL_HASH>"}' http://localhost:3100/api/v1/tickers/<TICKER_NAME>
 ```
 
 ## How to test this?
@@ -183,7 +183,7 @@ First, run the application. Then, go to the localhost and copy the content into 
 
 This is an example (the hash from Blake2 256):
 ```
-SMASHPGPASSFILE=config/pgpass cabal exec smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
+curl -X POST -v -H 'content-type: application/octet-stream' http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66/4b2221a0ac0b0197308323080ba97e3e453f8625393d30f96eebe0fca4cb7335 --data-binary @test_pool.json
 ```
 
 ## Testing delisting feature
@@ -253,7 +253,7 @@ Currently, SMASH service works by allowing users to insert the ticker name and t
 
 There is a CLI utility for doing exactly that. If you want to reserve the ticker name "SALAD" for the specific metadata hash "2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524", then you would reserve it like this:
 ```
-SMASHPGPASSFILE=config/pgpass cabal run smash-exe -- reserve-ticker-name --tickerName "SALAD" --poolhash "2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524"
+curl --verbose --header "Content-Type: application/json" --request POST --data '{"poolHash":"2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524"}' http://localhost:3100/api/v1/tickers/SALAD
 ```
 
 If somebody adds the ticker name that exists there, it will not be returned, but it will return 404.
@@ -264,12 +264,12 @@ The example we used for testing shows that we can delist the pool id. That pool 
 
 We first insert the `test_pool.json` we have in the provided example:
 ```
-SMASHPGPASSFILE=config/pgpass cabal run smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
+
 ```
 
 Then we change the ticker name of `test_pool.json` from `testy` to `testo`. This changes the pool hash. You can check the hash using the example in https://github.com/input-output-hk/smash#how-to-figure-out-the-json-hash:
 ```
-SMASHPGPASSFILE=config/pgpass cabal run smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699"
+curl -X POST -v -H 'content-type: application/octet-stream' http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699 --data-binary @test_pool.json
 ```
 
 We now have two pools from the same pool id. Run this to see if they are in the database: 
