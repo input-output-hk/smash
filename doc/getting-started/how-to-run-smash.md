@@ -81,16 +81,19 @@ After that is completed, we should have a valid schema and should be able to run
 
 ## Basic Auth and DB
 
-You need to have the flag for disabling Basic auth not enabled (disabled).
-After you run the migration scripts (see in this README examples), you can simply insert the user with the password in the DB:
+You need to have the flag for disabling Basic auth not enabled (disabled). After you run the migration scripts (see in this README examples), you can insert the user with the password in the DB. To do that, we have the command line interface (CLI) commands. This will create a new admin user:
 ```
-INSERT INTO admin_user (username, password) VALUES ('ksaric', 'test');
+SMASHPGPASSFILE=config/pgpass cabal run smash-exe -- create-admin-user --username ksaric --password cirask
 ```
 
-That is it, you will now be able to run you SMASH server with user authentification from DB.
-If you change your users/passwords, please restart the application since it takes a full restart for users to reload.
+This CLI command will delete the admin user (both the username and password must match):
+```
+SMASHPGPASSFILE=config/pgpass cabal run smash-exe -- delete-admin-user --username ksaric --password cirask
+```
 
-## Running SMASH
+Now you will be able to run your SMASH server with user authentication from DB. If you change your users/passwords, please restart the application since it takes a full restart for users to reload. _Any changes to the users table requires the restart of the application_.
+
+# Running SMASH
 
 Finally, we have one thing left.
 We first run the node, like mentioned above and in another terminal session/service we simply run SMASH.

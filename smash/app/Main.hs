@@ -46,7 +46,9 @@ main = do
 -- -----------------------------------------------------------------------------
 
 data Command
-  = CreateMigration SmashMigrationDir
+  = CreateAdminUser !ApplicationUser
+  | DeleteAdminUser !ApplicationUser
+  | CreateMigration SmashMigrationDir
   | RunMigrations ConfigFile SmashMigrationDir (Maybe SmashLogFileDir)
   | RunApplication
 #ifdef TESTING_MODE
@@ -57,6 +59,18 @@ data Command
 runCommand :: Command -> IO ()
 runCommand cmd =
   case cmd of
+    CreateAdminUser applicationUser -> do
+        adminUserE <- createAdminUser postgresqlDataLayer applicationUser
+        case adminUserE of
+            Left err -> panic $ renderLookupFail err
+            Right adminUser -> putTextLn $ "Created admin user: " <> show adminUser
+
+    DeleteAdminUser applicationUser -> do
+        adminUserE <- deleteAdminUser postgresqlDataLayer applicationUser
+        case adminUserE of
+            Left err -> panic $ renderLookupFail err
+            Right adminUser -> putTextLn $ "Deleted admin user: " <> show adminUser
+
     CreateMigration mdir -> doCreateMigration mdir
 
     RunMigrations configFile mdir mldir -> do
@@ -136,7 +150,15 @@ pVersion =
 pCommand :: Parser Command
 pCommand =
   Opt.subparser
-    ( Opt.command "create-migration"
+    ( Opt.command "create-admin-user"
+        ( Opt.info pCreateAdmin
+          $ Opt.progDesc "Creates an admin user. Requires database."
+          )
+    <> Opt.command "delete-admin-user"
+        ( Opt.info pDeleteAdmin
+          $ Opt.progDesc "Deletes an admin user. Requires database."
+          )
+    <> Opt.command "create-migration"
         ( Opt.info pCreateMigration
           $ Opt.progDesc "Create a database migration (only really used by devs)."
           )
@@ -160,29 +182,57 @@ pCommand =
           )
     )
   where
+
+    pCreateAdmin :: Parser Command
+    pCreateAdmin =
+        CreateAdminUser <$> pApplicationUser
+
+    pDeleteAdmin :: Parser Command
+    pDeleteAdmin =
+        DeleteAdminUser <$> pApplicationUser
+
     pCreateMigration :: Parser Command
     pCreateMigration =
-      CreateMigration <$> pSmashMigrationDir
+        CreateMigration <$> pSmashMigrationDir
 
     pRunMigrations :: Parser Command
     pRunMigrations =
-      RunMigrations <$> pConfigFile <*> pSmashMigrationDir <*> optional pLogFileDir
+        RunMigrations <$> pConfigFile <*> pSmashMigrationDir <*> optional pLogFileDir
 
     -- Empty right now but we might add some params over time. Like ports and stuff?
     pRunApp :: Parser Command
     pRunApp =
-      pure RunApplication
+        pure RunApplication
 
 #ifdef TESTING_MODE
     pRunStubApp :: Parser Command
     pRunStubApp =
-      pure RunStubApplication
+        pure RunStubApplication
 #endif
 
     -- Empty right now but we might add some params over time. Like ports and stuff?
     pRunAppWithDbSync :: Parser Command
     pRunAppWithDbSync =
-      RunApplicationWithDbSync <$> pCommandLine
+        RunApplicationWithDbSync <$> pCommandLine
+
+
+pApplicationUser :: Parser ApplicationUser
+pApplicationUser =
+    ApplicationUser <$> pUsername <*> pPassword
+  where
+    pUsername :: Parser Text
+    pUsername =
+      Opt.strOption
+        (  Opt.long "username"
+        <> Opt.help "The name of the user."
+        )
+
+    pPassword :: Parser Text
+    pPassword =
+      Opt.strOption
+        (  Opt.long "password"
+        <> Opt.help "The password of the user."
+        )
 
 
 pPoolId :: Parser PoolId

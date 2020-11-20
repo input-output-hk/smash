@@ -13,6 +13,9 @@ module Cardano.SMASH.Lib
     , defaultConfiguration
     , runApp
     , runAppStubbed
+    -- * For manipulating admin users
+    , createAdminUser
+    , deleteAdminUser
     ) where
 
 import           Cardano.Prelude             hiding (Handler)
@@ -169,6 +172,15 @@ basicAuthServerContext applicationUsers = (authCheck applicationUsers) :. EmptyC
 
         in BasicAuthCheck check'
 
+createAdminUser :: DataLayer -> ApplicationUser -> IO (Either DBFail AdminUser)
+createAdminUser dataLayer applicationUser = do
+    let addAdminUser = dlAddAdminUser dataLayer
+    addAdminUser applicationUser
+
+deleteAdminUser :: DataLayer -> ApplicationUser -> IO (Either DBFail AdminUser)
+deleteAdminUser dataLayer applicationUser = do
+    let removeAdminUser = dlRemoveAdminUser dataLayer
+    removeAdminUser applicationUser
 
 -- | Natural transformation from @IO@ to @Handler@.
 convertIOToHandler :: IO a -> Handler a

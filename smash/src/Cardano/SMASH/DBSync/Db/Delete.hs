@@ -1,23 +1,27 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies     #-}
 
 module Cardano.SMASH.DBSync.Db.Delete
   ( deleteDelistedPool
+  , deleteAdminUser
   ) where
 
-import           Cardano.Prelude hiding (Meta)
+import           Cardano.Prelude                hiding (Meta)
 
-import           Control.Monad.IO.Class (MonadIO)
-import           Control.Monad.Trans.Reader (ReaderT)
+import           Control.Monad.IO.Class         (MonadIO)
+import           Control.Monad.Trans.Reader     (ReaderT)
 
-import           Database.Persist.Class (AtLeastOneUniqueKey, Key, PersistEntityBackend,
-                    getByValue, insert, checkUnique)
-import           Database.Persist.Sql (SqlBackend, (==.), deleteCascade, selectKeysList)
-import           Database.Persist.Types (entityKey)
+import           Database.Persist.Class         (AtLeastOneUniqueKey, Key,
+                                                 PersistEntityBackend,
+                                                 checkUnique, getByValue,
+                                                 insert)
+import           Database.Persist.Sql           (SqlBackend, deleteCascade,
+                                                 selectKeysList, (==.))
+import           Database.Persist.Types         (entityKey)
 
-import           Cardano.SMASH.DBSync.Db.Schema
 import           Cardano.SMASH.DBSync.Db.Error
-import qualified Cardano.SMASH.DBSync.Db.Types as Types
+import           Cardano.SMASH.DBSync.Db.Schema
+import qualified Cardano.SMASH.DBSync.Db.Types  as Types
 
 -- | Delete a delisted pool if it exists. Returns 'True' if it did exist and has been
 -- deleted and 'False' if it did not exist.
@@ -26,4 +30,11 @@ deleteDelistedPool poolId = do
   keys <- selectKeysList [ DelistedPoolPoolId ==. poolId ] []
   mapM_ deleteCascade keys
   pure $ not (null keys)
+
+deleteAdminUser :: MonadIO m => AdminUser -> ReaderT SqlBackend m Bool
+deleteAdminUser adminUser = do
+  keys <- selectKeysList [ AdminUserUsername ==. adminUserUsername adminUser, AdminUserPassword ==. adminUserPassword adminUser ] []
+  mapM_ deleteCascade keys
+  pure $ not (null keys)
+
 

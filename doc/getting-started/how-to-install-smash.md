@@ -205,12 +205,17 @@ curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f0207
 
 ## Basic Auth and DB
 
-You need to have the flag for disabling Basic auth not enabled (disabled). After you run the migration scripts (see in this README examples), you can insert the user with the password in the DB:
+You need to have the flag for disabling Basic auth not enabled (disabled). After you run the migration scripts (see in this README examples), you can insert the user with the password in the DB. To do that, we have the command line interface (CLI) commands. This will create a new admin user:
 ```
-INSERT INTO admin_user (username, password) VALUES ('ksaric', 'test');
+SMASHPGPASSFILE=config/pgpass cabal run smash-exe -- create-admin-user --username ksaric --password cirask
 ```
 
-Now you will be able to run your SMASH server with user authentication from DB. If you change your users/passwords, please restart the application since it takes a full restart for users to reload.
+This CLI command will delete the admin user (both the username and password must match):
+```
+SMASHPGPASSFILE=config/pgpass cabal run smash-exe -- delete-admin-user --username ksaric --password cirask
+```
+
+Now you will be able to run your SMASH server with user authentication from DB. If you change your users/passwords, please restart the application since it takes a full restart for users to reload. _Any changes to the users table requires the restart of the application_.
 
 ## Test script
 

@@ -31,8 +31,10 @@ import           Cardano.BM.Trace                          (Trace)
 
 import           Cardano.SMASH.Types
 
-import           Cardano.SMASH.DBSync.Db.Delete            (deleteDelistedPool)
-import           Cardano.SMASH.DBSync.Db.Insert            (insertDelistedPool,
+import           Cardano.SMASH.DBSync.Db.Delete            (deleteAdminUser,
+                                                            deleteDelistedPool)
+import           Cardano.SMASH.DBSync.Db.Insert            (insertAdminUser,
+                                                            insertDelistedPool,
                                                             insertPoolMetadata,
                                                             insertPoolMetadataFetchError,
                                                             insertPoolMetadataReference,
@@ -65,7 +67,6 @@ import           Cardano.SMASH.DBSync.Db.Types             (TickerName (..))
 -- | This is the data layer for the DB.
 -- The resulting operation has to be @IO@, it can be made more granular,
 -- but currently there is no complexity involved for that to be a sane choice.
--- TODO(KS): Newtype wrapper around @Text@ for the metadata.
 data DataLayer = DataLayer
     { dlGetPoolMetadata         :: PoolId -> PoolMetadataHash -> IO (Either DBFail (TickerName, PoolMetadataRaw))
     , dlAddPoolMetadata         :: Maybe PoolMetadataReferenceId -> PoolId -> PoolMetadataHash -> PoolMetadataRaw -> PoolTicker -> IO (Either DBFail PoolMetadataRaw)
@@ -84,6 +85,8 @@ data DataLayer = DataLayer
     , dlGetRetiredPools         :: IO (Either DBFail [PoolId])
 
     , dlGetAdminUsers           :: IO (Either DBFail [AdminUser])
+    , dlAddAdminUser            :: ApplicationUser -> IO (Either DBFail AdminUser)
+    , dlRemoveAdminUser         :: ApplicationUser -> IO (Either DBFail AdminUser)
 
     -- TODO(KS): Switch to PoolFetchError!
     , dlAddFetchError           :: PoolMetadataFetchError -> IO (Either DBFail PoolMetadataFetchErrorId)
@@ -137,6 +140,8 @@ stubbedDataLayer ioDataMap (DelistedPoolsIORef ioDelistedPool) (RetiredPoolsIORe
     , dlGetRetiredPools     = Right <$> readIORef ioRetiredPools
 
     , dlGetAdminUsers       = return $ Right []
+    , dlAddAdminUser        = \_ -> panic "!"
+    , dlRemoveAdminUser     = \_ -> panic "!"
 
     , dlAddFetchError       = \_ -> panic "!"
     , dlGetFetchErrors      = \_ -> panic "!"
@@ -231,6 +236,18 @@ postgresqlDataLayer = DataLayer
     , dlGetAdminUsers       = do
         adminUsers <- runDbAction Nothing $ queryAdminUsers
         return $ Right adminUsers
+    , dlAddAdminUser        = \(ApplicationUser user pass') -> do
+        let adminUser = AdminUser user pass'
+        adminUserId <- runDbAction Nothing $ insertAdminUser adminUser
+        case adminUserId of
+            Left err  -> return $ Left err
+            Right _id -> return $ Right adminUser
+    , dlRemoveAdminUser     = \(ApplicationUser user pass') -> do
+        let adminUser = AdminUser user pass'
+        isDeleted <- runDbAction Nothing $ deleteAdminUser adminUser
+        if isDeleted
+            then return $ Right adminUser
+            else return $ Left $ UnknownError "Admin user not deleted. Both username and password must match."
 
     , dlAddFetchError       = \poolMetadataFetchError -> do
         poolMetadataFetchErrorId <- runDbAction Nothing $ insertPoolMetadataFetchError poolMetadataFetchError

@@ -62,7 +62,12 @@ insertRetiredPool :: (MonadIO m) => RetiredPool -> ReaderT SqlBackend m (Either 
 insertRetiredPool = insertByReturnKey
 
 insertAdminUser :: (MonadIO m) => AdminUser -> ReaderT SqlBackend m (Either DBFail AdminUserId)
-insertAdminUser = insertByReturnKey
+insertAdminUser adminUser = do
+    isUnique <- checkUnique adminUser
+    -- If there is no unique constraint violated, insert, otherwise return error.
+    case isUnique of
+        Nothing -> insertByReturnKey adminUser
+        Just _key -> return . Left . DbInsertError $ "Admin user already exists!"
 
 insertPoolMetadataFetchError
     :: (MonadIO m)
