@@ -137,6 +137,7 @@ share
     username            Text
     password            Text
     UniqueAdminUser     username
+    deriving Show
 
   |]
 
