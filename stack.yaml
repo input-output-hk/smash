@@ -27,6 +27,10 @@ extra-deps:
   - persistent-postgresql-2.10.1.2
   - persistent-template-2.8.2.3
 
+  # Just checking to see what version we have
+  - servant-0.16.2
+  - servant-server-0.16.2
+
   # This is something extra we need.
   - git: https://github.com/input-output-hk/ouroboros-network
     commit: f0eb6e439e7c0121476ded5e88d2f638e8aa36ac

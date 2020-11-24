@@ -20,7 +20,7 @@ module Cardano.SMASH.Lib
 
 import           Cardano.Prelude             hiding (Handler)
 
-import           Data.Aeson                  (eitherDecode')
+import           Data.Aeson                  (eitherDecode', encode)
 import qualified Data.ByteString.Lazy        as BL
 import           Data.Swagger                (Info (..), Swagger (..))
 import           Data.Time                   (UTCTime, addUTCTime,
@@ -35,8 +35,9 @@ import           Servant                     (Application, BasicAuthCheck (..),
                                               BasicAuthData (..),
                                               BasicAuthResult (..),
                                               Context (..), Handler (..),
-                                              Header, Headers, Server, err403,
-                                              err404, serveWithContext)
+                                              Header, Headers, Server, err400,
+                                              err403, err404, errBody,
+                                              serveWithContext)
 import           Servant.API.ResponseHeaders (addHeader)
 import           Servant.Swagger             (toSwagger)
 
@@ -53,8 +54,7 @@ import           Cardano.SMASH.Types         (ApiResult (..),
                                               Configuration (..),
                                               HealthStatus (..), PoolFetchError,
                                               PoolId (..), PoolMetadataHash,
-                                              PoolMetadataRaw (..),
-                                              TickerName (..),
+                                              PoolMetadataRaw (..), TickerName,
                                               TimeStringFormat (..), User,
                                               UserValidity (..),
                                               checkIfUserValid,
@@ -139,6 +139,10 @@ mkApp configuration = do
     convertToAppUsers :: AdminUser -> ApplicationUser
     convertToAppUsers (AdminUser username' password') = ApplicationUser username' password'
 
+-- Generic throwing of exception when something goes bad.
+throwDBFailException :: DBFail -> IO (ApiResult DBFail a)
+throwDBFailException dbFail = throwIO $ err400 { errBody = encode dbFail }
+
 runPoolInsertion :: DataLayer -> PoolMetadataRaw -> PoolId -> PoolMetadataHash -> IO (Either DBFail PoolMetadataRaw)
 runPoolInsertion dataLayer poolMetadataRaw poolId poolHash = do
 
@@ -221,8 +225,8 @@ getPoolOfflineMetadata dataLayer poolId poolHash = fmap (addHeader "always") . c
     when (isDelisted) $
         throwIO err403
 
-    let getPoolMetadata = dlGetPoolMetadata dataLayer
-    poolRecord <- getPoolMetadata poolId poolHash
+    let dbGetPoolMetadata = dlGetPoolMetadata dataLayer
+    poolRecord <- dbGetPoolMetadata poolId poolHash
 
     case poolRecord of
         -- We return 404 when the hash is not found.
@@ -263,19 +267,22 @@ delistPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
 delistPool dataLayer poolId = convertIOToHandler $ do
 
     let addDelistedPool = dlAddDelistedPool dataLayer
-    delistedPool' <- addDelistedPool poolId
+    delistedPoolE <- addDelistedPool poolId
 
-    return . ApiResult $ delistedPool'
+    case delistedPoolE of
+        Left dbFail   -> throwDBFailException dbFail
+        Right poolId' -> return . ApiResult . Right $ poolId'
 #else
 delistPool :: DataLayer -> User -> PoolId -> Handler (ApiResult DBFail PoolId)
 delistPool dataLayer _user poolId = convertIOToHandler $ do
 
     let addDelistedPool = dlAddDelistedPool dataLayer
-    delistedPool' <- addDelistedPool poolId
+    delistedPoolE <- addDelistedPool poolId
 
-    return . ApiResult $ delistedPool'
+    case delistedPoolE of
+        Left dbFail   -> throwDBFailException dbFail
+        Right poolId' -> return . ApiResult . Right $ poolId'
 #endif
-
 
 #ifdef DISABLE_BASIC_AUTH
 enlistPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
@@ -343,7 +350,7 @@ addPool dataLayer poolId poolHash poolMetadataRaw = convertIOToHandler $ do
     poolMetadataE <- runPoolInsertion dataLayer poolMetadataRaw poolId poolHash
 
     case poolMetadataE of
-        Left dbFail         -> return . ApiResult . Left $ dbFail
+        Left dbFail         -> throwDBFailException dbFail
         Right _poolMetadata -> return . ApiResult . Right $ poolId
 
 addTicker :: DataLayer -> TickerName -> PoolMetadataHash -> Handler (ApiResult DBFail TickerName)
@@ -353,7 +360,7 @@ addTicker dataLayer tickerName poolMetadataHash = convertIOToHandler $ do
     reservedTickerE <- addReservedTicker tickerName poolMetadataHash
 
     case reservedTickerE of
-        Left dbFail           -> return . ApiResult . Left $ dbFail
+        Left dbFail           -> throwDBFailException dbFail
         Right _reservedTicker -> return . ApiResult . Right $ tickerName
 #endif
 
