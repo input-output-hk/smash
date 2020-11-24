@@ -1,14 +1,21 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralisedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 
 module Cardano.SMASH.DBSync.Db.Types where
 
-import Cardano.Prelude
+import           Cardano.Prelude
 
-import Data.Aeson (ToJSON (..), FromJSON (..), withObject, object, (.=), (.:))
-import Database.Persist.Class
+import           Control.Monad.Fail     (fail)
+
+import           Data.Aeson             (FromJSON (..), ToJSON (..), object,
+                                         withObject, (.:), (.=))
+import           Database.Persist.Class
+
+import           Cardano.Api.Typed      hiding (PoolId)
+import qualified Data.ByteString.Base16 as B16
+import qualified Data.ByteString.Char8  as BSC
 
 -- | The stake pool identifier. It is the hash of the stake pool operator's
 -- vkey.
@@ -28,7 +35,36 @@ instance ToJSON PoolId where
 instance FromJSON PoolId where
     parseJSON = withObject "PoolId" $ \o -> do
         poolId <- o .: "poolId"
-        return $ PoolId poolId
+        case parsePoolId poolId of
+            Left err      -> fail $ toS err
+            Right poolId' -> return poolId'
+
+-- Currently deserializing from safe types, unwrapping and wrapping it up again.
+-- The underlying DB representation is HEX.
+--
+-- pool ids as key hashes and so use the "address hash" size, which is 28 bytes, and hence a hex encoding of that is 2*28 = 56
+parsePoolId :: Text -> Either Text PoolId
+parsePoolId poolId =
+    case pBech32OrHexStakePoolId poolId of
+        Nothing -> Left "Unable to parse pool id. Wrong format."
+        Just poolId' -> Right . PoolId . decodeUtf8 . B16.encode . serialiseToRawBytes $ poolId'
+
+      where
+        -- bech32 pool <<< e5cb8a89cabad2cb22ea85423bcbbe270f292be3dbe838948456d3ae
+        -- bech32 <<< pool1uh9c4zw2htfvkgh2s4prhja7yu8jj2lrm05r39yy2mf6uqqegn6
+        pBech32OrHexStakePoolId :: Text -> Maybe (Hash StakePoolKey)
+        pBech32OrHexStakePoolId str = pBech32StakePoolId str <|> pHexStakePoolId str
+
+        -- e5cb8a89cabad2cb22ea85423bcbbe270f292be3dbe838948456d3ae
+        pHexStakePoolId :: Text -> Maybe (Hash StakePoolKey)
+        pHexStakePoolId =
+            deserialiseFromRawBytesHex (AsHash AsStakePoolKey) . BSC.pack . toS
+
+        -- pool1uh9c4zw2htfvkgh2s4prhja7yu8jj2lrm05r39yy2mf6uqqegn6
+        pBech32StakePoolId :: Text -> Maybe (Hash StakePoolKey)
+        pBech32StakePoolId =
+          either (const Nothing) Just
+            . deserialiseFromBech32 (AsHash AsStakePoolKey)
 
 -- | The hash of a stake pool's metadata.
 --
@@ -44,6 +80,8 @@ instance ToJSON PoolMetadataHash where
             [ "poolHash" .= poolHash
             ]
 
+-- The validation of @PoolMetadataHash@ is a bit more involved and would require
+-- an analysis with some bounds on the size.
 instance FromJSON PoolMetadataHash where
     parseJSON = withObject "PoolMetadataHash" $ \o -> do
         poolHash <- o .: "poolHash"
@@ -51,7 +89,6 @@ instance FromJSON PoolMetadataHash where
 
 -- | The stake pool metadata. It is JSON format. This type represents it in
 -- its raw original form. The hash of this content is the 'PoolMetadataHash'.
---
 newtype PoolMetadataRaw = PoolMetadataRaw { getPoolMetadata :: Text }
   deriving stock (Eq, Show, Ord, Generic)
   deriving newtype PersistField
@@ -75,5 +112,12 @@ instance ToJSON TickerName where
 instance FromJSON TickerName where
     parseJSON = withObject "TickerName" $ \o -> do
         name <- o .: "name"
-        return $ TickerName name
+        let tickerLen = length name
+        if tickerLen >= 3 && tickerLen <= 5
+            then return $ TickerName name
+            else fail $
+                 "\"ticker\" must have at least 3 and at most 5 "
+              <> "characters, but it has "
+              <> show (length name)
+              <> " characters."
 

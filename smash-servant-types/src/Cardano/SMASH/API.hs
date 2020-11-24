@@ -1,10 +1,14 @@
-{-# LANGUAGE CPP                 #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE CPP                   #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module Cardano.SMASH.API
     ( API
@@ -13,23 +17,35 @@ module Cardano.SMASH.API
     ) where
 
 import           Cardano.Prelude
+import           Prelude                       (String, lookup)
 
+import           Data.Aeson                    (FromJSON, eitherDecode')
 import           Data.Swagger                  (Swagger (..))
 
-import           Servant                       ((:<|>) (..), (:>), OctetStream,
-                                                Post)
+import qualified Data.ByteString               as B
+import qualified Data.ByteString.Lazy          as BL
+import           Network.Wai                   (getRequestBodyChunk,
+                                                lazyRequestBody, requestHeaders)
+import           Servant                       ((:<|>) (..), (:>),
+                                                HasServer (..), OctetStream,
+                                                Post, Server)
 import           Servant                       (BasicAuth, Capture, Get, Header,
                                                 Headers, JSON, Patch,
                                                 QueryParam, ReqBody)
+import           Servant.API
+import           Servant.Server
+import           Servant.Server.Internal
+import qualified Servant.Types.SourceT         as S
 
 import           Servant.Swagger               (HasSwagger (..))
 
-import           Cardano.SMASH.DBSync.Db.Error (DBFail)
+import           Cardano.SMASH.DBSync.Db.Error (DBFail (..))
 import           Cardano.SMASH.Types           (ApiResult, HealthStatus,
-                                                PoolFetchError, PoolId,
-                                                PoolMetadataHash,
+                                                PoolFetchError, PoolId (..),
+                                                PoolId, PoolMetadataHash,
                                                 PoolMetadataRaw, TickerName,
                                                 TimeStringFormat, User)
+
 
 -- |For api versioning.
 type APIVersion = "v1"
