@@ -143,15 +143,26 @@ instance FromHttpApiData TickerName where
 -- The underlying DB representation is HEX.
 instance FromHttpApiData PoolId where
     parseUrlPiece poolId =
-        case pHexStakePoolId poolId of
+        case pBech32OrHexStakePoolId poolId of
             Nothing -> Left "Unable to parse pool id. Wrong format."
             Just poolId' -> Right . PoolId . decodeUtf8 . B16.encode . serialiseToRawBytes $ poolId'
 
       where
+        -- bech32 pool <<< e5cb8a89cabad2cb22ea85423bcbbe270f292be3dbe838948456d3ae
+        -- bech32 <<< pool1uh9c4zw2htfvkgh2s4prhja7yu8jj2lrm05r39yy2mf6uqqegn6
+        pBech32OrHexStakePoolId :: Text -> Maybe (Hash StakePoolKey)
+        pBech32OrHexStakePoolId str = pBech32StakePoolId str <|> pHexStakePoolId str
+
         -- e5cb8a89cabad2cb22ea85423bcbbe270f292be3dbe838948456d3ae
         pHexStakePoolId :: Text -> Maybe (Hash StakePoolKey)
         pHexStakePoolId =
             deserialiseFromRawBytesHex (AsHash AsStakePoolKey) . BSC.pack . toS
+
+        -- pool1uh9c4zw2htfvkgh2s4prhja7yu8jj2lrm05r39yy2mf6uqqegn6
+        pBech32StakePoolId :: Text -> Maybe (Hash StakePoolKey)
+        pBech32StakePoolId =
+          either (const Nothing) Just
+            . deserialiseFromBech32 (AsHash AsStakePoolKey)
 
 instance ToSchema PoolMetadataHash where
   declareNamedSchema _ =
