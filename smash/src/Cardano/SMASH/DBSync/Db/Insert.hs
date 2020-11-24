@@ -56,7 +56,12 @@ insertReservedTicker reservedTicker = do
         Just _key -> return . Left . ReservedTickerAlreadyInserted $ show reservedTicker
 
 insertDelistedPool :: (MonadIO m) => DelistedPool -> ReaderT SqlBackend m (Either DBFail DelistedPoolId)
-insertDelistedPool = insertByReturnKey
+insertDelistedPool delistedPool = do
+    isUnique <- checkUnique delistedPool
+    -- If there is no unique constraint violated, insert, otherwise return error.
+    case isUnique of
+        Nothing -> insertByReturnKey delistedPool
+        Just _key -> return . Left . DbInsertError $ "Delisted pool already exists!"
 
 insertRetiredPool :: (MonadIO m) => RetiredPool -> ReaderT SqlBackend m (Either DBFail RetiredPoolId)
 insertRetiredPool = insertByReturnKey

@@ -1,10 +1,12 @@
-{-# LANGUAGE CPP                 #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE CPP                   #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module Cardano.SMASH.API
     ( API
@@ -13,23 +15,60 @@ module Cardano.SMASH.API
     ) where
 
 import           Cardano.Prelude
+import           Prelude                       (String)
 
+import           Data.Aeson                    (FromJSON, ToJSON (..),
+                                                eitherDecode, encode, object,
+                                                (.=))
 import           Data.Swagger                  (Swagger (..))
 
-import           Servant                       ((:<|>) (..), (:>), OctetStream,
-                                                Post)
-import           Servant                       (BasicAuth, Capture, Get, Header,
-                                                Headers, JSON, Patch,
+import           Network.Wai                   (Request, lazyRequestBody)
+import           Servant                       ((:<|>) (..), (:>), BasicAuth,
+                                                Capture, Get, HasServer (..),
+                                                Header, Headers, JSON,
+                                                OctetStream, Patch, Post,
                                                 QueryParam, ReqBody)
+import           Servant.Server                (err400)
+import           Servant.Server.Internal       (DelayedIO, addBodyCheck,
+                                                delayedFailFatal, errBody,
+                                                withRequest)
 
 import           Servant.Swagger               (HasSwagger (..))
 
-import           Cardano.SMASH.DBSync.Db.Error (DBFail)
+import           Cardano.SMASH.DBSync.Db.Error (DBFail (..))
 import           Cardano.SMASH.Types           (ApiResult, HealthStatus,
-                                                PoolFetchError, PoolId,
-                                                PoolMetadataHash,
+                                                PoolFetchError, PoolId (..),
+                                                PoolId, PoolMetadataHash,
                                                 PoolMetadataRaw, TickerName,
                                                 TimeStringFormat, User)
+
+
+-- Showing errors as JSON. To be reused when we need more general error handling.
+
+data Body a
+
+instance (FromJSON a, HasServer api context) => HasServer (Body a :> api) context where
+  type ServerT (Body a :> api) m = a -> ServerT api m
+
+  route Proxy context subserver =
+      route (Proxy :: Proxy api) context (addBodyCheck subserver ctCheck bodyCheckRequest)
+    where
+      -- Don't check the content type specifically.
+      ctCheck :: DelayedIO Request
+      ctCheck = withRequest $ \req -> pure req
+
+      bodyCheckRequest :: Request -> DelayedIO a
+      bodyCheckRequest request = do
+        body <- liftIO (lazyRequestBody request)
+        case eitherDecode body of
+          Left dbFail ->
+            delayedFailFatal err400 { errBody = encode dbFail }
+          Right v ->
+            return v
+
+newtype BodyError = BodyError String
+instance ToJSON BodyError where
+    toJSON (BodyError b) = object ["error" .= b]
 
 -- |For api versioning.
 type APIVersion = "v1"
@@ -97,6 +136,10 @@ fullAPI = Proxy
 -- | Just the @Proxy@ for the API type.
 smashApi :: Proxy SmashAPI
 smashApi = Proxy
+
+-- For now, we just ignore the @Body@ definition.
+instance (HasSwagger api) => HasSwagger (Body name :> api) where
+    toSwagger _ = toSwagger (Proxy :: Proxy api)
 
 -- For now, we just ignore the @BasicAuth@ definition.
 instance (HasSwagger api) => HasSwagger (BasicAuth name typo :> api) where

@@ -39,36 +39,31 @@ module Cardano.SMASH.Types
 
 import           Cardano.Prelude
 
-import           Control.Monad.Fail              (fail)
+import           Control.Monad.Fail            (fail)
 
-import           Data.Aeson                      (FromJSON (..), ToJSON (..),
-                                                  object, withObject, (.:),
-                                                  (.=))
-import qualified Data.Aeson                      as Aeson
-import           Data.Aeson.Encoding             (unsafeToEncoding)
-import qualified Data.Aeson.Types                as Aeson
-import qualified Data.ByteString.Char8           as BSC
-import           Data.Time.Clock                 (UTCTime)
-import qualified Data.Time.Clock.POSIX           as Time
-import           Data.Time.Format                (defaultTimeLocale, formatTime,
-                                                  parseTimeM)
+import           Data.Aeson                    (FromJSON (..), ToJSON (..),
+                                                object, withObject, (.:), (.=))
+import qualified Data.Aeson                    as Aeson
+import           Data.Aeson.Encoding           (unsafeToEncoding)
+import qualified Data.Aeson.Types              as Aeson
+import           Data.Time.Clock               (UTCTime)
+import qualified Data.Time.Clock.POSIX         as Time
+import           Data.Time.Format              (defaultTimeLocale, formatTime,
+                                                parseTimeM)
 
-import           Data.Swagger                    (NamedSchema (..),
-                                                  ToParamSchema (..),
-                                                  ToSchema (..))
-import           Data.Text.Encoding              (encodeUtf8Builder)
+import           Data.Swagger                  (NamedSchema (..),
+                                                ToParamSchema (..),
+                                                ToSchema (..))
+import           Data.Text.Encoding            (encodeUtf8Builder)
 
-import           Servant                         (FromHttpApiData (..),
-                                                  MimeUnrender (..),
-                                                  OctetStream)
+import           Servant                       (FromHttpApiData (..),
+                                                MimeUnrender (..), OctetStream)
 
-import           Cardano.Api.Typed               hiding (PoolId)
 import           Cardano.SMASH.DBSync.Db.Error
 import           Cardano.SMASH.DBSync.Db.Types
 
-import qualified Data.ByteString.Base16          as B16
-import qualified Data.ByteString.Lazy            as BL
-import qualified Data.Text.Encoding              as E
+import qualified Data.ByteString.Lazy          as BL
+import qualified Data.Text.Encoding            as E
 
 -- | The basic @Configuration@.
 data Configuration = Configuration
@@ -142,27 +137,7 @@ instance FromHttpApiData TickerName where
 -- Currently deserializing from safe types, unwrapping and wrapping it up again.
 -- The underlying DB representation is HEX.
 instance FromHttpApiData PoolId where
-    parseUrlPiece poolId =
-        case pBech32OrHexStakePoolId poolId of
-            Nothing -> Left "Unable to parse pool id. Wrong format."
-            Just poolId' -> Right . PoolId . decodeUtf8 . B16.encode . serialiseToRawBytes $ poolId'
-
-      where
-        -- bech32 pool <<< e5cb8a89cabad2cb22ea85423bcbbe270f292be3dbe838948456d3ae
-        -- bech32 <<< pool1uh9c4zw2htfvkgh2s4prhja7yu8jj2lrm05r39yy2mf6uqqegn6
-        pBech32OrHexStakePoolId :: Text -> Maybe (Hash StakePoolKey)
-        pBech32OrHexStakePoolId str = pBech32StakePoolId str <|> pHexStakePoolId str
-
-        -- e5cb8a89cabad2cb22ea85423bcbbe270f292be3dbe838948456d3ae
-        pHexStakePoolId :: Text -> Maybe (Hash StakePoolKey)
-        pHexStakePoolId =
-            deserialiseFromRawBytesHex (AsHash AsStakePoolKey) . BSC.pack . toS
-
-        -- pool1uh9c4zw2htfvkgh2s4prhja7yu8jj2lrm05r39yy2mf6uqqegn6
-        pBech32StakePoolId :: Text -> Maybe (Hash StakePoolKey)
-        pBech32StakePoolId =
-          either (const Nothing) Just
-            . deserialiseFromBech32 (AsHash AsStakePoolKey)
+    parseUrlPiece poolId = parsePoolId poolId
 
 instance ToSchema PoolMetadataHash where
   declareNamedSchema _ =
