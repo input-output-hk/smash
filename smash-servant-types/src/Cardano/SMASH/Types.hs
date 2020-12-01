@@ -13,6 +13,7 @@ module Cardano.SMASH.Types
     , PoolId (..)
     , PoolUrl (..)
     , PoolMetadataHash (..)
+    , bytestringToPoolMetaHash
     , PoolMetadataRaw (..)
     , TickerName (..)
     -- * Wrapper

@@ -1,7 +1,7 @@
 module Cardano.SMASH.FetchQueue
   ( FetchQueue -- opaque
   , PoolFetchRetry (..)
-  , Retry -- opaque
+  , Retry (..)
   , retryCount
   , emptyFetchQueue
   , lenFetchQueue
@@ -10,6 +10,7 @@ module Cardano.SMASH.FetchQueue
   , partitionFetchQueue
   , newRetry
   , nextRetry
+  , countedRetry
   ) where
 
 
@@ -20,7 +21,8 @@ import qualified Data.Map.Strict                as Map
 import           Data.Time.Clock.POSIX          (POSIXTime)
 
 import           Cardano.SMASH.DBSync.Db.Schema (PoolMetadataReferenceId)
-import           Cardano.SMASH.DBSync.Db.Types  (PoolId)
+import           Cardano.SMASH.DBSync.Db.Types  (PoolId, PoolMetadataHash,
+                                                 PoolUrl)
 
 import           Cardano.SMASH.FetchQueue.Retry
 
@@ -29,15 +31,16 @@ import           Cardano.SMASH.FetchQueue.Retry
 -- Figuring out how to use an existing priority queue for this task would be more time
 -- consuming that writing this from scratch.
 
-newtype FetchQueue = FetchQueue (Map Text PoolFetchRetry)
+newtype FetchQueue = FetchQueue (Map PoolUrl PoolFetchRetry)
+    deriving (Show)
 
 data PoolFetchRetry = PoolFetchRetry
   { pfrReferenceId :: !PoolMetadataReferenceId
   , pfrPoolIdWtf   :: !PoolId
-  , pfrPoolUrl     :: !Text
-  , pfrPoolMDHash  :: !ByteString
+  , pfrPoolUrl     :: !PoolUrl
+  , pfrPoolMDHash  :: !PoolMetadataHash
   , pfrRetry       :: !Retry
-  }
+  } deriving (Show)
 
 emptyFetchQueue :: FetchQueue
 emptyFetchQueue = FetchQueue mempty
@@ -52,7 +55,7 @@ insertFetchQueue :: [PoolFetchRetry] -> FetchQueue -> FetchQueue
 insertFetchQueue xs (FetchQueue mp) =
     FetchQueue $ Map.union mp (Map.fromList $ map build xs)
   where
-    build :: PoolFetchRetry -> (Text, PoolFetchRetry)
+    build :: PoolFetchRetry -> (PoolUrl, PoolFetchRetry)
     build pfr = (pfrPoolUrl pfr, pfr)
 
 partitionFetchQueue :: FetchQueue -> POSIXTime -> ([PoolFetchRetry], FetchQueue)

@@ -8,12 +8,11 @@ module SmashSpec
 import           Cardano.Prelude
 
 import           Crypto.Sign.Ed25519     (createKeypair)
-import           Data.IORef              (IORef, newIORef)
 
-import           Test.Hspec              (Spec, describe, it, pending)
-import           Test.Hspec.QuickCheck   (modifyMaxSuccess, prop)
-import           Test.QuickCheck         (Arbitrary (..), Gen, Property,
-                                          elements, generate, listOf)
+import           Test.Hspec              (Spec, describe)
+import           Test.Hspec.QuickCheck   (prop)
+
+import           Test.QuickCheck         (Arbitrary (..), Gen, elements, listOf)
 import           Test.QuickCheck.Monadic (assert, monadicIO, run)
 
 import           Cardano.SMASH.DB
@@ -22,6 +21,7 @@ import           Cardano.SMASH.Types
 -- | Test spec for smash
 smashSpec :: Spec
 smashSpec = do
+
     describe "DataLayer" $ do
         describe "Delisted pool" $
             prop "adding a pool hash adds it to the data layer" $ monadicIO $ do

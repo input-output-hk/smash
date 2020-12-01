@@ -5,6 +5,7 @@ module Cardano.SMASH.FetchQueue.Retry
   ( Retry (..)
   , newRetry
   , nextRetry
+  , countedRetry
   ) where
 
 
@@ -30,6 +31,14 @@ newRetry now =
     { retryWhen = now
     , retryNext = now + 60 -- 60 seconds from now
     , retryCount = 0
+    }
+
+countedRetry :: Retry -> Retry
+countedRetry retry =
+  Retry
+    { retryWhen = retryWhen retry
+    , retryNext = retryNext retry
+    , retryCount = retryCount retry + 1
     }
 
 -- Update a Retry with an exponential (* 3) backoff.
