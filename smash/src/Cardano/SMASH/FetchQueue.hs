@@ -1,38 +1,22 @@
+{-# LANGUAGE DeriveGeneric #-}
+
 module Cardano.SMASH.FetchQueue
-  ( FetchQueue -- opaque
-  , PoolFetchRetry (..)
+  ( PoolFetchRetry (..)
   , Retry (..)
-  , retryCount
-  , emptyFetchQueue
-  , lenFetchQueue
-  , nullFetchQueue
-  , insertFetchQueue
-  , partitionFetchQueue
   , newRetry
-  , nextRetry
-  , countedRetry
+  , retryAgain
+  , showRetryTimes
   ) where
 
 
 import           Cardano.Prelude
 
-import           Data.Map.Strict                (Map)
-import qualified Data.Map.Strict                as Map
 import           Data.Time.Clock.POSIX          (POSIXTime)
 
 import           Cardano.SMASH.DBSync.Db.Schema (PoolMetadataReferenceId)
 import           Cardano.SMASH.DBSync.Db.Types  (PoolId, PoolMetadataHash,
                                                  PoolUrl)
-
-import           Cardano.SMASH.FetchQueue.Retry
-
-
--- Unfortunately I am way too pressed for time and way too tired to make this less savage.
--- Figuring out how to use an existing priority queue for this task would be more time
--- consuming that writing this from scratch.
-
-newtype FetchQueue = FetchQueue (Map PoolUrl PoolFetchRetry)
-    deriving (Show)
+import           Cardano.SMASH.Types            (formatTimeToNormal)
 
 data PoolFetchRetry = PoolFetchRetry
   { pfrReferenceId :: !PoolMetadataReferenceId
@@ -42,26 +26,43 @@ data PoolFetchRetry = PoolFetchRetry
   , pfrRetry       :: !Retry
   } deriving (Show)
 
-emptyFetchQueue :: FetchQueue
-emptyFetchQueue = FetchQueue mempty
+data Retry = Retry
+  { fetchTime  :: !POSIXTime
+  , retryTime  :: !POSIXTime
+  , retryCount :: !Word
+  } deriving (Eq, Show, Generic)
 
-lenFetchQueue :: FetchQueue -> Int
-lenFetchQueue (FetchQueue m) = Map.size m
+newRetry :: POSIXTime -> Retry
+newRetry now =
+  Retry
+    { fetchTime = now
+    , retryTime = now + 60 -- 60 seconds from now
+    , retryCount = 0
+    }
 
-nullFetchQueue :: FetchQueue -> Bool
-nullFetchQueue (FetchQueue m) = Map.null m
+retryAgain :: POSIXTime -> Word -> Retry
+retryAgain fetchTimePOSIX existingRetryCount =
+    -- When to retry. Maximum of a day for a retry.
+    -- We are basically using a series to predict the next retry time.
+    let calculateNewDiff currRetryCount = min (24 * 60 * 60) ((3 ^ currRetryCount) * 60)
+        newRetryDiff = sum $ map calculateNewDiff [0..existingRetryCount]
+    in
+        Retry
+            { fetchTime = fetchTimePOSIX
+            , retryTime = fetchTimePOSIX + newRetryDiff
+            , retryCount = existingRetryCount
+            }
 
-insertFetchQueue :: [PoolFetchRetry] -> FetchQueue -> FetchQueue
-insertFetchQueue xs (FetchQueue mp) =
-    FetchQueue $ Map.union mp (Map.fromList $ map build xs)
-  where
-    build :: PoolFetchRetry -> (PoolUrl, PoolFetchRetry)
-    build pfr = (pfrPoolUrl pfr, pfr)
+-- A nice pretty printer for the retry.
+showRetryTimes :: Retry -> Text
+showRetryTimes retry' =
+    mconcat
+        [ "Fetch time: '"
+        , formatTimeToNormal $ fetchTime retry'
+        , "', retry time: '"
+        , formatTimeToNormal $ retryTime retry'
+        , "', retry count: '"
+        , show $ retryCount retry'
+        , "'."
+        ]
 
-partitionFetchQueue :: FetchQueue -> POSIXTime -> ([PoolFetchRetry], FetchQueue)
-partitionFetchQueue (FetchQueue mp) now =
-    case Map.partition isRunnable mp of
-      (runnable, unrunnable) -> (Map.elems runnable, FetchQueue unrunnable)
-  where
-    isRunnable :: PoolFetchRetry -> Bool
-    isRunnable pfr = retryWhen (pfrRetry pfr) <= now

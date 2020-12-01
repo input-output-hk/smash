@@ -95,7 +95,7 @@ share
     pmrId               PoolMetadataReferenceId
     fetchError          Text
     retryCount          Word                      sqltype=uinteger
-    UniquePoolMetadataFetchError fetchTime poolId
+    UniquePoolMetadataFetchError fetchTime poolId poolHash retryCount
 
   -- We actually need the block table to be able to persist sync data
 

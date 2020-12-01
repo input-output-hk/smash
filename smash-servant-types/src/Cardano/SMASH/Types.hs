@@ -36,6 +36,7 @@ module Cardano.SMASH.Types
     , TimeStringFormat (..)
     -- * Util
     , DBConversion (..)
+    , formatTimeToNormal
     ) where
 
 import           Cardano.Prelude

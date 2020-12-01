@@ -9,7 +9,8 @@ module Cardano.SMASH.Offline
   , runOfflineFetchThread
   ) where
 
-import           Cardano.Prelude                  hiding (from, groupBy, retry, on)
+import           Cardano.Prelude                  hiding (from, groupBy, on,
+                                                   retry)
 
 import           Cardano.BM.Trace                 (Trace, logInfo, logWarning)
 
@@ -39,7 +40,10 @@ import           Data.Aeson                       (eitherDecode')
 import qualified Data.ByteString.Lazy             as LBS
 import qualified Data.Text                        as Text
 import qualified Data.Text.Encoding               as Text
-import           Data.Time.Clock.POSIX            (posixSecondsToUTCTime)
+
+import qualified Data.Time                        as Time
+import           Data.Time.Clock.POSIX            (POSIXTime,
+                                                   posixSecondsToUTCTime)
 import qualified Data.Time.Clock.POSIX            as Time
 
 import qualified Cardano.Crypto.Hash.Blake2b      as Crypto
@@ -50,11 +54,11 @@ import qualified Data.ByteString.Base16           as B16
 
 import           Database.Esqueleto               (Entity (..), InnerJoin (..),
                                                    SqlExpr, Value, ValueList,
-                                                   entityKey, entityVal, from,
-                                                   groupBy, in_, just, max_,
-                                                   notExists, on, select,
-                                                   subList_select, unValue,
-                                                   where_, (==.), (^.))
+                                                   desc, entityKey, entityVal,
+                                                   from, groupBy, in_, just,
+                                                   max_, notExists, on, orderBy,
+                                                   select, subList_select,
+                                                   unValue, where_, (==.), (^.))
 import           Database.Persist.Sql             (SqlBackend)
 
 import           Network.HTTP.Client              (HttpException (..))
@@ -65,10 +69,7 @@ import qualified Network.HTTP.Types.Status        as Http
 import qualified Shelley.Spec.Ledger.BaseTypes    as Shelley
 import qualified Shelley.Spec.Ledger.TxData       as Shelley
 
-
--- This is an incredibly rough hack that adds asynchronous fetching of offline metadata.
--- This is not my best work.
-
+-- This is what we call from the actual block-syncing code.
 fetchInsertNewPoolMetadata
     :: DataLayer
     -> Trace IO Text
@@ -87,48 +88,70 @@ fetchInsertNewPoolMetadata dataLayer tracer refId poolId md  = do
         , pfrRetry = newRetry now
         }
 
+-- Please note that it is possible that a user submits the same pool hash
+-- several times which will result in the fetch being done for each of the entry.
+-- We do this in order to make sure that the metadata wasn't fixed in the meantime.
 fetchInsertNewPoolMetadataOld
     :: DataLayer
     -> Trace IO Text
     -> (PoolId -> Trace IO Text -> PoolFetchRetry -> ExceptT FetchError IO ())
     -> PoolFetchRetry
-    -> IO (Maybe PoolFetchRetry)
+    -> IO PoolFetchRetry
 fetchInsertNewPoolMetadataOld dataLayer tracer fetchInsert pfr = do
+
+    logInfo tracer . showRetryTimes $ pfrRetry pfr
 
     -- We extract the @PoolId@ before so we can map the error to that @PoolId@.
     let poolId = pfrPoolIdWtf pfr
+    let poolHash = pfrPoolMDHash pfr
+
+    -- POSIX fetch time for the (initial) fetch.
+    let fetchTimePOSIX :: POSIXTime
+        fetchTimePOSIX = fetchTime $ pfrRetry pfr
+
+    -- The current retry counter.
+    let currRetryCount :: Word
+        currRetryCount = retryCount $ pfrRetry pfr
 
     res <- runExceptT (fetchInsert poolId tracer pfr)
+
     -- In the case all went well, we do nothing, but if something went wrong
     -- we log that and add the error to the database.
     case res of
-        Right () -> pure Nothing
+        Right () -> do
+            logInfo tracer $ "Pool metadata was fetched with success!"
+            pure pfr
+
         Left err -> do
-            let poolHash = pfrPoolMDHash pfr
+            logInfo tracer $ "Pool metadata was NOT fetched with success!"
+
+            -- Increase the retry count.
+            let newRetryCount = currRetryCount + 1
+
+            -- Re-calculate the time for the next retry.
+            let retry = retryAgain fetchTimePOSIX newRetryCount
+
             let poolMetadataReferenceId = pfrReferenceId pfr
             let fetchError = renderFetchError err
-            let currRetryCount = 1 + (retryCount $ pfrRetry pfr)
-
-            -- Update retry timeout here as a psuedo-randomisation of retry.
-            now <- Time.getPOSIXTime
 
             -- The generated fetch error
-            let _poolFetchError = PoolFetchError now poolId poolHash fetchError
+            let _poolFetchError = PoolFetchError fetchTimePOSIX poolId poolHash fetchError
 
             let addFetchError = dlAddFetchError dataLayer
 
-            _ <- addFetchError $ PoolMetadataFetchError
-                (posixSecondsToUTCTime now)
+            -- Here we add the fetch error. The fetch time is always constant.
+            pmfeIdE_ <- addFetchError $ PoolMetadataFetchError
+                (posixSecondsToUTCTime $ fetchTimePOSIX)
                 poolId
                 poolHash
                 poolMetadataReferenceId
                 fetchError
-                currRetryCount
+                newRetryCount
 
             logWarning tracer fetchError
 
-            -- Here we update the the time to update.
-            pure . Just $ pfr { pfrRetry = nextRetry now (pfrRetry pfr) }
+            -- Here we update the the counter and retry time to update.
+            pure $ pfr { pfrRetry = retry }
 
 -- |We pass in the @PoolId@ so we can know from which pool the error occured.
 fetchInsertDefault
@@ -179,10 +202,11 @@ fetchInsertDefault poolId tracer pfr = do
 
     liftIO $ logInfo tracer (decodeUtf8 respBS)
 
+-- This is run as a new thread with the fetchLoop looping forever.
 runOfflineFetchThread :: Trace IO Text -> IO ()
 runOfflineFetchThread trce = do
     liftIO $ logInfo trce "Runing Offline fetch thread"
-    fetchLoop postgresqlDataLayer FetchLoopForever trce queryPoolFetchRetryDefault emptyFetchQueue
+    fetchLoop postgresqlDataLayer FetchLoopForever trce queryPoolFetchRetryDefault
 
 ---------------------------------------------------------------------------------------------------
 
@@ -200,41 +224,47 @@ fetchLoop
     => DataLayer
     -> FetchLoopType
     -> Trace IO Text
-    -> (Retry -> ReaderT SqlBackend (LoggingT IO) [PoolFetchRetry]) -- This should be in the @DataLayer@
-    -> FetchQueue
+    -> (ReaderT SqlBackend (LoggingT IO) [PoolFetchRetry]) -- This should be in the @DataLayer@
     -> m ()
-fetchLoop dataLayer fetchLoopType trce queryPoolFetchRetry fetchQueue =
-    loop fetchQueue
+fetchLoop dataLayer fetchLoopType trce queryPoolFetchRetry =
+    loop
   where
-    loop :: FetchQueue -> m ()
-    loop fq = do
-      now <- liftIO $ Time.getPOSIXTime
+    loop :: m ()
+    loop = do
+
+      -- A interval pause so we don't do too much work on this thread.
+      liftIO $ threadDelay 60_000_000 -- 60 seconds
+
+      now <- liftIO Time.getPOSIXTime
 
       -- Fetch all pools that have not been run with success.
       -- This has to be stateful in order to count.
-      pools <- liftIO $ runDbAction (Just trce) $ queryPoolFetchRetry (newRetry now)
+      pools <- liftIO $ runDbAction (Just trce) $ queryPoolFetchRetry
 
-      let newFq = insertFetchQueue pools fq
-          (runnable, unrunnable) = partitionFetchQueue newFq now
+      -- Filter for figuring out if it's time for a retry.
+      let isRunnable :: PoolFetchRetry -> Bool
+          isRunnable pfr = retryTime (pfrRetry pfr) < now
+
+      let runnablePools = filter isRunnable pools
 
       liftIO $ logInfo trce $
         mconcat
-          [ "fetchLoop: ", show (length runnable), " runnable, "
-          , show (lenFetchQueue unrunnable), " pending"
+          [ " ***************************** "
+          , "Pools with errors: total "
+          , show (length pools)
+          , ", runnable "
+          , show (length runnablePools)
+          , "."
           ]
 
-      if null runnable
-        then do
-          liftIO $ threadDelay 20_000_000 -- 20 seconds
+      -- We actually run the fetch again.
+      _ <- liftIO $ forM runnablePools $ \pool ->
+          fetchInsertNewPoolMetadataOld dataLayer trce fetchInsertDefault pool
 
-          -- If it loops forever then loop, else finish. For testing.
-          if isFetchLoopForever fetchLoopType
-            then loop unrunnable
-            else pure ()
-        else do
-          liftIO $ logInfo trce $ "Pools without offline metadata: " <> show (length runnable)
-          poolsMetaWithError <- liftIO $ catMaybes <$> mapM (fetchInsertNewPoolMetadataOld dataLayer trce fetchInsertDefault) runnable
-          loop $ insertFetchQueue poolsMetaWithError unrunnable
+      -- If it loops forever then loop, else finish. For testing.
+      if isFetchLoopForever fetchLoopType
+        then loop
+        else pure ()
 
 httpGetMax512Bytes
     :: PoolId
@@ -275,23 +305,24 @@ convertHttpException poolId poolMetadataURL he =
 -- no PoolMetadata entry.
 -- This is a bit questionable because it assumes that the autogenerated 'id' primary key
 -- is a reliable proxy for time, ie higher 'id' was added later in time.
-queryPoolFetchRetryDefault :: MonadIO m => Retry -> ReaderT SqlBackend m [PoolFetchRetry]
-queryPoolFetchRetryDefault retry = do
+queryPoolFetchRetryDefault :: MonadIO m => ReaderT SqlBackend m [PoolFetchRetry]
+queryPoolFetchRetryDefault = do
 
     pmfr <- select . from $ \((pmfr :: SqlExpr (Entity PoolMetadataFetchError)) `InnerJoin` (pmr :: SqlExpr (Entity PoolMetadataReference))) -> do
                 on (pmfr ^. DB.PoolMetadataFetchErrorPmrId ==. pmr ^. DB.PoolMetadataReferenceId)
                 where_ (just (pmfr ^. DB.PoolMetadataFetchErrorId) `in_` latestReferences)
                 where_ (notExists . from $ \pod -> where_ (pod ^. DB.PoolMetadataPmrId ==. just (pmfr ^. DB.PoolMetadataFetchErrorPmrId)))
-
+                orderBy [desc (pmfr ^. DB.PoolMetadataFetchErrorFetchTime)]
                 pure
-                    ( pmfr ^. DB.PoolMetadataFetchErrorPmrId
+                    ( pmfr ^. DB.PoolMetadataFetchErrorFetchTime
+                    , pmfr ^. DB.PoolMetadataFetchErrorPmrId
                     , pmfr ^. DB.PoolMetadataFetchErrorPoolId
                     , pmr ^. DB.PoolMetadataReferenceUrl
                     , pmfr ^. DB.PoolMetadataFetchErrorPoolHash
                     , pmfr ^. DB.PoolMetadataFetchErrorRetryCount
                     )
 
-    pure $ map (convert . unValue5) pmfr
+    pure $ map (convert . unValue6) pmfr
   where
     latestReferences :: SqlExpr (ValueList (Maybe DB.PoolMetadataFetchErrorId))
     latestReferences =
@@ -299,18 +330,22 @@ queryPoolFetchRetryDefault retry = do
         groupBy (pmfr ^. DB.PoolMetadataFetchErrorPoolId, pmfr ^. DB.PoolMetadataFetchErrorPoolHash)
         pure $ max_ (pmfr ^. DB.PoolMetadataFetchErrorId)
 
-    convert :: (PoolMetadataReferenceId, PoolId, PoolUrl, PoolMetadataHash, Word) -> PoolFetchRetry
-    convert (poolMetadataReferenceId, poolId, poolUrl, poolMetadataHash, existingRetryCount) =
-        PoolFetchRetry
-          { pfrReferenceId = poolMetadataReferenceId
-          , pfrPoolIdWtf = poolId
-          , pfrPoolUrl = poolUrl
-          , pfrPoolMDHash = poolMetadataHash
-          , pfrRetry = retry { retryCount = existingRetryCount }
-          }
+    convert :: (Time.UTCTime, PoolMetadataReferenceId, PoolId, PoolUrl, PoolMetadataHash, Word) -> PoolFetchRetry
+    convert (fetchTime', poolMetadataReferenceId, poolId, poolUrl, poolMetadataHash, existingRetryCount) =
+        let fetchTimePOSIX = Time.utcTimeToPOSIXSeconds fetchTime'
+            retry = retryAgain fetchTimePOSIX existingRetryCount
+        in
+            PoolFetchRetry
+              { pfrReferenceId = poolMetadataReferenceId
+              , pfrPoolIdWtf = poolId
+              , pfrPoolUrl = poolUrl
+              , pfrPoolMDHash = poolMetadataHash
+              , pfrRetry = retry
+              }
 
-    unValue5 :: (Value a, Value b, Value c, Value d, Value e) -> (a, b, c, d, e)
-    unValue5 (a, b, c, d, e) = (unValue a, unValue b, unValue c, unValue d, unValue e)
+    -- Util
+    unValue6 :: (Value a, Value b, Value c, Value d, Value e, Value f) -> (a, b, c, d, e, f)
+    unValue6 (a, b, c, d, e, f) = (unValue a, unValue b, unValue c, unValue d, unValue e, unValue f)
 
 
 renderByteStringHex :: ByteString -> Text

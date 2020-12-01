@@ -47,7 +47,6 @@ library
     Cardano.SMASH.DBSync.SmashDbSync
     Cardano.SMASH.DBSyncPlugin
     Cardano.SMASH.FetchQueue
-    Cardano.SMASH.FetchQueue.Retry
     Cardano.SMASH.Lib
     Cardano.SMASH.Offline
 

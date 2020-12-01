@@ -41,7 +41,7 @@ migrationSpec = do
 
     describe "FetchQueueSpec" $ do
         describe "Retry count" $
-            prop "retrying again increases the retry count" $ \initialCount -> monadicIO $ do
+            prop "retrying again increases the retry count" $ \(initialCount :: Word) -> monadicIO $ do
 
                 -- Probably switch to @DataLayer@
                 poolMetadataRefIdE <- run $ runDbNoLogging $ insertPoolMetadataReference $ PoolMetadataReference (PoolId "1") (PoolUrl "http://test.com") (PoolMetadataHash "hash")
@@ -54,8 +54,8 @@ migrationSpec = do
 
                 let retry =
                         Retry
-                            { retryWhen = timeNow
-                            , retryNext = timeNow
+                            { fetchTime = timeNow
+                            , retryTime = timeNow + 60
                             , retryCount = initialCount
                             }
 
@@ -68,22 +68,24 @@ migrationSpec = do
                             , pfrRetry       = retry
                             }
 
-
                 let dataLayer = postgresqlDataLayer
---                        DataLayer
---                            { dlAddFetchError = \poolMetadataFetchError -> return $ Right poolMetadataRefId
---                            }
 
                 let fetchInsert = \_ _ _ -> left $ FEIOException "Dunno"
 
-                mPool <- run $ fetchInsertNewPoolMetadataOld dataLayer Logging.nullTracer fetchInsert poolFetchRetry
+                --print $ showRetryTimes (pfrRetry poolFetchRetry)
 
-                assert $ isJust mPool
+                poolFetchRetry <- run $ fetchInsertNewPoolMetadataOld dataLayer Logging.nullTracer fetchInsert poolFetchRetry
+                --print $ showRetryTimes (pfrRetry poolFetchRetry)
 
-                let pool = fromMaybe (panic "!") mPool
-                let newRetryCount = retryCount (pfrRetry pool)
+                poolFetchRetry <- run $ fetchInsertNewPoolMetadataOld dataLayer Logging.nullTracer fetchInsert poolFetchRetry
+                --print $ showRetryTimes (pfrRetry poolFetchRetry)
 
-                assert $ newRetryCount == initialCount + 1
+                poolFetchRetry <- run $ fetchInsertNewPoolMetadataOld dataLayer Logging.nullTracer fetchInsert poolFetchRetry
+                --print $ showRetryTimes (pfrRetry poolFetchRetry)
+
+                let newRetryCount = retryCount (pfrRetry poolFetchRetry)
+
+                assert $ newRetryCount == initialCount + 3
 
 
 -- Really just make sure that the migrations do actually run correctly.
@@ -95,7 +97,7 @@ migrationTest = do
 
     -- TODO(KS): This version HAS to be changed manually so we don't mess up the
     -- migration.
-    let expected = SchemaVersion 1 4 0
+    let expected = SchemaVersion 1 5 0
     actual <- getDbSchemaVersion
     unless (expected == actual) $
         panic $ mconcat

@@ -211,7 +211,7 @@ queryPoolMetadataFetchErrorByTime
 queryPoolMetadataFetchErrorByTime poolId Nothing = do
   res <- select . from $ \(poolMetadataFetchError :: SqlExpr (Entity PoolMetadataFetchError)) -> do
             where_ (poolMetadataFetchError ^. PoolMetadataFetchErrorPoolId ==. val poolId)
-
+            orderBy [desc (poolMetadataFetchError ^. PoolMetadataFetchErrorFetchTime)]
             pure $ poolMetadataFetchError
   pure $ fmap entityVal res
 
@@ -219,7 +219,7 @@ queryPoolMetadataFetchErrorByTime poolId (Just fromTime) = do
   res <- select . from $ \(poolMetadataFetchError :: SqlExpr (Entity PoolMetadataFetchError)) -> do
             where_ (poolMetadataFetchError ^. PoolMetadataFetchErrorPoolId ==. val poolId
                 &&. poolMetadataFetchError ^. PoolMetadataFetchErrorFetchTime >=. val fromTime)
-
+            orderBy [desc (poolMetadataFetchError ^. PoolMetadataFetchErrorFetchTime)]
             pure $ poolMetadataFetchError
   pure $ fmap entityVal res
 
