@@ -28,7 +28,7 @@ let
   };
 
   packages = {
-    inherit haskellPackages scripts smash-exe smash-exe-testing;
+    inherit haskellPackages scripts smash-exe smash-exe-testing cardano-node;
     inherit (haskellPackages.smash.identifier) version;
 
     # `tests` are the test suites which have been built.

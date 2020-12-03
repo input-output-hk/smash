@@ -23,6 +23,7 @@ with pkgs; with commonLib;
       services.cardano-node = {
         enable = true;
         environment = "shelley_testnet";
+        package = smashHaskellPackages.cardano-node.components.exes.cardano-node;
       };
       services.postgresql = {
         enable = true;
