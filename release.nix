@@ -73,6 +73,7 @@ let
     (collectJobs jobs.native.checks)
     (collectJobs jobs.native.libs)
     (collectJobs jobs.native.exes)
+    [ jobs.native.cardano-node.x86_64-linux ]
   ]));
 
 in jobs

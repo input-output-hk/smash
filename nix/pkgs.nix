@@ -26,6 +26,9 @@ pkgs: _: with pkgs;
   inherit (smashHaskellPackages.smash.components.exes)
       smash-exe;
 
+  inherit (smashHaskellPackages.cardano-node.components.exes)
+    cardano-node;
+
   smash-exe-testing = smashTestingHaskellPackages.smash.components.exes.smash-exe;
 
 }
