@@ -16,7 +16,7 @@ module Cardano.SMASH.DBSync.Db.Insert
   , insertByReturnKey
   ) where
 
-import           Cardano.Prelude                hiding (Meta)
+import           Cardano.Prelude                hiding (Meta, replace)
 
 import           Control.Monad.IO.Class         (MonadIO)
 import           Control.Monad.Trans.Reader     (ReaderT, mapReaderT)
@@ -78,12 +78,18 @@ insertPoolMetadataFetchError
     :: (MonadIO m)
     => PoolMetadataFetchError
     -> ReaderT SqlBackend m (Either DBFail PoolMetadataFetchErrorId)
-insertPoolMetadataFetchError = insertByReturnKey
+insertPoolMetadataFetchError pmfe = do
+    isUnique <- checkUnique pmfe
+    -- If there is no unique constraint violated, insert, otherwise delete and insert.
+    case isUnique of
+        Nothing -> insertByReturnKey pmfe
+        Just _key -> return . Left . DbInsertError $ "Pool metadata fetch error already exists!"
 
 -------------------------------------------------------------------------------
 
 -- | Insert a record (with a Unique constraint), and return 'Right key' if the
 -- record is inserted and 'Left key' if the record already exists in the DB.
+-- TODO(KS): This needs to be tested, not sure if it's actually working.
 insertByReturnKey
     :: ( AtLeastOneUniqueKey record
        , MonadIO m
@@ -100,5 +106,4 @@ insertByReturnKey value = do
     exceptionHandler :: MonadIO m => SqlError -> m (Either DBFail a)
     exceptionHandler e =
         liftIO . pure . Left . DbInsertError . show $ e
-
 

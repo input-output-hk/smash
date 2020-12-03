@@ -201,3 +201,4 @@ insertPoolRegister dataLayer tracer params = do
 
   liftIO . logInfo tracer $ "Inserted pool register."
   pure ()
+

@@ -2,6 +2,7 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralisedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE DerivingVia                #-}
 
 module Cardano.SMASH.DBSync.Db.Types where
 
@@ -17,13 +18,16 @@ import           Cardano.Api.Typed      hiding (PoolId)
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Char8  as BSC
 
+import           Quiet                  (Quiet (..))
+
 -- | The stake pool identifier. It is the hash of the stake pool operator's
 -- vkey.
 --
 -- It may be rendered as hex or as bech32 using the @pool@ prefix.
 --
 newtype PoolId = PoolId { getPoolId :: Text }
-  deriving stock (Eq, Show, Ord, Generic)
+  deriving stock (Eq, Ord, Generic)
+  deriving Show via (Quiet PoolId)
   deriving newtype PersistField
 
 instance ToJSON PoolId where
@@ -71,7 +75,8 @@ parsePoolId poolId =
 -- It may be rendered as hex.
 --
 newtype PoolMetadataHash = PoolMetadataHash { getPoolMetadataHash :: Text }
-  deriving stock (Eq, Show, Ord, Generic)
+  deriving stock (Eq, Ord, Generic)
+  deriving Show via (Quiet PoolMetadataHash)
   deriving newtype PersistField
 
 instance ToJSON PoolMetadataHash where
@@ -87,6 +92,11 @@ instance FromJSON PoolMetadataHash where
         poolHash <- o .: "poolHash"
         return $ PoolMetadataHash poolHash
 
+-- Converting the basic type to a strong one.
+-- Presumes the user knows what he is doing, NOT TYPE SAFE!
+bytestringToPoolMetaHash :: ByteString -> PoolMetadataHash
+bytestringToPoolMetaHash bs = PoolMetadataHash . decodeUtf8 . B16.encode $ bs
+
 -- | The stake pool metadata. It is JSON format. This type represents it in
 -- its raw original form. The hash of this content is the 'PoolMetadataHash'.
 newtype PoolMetadataRaw = PoolMetadataRaw { getPoolMetadata :: Text }
@@ -95,12 +105,14 @@ newtype PoolMetadataRaw = PoolMetadataRaw { getPoolMetadata :: Text }
 
 -- | The pool url wrapper so we have some additional safety.
 newtype PoolUrl = PoolUrl { getPoolUrl :: Text }
-  deriving stock (Eq, Show, Ord, Generic)
+  deriving stock (Eq, Ord, Generic)
+  deriving Show via (Quiet PoolUrl)
   deriving newtype PersistField
 
 -- | The ticker name wrapper so we have some additional safety.
 newtype TickerName = TickerName { getTickerName :: Text }
-  deriving stock (Eq, Show, Ord, Generic)
+  deriving stock (Eq, Ord, Generic)
+  deriving Show via (Quiet TickerName)
   deriving newtype PersistField
 
 instance ToJSON TickerName where

@@ -47,7 +47,6 @@ library
     Cardano.SMASH.DBSync.SmashDbSync
     Cardano.SMASH.DBSyncPlugin
     Cardano.SMASH.FetchQueue
-    Cardano.SMASH.FetchQueue.Retry
     Cardano.SMASH.Lib
     Cardano.SMASH.Offline
 
@@ -168,6 +167,7 @@ test-suite smash-test
   build-depends:
       base                      >=4.7 && <5
     , cardano-prelude
+    , iohk-monitoring
     , containers
     , ed25519
     , hspec
@@ -176,6 +176,7 @@ test-suite smash-test
     , smash
     , smash-servant-types
     , tree-diff
+    , transformers-except
 
   default-language:   Haskell2010
   default-extensions:
@@ -214,6 +215,8 @@ test-suite db-spec-test
     , smash-servant-types
     , iohk-monitoring
     , tree-diff
+    , time
+    , transformers-except
 
   default-language:   Haskell2010
   default-extensions:

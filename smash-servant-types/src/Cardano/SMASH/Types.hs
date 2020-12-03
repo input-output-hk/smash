@@ -13,6 +13,7 @@ module Cardano.SMASH.Types
     , PoolId (..)
     , PoolUrl (..)
     , PoolMetadataHash (..)
+    , bytestringToPoolMetaHash
     , PoolMetadataRaw (..)
     , TickerName (..)
     -- * Wrapper
@@ -35,6 +36,7 @@ module Cardano.SMASH.Types
     , TimeStringFormat (..)
     -- * Util
     , DBConversion (..)
+    , formatTimeToNormal
     ) where
 
 import           Cardano.Prelude

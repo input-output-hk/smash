@@ -11,15 +11,9 @@ import           Cardano.Prelude                hiding (Meta)
 import           Control.Monad.IO.Class         (MonadIO)
 import           Control.Monad.Trans.Reader     (ReaderT)
 
-import           Database.Persist.Class         (AtLeastOneUniqueKey, Key,
-                                                 PersistEntityBackend,
-                                                 checkUnique, getByValue,
-                                                 insert)
 import           Database.Persist.Sql           (SqlBackend, deleteCascade,
                                                  selectKeysList, (==.))
-import           Database.Persist.Types         (entityKey)
 
-import           Cardano.SMASH.DBSync.Db.Error
 import           Cardano.SMASH.DBSync.Db.Schema
 import qualified Cardano.SMASH.DBSync.Db.Types  as Types
 
