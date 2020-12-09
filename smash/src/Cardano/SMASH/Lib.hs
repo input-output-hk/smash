@@ -18,10 +18,16 @@ module Cardano.SMASH.Lib
     , deleteAdminUser
     ) where
 
+#ifdef TESTING_MODE
+import           Cardano.SMASH.Types         (TickerName, pomTicker)
+import           Data.Aeson                  (eitherDecode')
+import qualified Data.ByteString.Lazy        as BL
+#endif
+
 import           Cardano.Prelude             hiding (Handler)
 
-import           Data.Aeson                  (eitherDecode', encode)
-import qualified Data.ByteString.Lazy        as BL
+import           Data.Aeson                  (encode)
+
 import           Data.Swagger                (Info (..), Swagger (..))
 import           Data.Time                   (UTCTime, addUTCTime,
                                               getCurrentTime, nominalDay)
@@ -54,11 +60,11 @@ import           Cardano.SMASH.Types         (ApiResult (..),
                                               Configuration (..),
                                               HealthStatus (..), PoolFetchError,
                                               PoolId (..), PoolMetadataHash,
-                                              PoolMetadataRaw (..), TickerName,
+                                              PoolMetadataRaw (..),
                                               TimeStringFormat (..), User,
                                               UserValidity (..),
                                               checkIfUserValid,
-                                              defaultConfiguration, pomTicker,
+                                              defaultConfiguration,
                                               stubbedApplicationUsers)
 
 import           Paths_smash                 (version)
@@ -142,17 +148,6 @@ mkApp configuration = do
 -- Generic throwing of exception when something goes bad.
 throwDBFailException :: DBFail -> IO (ApiResult DBFail a)
 throwDBFailException dbFail = throwIO $ err400 { errBody = encode dbFail }
-
-runPoolInsertion :: DataLayer -> PoolMetadataRaw -> PoolId -> PoolMetadataHash -> IO (Either DBFail PoolMetadataRaw)
-runPoolInsertion dataLayer poolMetadataRaw poolId poolHash = do
-
-    decodedMetadata <-  case (eitherDecode' . BL.fromStrict . encodeUtf8 . getPoolMetadata $ poolMetadataRaw) of
-                            Left err     -> panic $ toS err
-                            Right result -> return result
-
-    let addPoolMetadata = dlAddPoolMetadata dataLayer
-
-    addPoolMetadata Nothing poolId poolHash poolMetadataRaw (pomTicker decodedMetadata)
 
 -- | We need to supply our handlers with the right Context.
 basicAuthServerContext :: ApplicationUsers -> Context (BasicAuthCheck User ': '[])
@@ -362,5 +357,16 @@ addTicker dataLayer tickerName poolMetadataHash = convertIOToHandler $ do
     case reservedTickerE of
         Left dbFail           -> throwDBFailException dbFail
         Right _reservedTicker -> return . ApiResult . Right $ tickerName
+
+runPoolInsertion :: DataLayer -> PoolMetadataRaw -> PoolId -> PoolMetadataHash -> IO (Either DBFail PoolMetadataRaw)
+runPoolInsertion dataLayer poolMetadataRaw poolId poolHash = do
+
+    decodedMetadata <-  case (eitherDecode' . BL.fromStrict . encodeUtf8 . getPoolMetadata $ poolMetadataRaw) of
+                            Left err     -> panic $ toS err
+                            Right result -> return result
+
+    let addPoolMetadata = dlAddPoolMetadata dataLayer
+
+    addPoolMetadata Nothing poolId poolHash poolMetadataRaw (pomTicker decodedMetadata)
 #endif
 

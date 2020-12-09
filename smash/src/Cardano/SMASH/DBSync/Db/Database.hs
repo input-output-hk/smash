@@ -1,12 +1,11 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE NoImplicitPrelude    #-}
+{-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module Cardano.SMASH.DBSync.Db.Database
   ( DbAction (..)
   , DbActionQueue (..)
-  , MkDbAction (..)
   , lengthDbActionQueue
   , newDbActionQueue
   , runDbStartup
@@ -14,28 +13,33 @@ module Cardano.SMASH.DBSync.Db.Database
   , writeDbActionQueue
   ) where
 
-import           Cardano.BM.Trace (Trace, logDebug, logError, logInfo)
-import qualified Cardano.Chain.Block as Ledger
-import qualified Cardano.DbSync.Era.Byron.Util as Byron
+import           Cardano.BM.Trace                       (Trace, logDebug,
+                                                         logError, logInfo)
+import qualified Cardano.Chain.Block                    as Ledger
+import qualified Cardano.DbSync.Era.Byron.Util          as Byron
 import           Cardano.Prelude
 
-import           Control.Monad.Logger (LoggingT)
-import           Control.Monad.Trans.Except.Extra (left, newExceptT, runExceptT)
+import           Control.Monad.Logger                   (LoggingT)
+import           Control.Monad.Trans.Except.Extra       (left, newExceptT,
+                                                         runExceptT)
 
-import           Cardano.Slotting.Slot (SlotNo)
+import           Cardano.Slotting.Slot                  (SlotNo)
 
-import qualified Cardano.SMASH.DB as DB
+import qualified Cardano.SMASH.DB                       as DB
 import           Cardano.SMASH.DBSync.Metrics
 
+import           Cardano.DbSync.Config
 import           Cardano.DbSync.DbAction
 import           Cardano.DbSync.Error
+import           Cardano.DbSync.LedgerState
 import           Cardano.DbSync.Plugin
 import           Cardano.DbSync.Types
 import           Cardano.DbSync.Util
 
-import           Database.Persist.Sql (SqlBackend)
+import           Database.Persist.Sql                   (SqlBackend)
 
-import           Ouroboros.Consensus.Byron.Ledger (ByronBlock (..))
+import           Ouroboros.Consensus.Byron.Ledger       (ByronBlock (..))
+import           Ouroboros.Consensus.Cardano.Block      (HardForkBlock (..))
 
 import qualified System.Metrics.Prometheus.Metric.Gauge as Gauge
 
@@ -45,38 +49,48 @@ data NextState
   | Done
   deriving Eq
 
-
 runDbStartup :: Trace IO Text -> DbSyncNodePlugin -> IO ()
 runDbStartup trce plugin =
   DB.runDbAction (Just trce) $
     mapM_ (\action -> action trce) $ plugOnStartup plugin
 
-runDbThread :: Trace IO Text -> DbSyncEnv -> DbSyncNodePlugin -> Metrics -> DbActionQueue -> IO ()
-runDbThread trce env plugin metrics queue = do
+-- TODO(KS): Needs a @DataLayer@.
+runDbThread
+    :: Trace IO Text -> DbSyncEnv -> DbSyncNodePlugin -> Metrics
+    -> DbActionQueue -> LedgerStateVar
+    -> IO ()
+runDbThread trce env plugin metrics queue ledgerStateVar = do
     logInfo trce "Running DB thread"
     logException trce "runDBThread: " loop
     logInfo trce "Shutting down DB thread"
   where
     loop = do
-      --logInfo trce "Starting the DBThread loop."
       xs <- blockingFlushDbActionQueue queue
       when (length xs > 1) $ do
         logDebug trce $ "runDbThread: " <> textShow (length xs) <> " blocks"
-      eNextState <- runExceptT $ runActions trce env plugin xs
-      --logInfo trce "Query latest block number."
+      eNextState <- runExceptT $ runActions trce env plugin ledgerStateVar xs
+
       mBlkNo <-  DB.runDbAction (Just trce) DB.queryLatestBlockNo
+
       case mBlkNo of
-        Nothing -> pure ()
+        Nothing    -> pure ()
         Just blkNo -> Gauge.set (fromIntegral blkNo) $ mDbHeight metrics
+
       case eNextState of
-        Left err -> logError trce $ renderDbSyncNodeError err
+        Left err       -> logError trce $ renderDbSyncNodeError err
         Right Continue -> loop
-        Right Done -> pure ()
+        Right Done     -> pure ()
 
 -- | Run the list of 'DbAction's. Block are applied in a single set (as a transaction)
 -- and other operations are applied one-by-one.
-runActions :: Trace IO Text -> DbSyncEnv -> DbSyncNodePlugin -> [DbAction] -> ExceptT DbSyncNodeError IO NextState
-runActions trce env plugin actions = do
+runActions
+    :: Trace IO Text
+    -> DbSyncEnv
+    -> DbSyncNodePlugin
+    -> LedgerStateVar
+    -> [DbAction]
+    -> ExceptT DbSyncNodeError IO NextState
+runActions trce env plugin ledgerState actions = do
     nextState <- checkDbState trce actions
     if nextState /= Done
       then dbAction Continue actions
@@ -89,11 +103,12 @@ runActions trce env plugin actions = do
       case spanDbApply xs of
         ([], DbFinish:_) -> do
             pure Done
-        ([], DbRollBackToPoint pt:ys) -> do
-            runRollbacks trce plugin pt
+        ([], DbRollBackToPoint sn:ys) -> do
+            runRollbacks trce plugin sn
+            liftIO $ loadLedgerState (envLedgerStateDir env) ledgerState sn
             dbAction Continue ys
         (ys, zs) -> do
-          insertBlockList trce env plugin ys
+          insertBlockList trce env ledgerState plugin ys
           if null zs
             then pure Continue
             else dbAction Continue zs
@@ -101,14 +116,15 @@ runActions trce env plugin actions = do
 checkDbState :: Trace IO Text -> [DbAction] -> ExceptT DbSyncNodeError IO NextState
 checkDbState trce xs =
     case filter isMainBlockApply (reverse xs) of
-      [] -> pure Continue
+      []                        -> pure Continue
       (DbApplyBlock blktip : _) -> validateBlock blktip
-      _ -> pure Continue
+      _                         -> pure Continue
   where
+    -- We need to seperate base types from new types se we achive separation.
     validateBlock :: BlockDetails -> ExceptT DbSyncNodeError IO NextState
-    validateBlock cblk = do
+    validateBlock (BlockDetails cblk _) = do
       case cblk of
-        ByronBlockDetails bblk _ ->
+        BlockByron bblk ->
           case byronBlockRaw bblk of
             Ledger.ABOBBoundary _ -> left $ NEError "checkDbState got a boundary block"
             Ledger.ABOBBlock chBlk -> do
@@ -125,17 +141,26 @@ checkDbState trce xs =
                     mconcat [ "checkDbState: Block no ", textShow (Byron.blockNumber chBlk), " present" ]
                   pure Done -- Block already exists, so we are done.
 
-        ShelleyBlockDetails {} ->
+        BlockShelley {} ->
           panic "checkDbState for ShelleyBlock not yet implemented"
+        BlockAllegra {} ->
+          panic "checkDbState for AllegraBlock not yet implemented"
+        BlockMary {} ->
+          panic "checkDbState for MaryBlock not yet implemented"
+
 
     isMainBlockApply :: DbAction -> Bool
     isMainBlockApply dba =
       case dba of
-        DbApplyBlock (ByronBlockDetails blk _tip) ->
-          case byronBlockRaw blk of
-            Ledger.ABOBBlock _ -> True
-            Ledger.ABOBBoundary _ -> False
-        DbApplyBlock (ShelleyBlockDetails {}) -> False -- Should not matter.
+        DbApplyBlock (BlockDetails cblk _details) ->
+          case cblk of
+            BlockByron bblk ->
+              case byronBlockRaw bblk of
+                Ledger.ABOBBlock _    -> True
+                Ledger.ABOBBoundary _ -> False
+            BlockShelley {} -> False
+            BlockAllegra {} -> False
+            BlockMary {} -> False
         DbRollBackToPoint {} -> False
         DbFinish -> False
 
@@ -152,10 +177,11 @@ runRollbacks trce plugin point =
 insertBlockList
     :: Trace IO Text
     -> DbSyncEnv
+    -> LedgerStateVar
     -> DbSyncNodePlugin
     -> [BlockDetails]
     -> ExceptT DbSyncNodeError IO ()
-insertBlockList trce env plugin blks =
+insertBlockList trce env ledgerState plugin blks =
   -- Setting this to True will log all 'Persistent' operations which is great
   -- for debugging, but otherwise is *way* too chatty.
   newExceptT
@@ -166,11 +192,11 @@ insertBlockList trce env plugin blks =
         :: BlockDetails
         -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
     insertBlock blkTip =
-      traverseMEither (\ f -> f trce env blkTip) $ plugInsertBlock plugin
+      traverseMEither (\ f -> f trce env ledgerState blkTip) $ plugInsertBlock plugin
 
 -- | Split the DbAction list into a prefix containing blocks to apply and a postfix.
 spanDbApply :: [DbAction] -> ([BlockDetails], [DbAction])
 spanDbApply lst =
   case lst of
     (DbApplyBlock bt:xs) -> let (ys, zs) = spanDbApply xs in (bt:ys, zs)
-    xs -> ([], xs)
+    xs                   -> ([], xs)

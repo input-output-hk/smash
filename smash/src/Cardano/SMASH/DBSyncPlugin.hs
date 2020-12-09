@@ -4,80 +4,118 @@
 module Cardano.SMASH.DBSyncPlugin
   ( poolMetadataDbSyncNodePlugin
   -- * For future testing
-  , insertCardanoBlock
+  , insertDefaultBlock
   ) where
 
 import           Cardano.Prelude
 
-import           Cardano.BM.Trace                            (Trace, logError,
-                                                              logInfo)
+import           Cardano.BM.Trace                         (Trace,
+                                                           logError, logInfo)
 
-import           Control.Monad.Logger                        (LoggingT)
-import           Control.Monad.Trans.Except.Extra            (firstExceptT,
-                                                              newExceptT,
-                                                              runExceptT)
-import           Control.Monad.Trans.Reader                  (ReaderT)
+import           Control.Monad.Logger                     (LoggingT)
+import           Control.Monad.Trans.Except.Extra         (firstExceptT,
+                                                           newExceptT,
+                                                           runExceptT)
+import           Control.Monad.Trans.Reader               (ReaderT)
 
-import           Cardano.SMASH.DB                            (DBFail (..),
-                                                              DataLayer (..))
-import           Cardano.SMASH.Offline                       (fetchInsertNewPoolMetadata)
-import           Cardano.SMASH.Types                         (PoolId (..), PoolMetadataHash (..),
-                                                              PoolUrl (..))
+import           Cardano.SMASH.DB                         (DBFail (..),
+                                                           DataLayer (..))
+import           Cardano.SMASH.Offline                    (fetchInsertNewPoolMetadata)
+import           Cardano.SMASH.Types                      (PoolId (..),
+                                                           PoolMetadataHash (..),
+                                                           PoolUrl (..))
 
-import qualified Cardano.Chain.Block                         as Byron
+import qualified Cardano.Chain.Block                      as Byron
 
-import qualified Data.ByteString.Base16                      as B16
+import qualified Data.ByteString.Base16                   as B16
 
-import           Database.Persist.Sql                        (IsolationLevel (..),
-                                                              SqlBackend,
-                                                              transactionSaveWithIsolation)
+import           Database.Persist.Sql                     (IsolationLevel (..),
+                                                           SqlBackend,
+                                                           transactionSaveWithIsolation)
 
-import qualified Cardano.SMASH.DBSync.Db.Insert              as DB
-import qualified Cardano.SMASH.DBSync.Db.Query               as DB
-import qualified Cardano.SMASH.DBSync.Db.Schema              as DB
+import qualified Cardano.SMASH.DBSync.Db.Insert           as DB
+import qualified Cardano.SMASH.DBSync.Db.Schema           as DB
 
+import           Cardano.DbSync.Config.Types
 import           Cardano.DbSync.Error
-import           Cardano.DbSync.Types                        as DbSync
+import           Cardano.DbSync.Types                     as DbSync
 
-import           Cardano.DbSync                              (DbSyncNodePlugin (..))
+import           Cardano.DbSync.LedgerState
 
-import qualified Cardano.DbSync.Era.Byron.Util               as Byron
-import qualified Cardano.DbSync.Era.Shelley.Util             as Shelley
+import           Cardano.DbSync                           (DbSyncNodePlugin (..))
+import           Cardano.DbSync.Util
 
-import           Shelley.Spec.Ledger.BaseTypes               (strictMaybeToMaybe)
-import qualified Shelley.Spec.Ledger.BaseTypes               as Shelley
-import qualified Shelley.Spec.Ledger.TxData                  as Shelley
 
-import           Ouroboros.Consensus.Byron.Ledger            (ByronBlock (..))
-import           Ouroboros.Consensus.Shelley.Ledger.Block    (ShelleyBlock)
-import           Ouroboros.Consensus.Shelley.Protocol.Crypto (TPraosStandardCrypto)
+import qualified Cardano.DbSync.Era.Byron.Util            as Byron
+import qualified Cardano.DbSync.Era.Shelley.Generic       as Shelley
+
+import           Cardano.Slotting.Block                   (BlockNo (..))
+import           Cardano.Slotting.Slot                    (EpochNo (..),
+                                                           SlotNo (..))
+
+import           Shelley.Spec.Ledger.BaseTypes            (strictMaybeToMaybe)
+import qualified Shelley.Spec.Ledger.BaseTypes            as Shelley
+import qualified Shelley.Spec.Ledger.TxBody               as Shelley
+
+import           Ouroboros.Consensus.Byron.Ledger         (ByronBlock (..))
+
+import           Ouroboros.Consensus.Cardano.Block        (HardForkBlock (..),
+                                                           StandardShelley)
+
+import qualified Cardano.DbSync.Era.Shelley.Generic       as Generic
 
 -- |Pass in the @DataLayer@.
 poolMetadataDbSyncNodePlugin :: DataLayer -> DbSyncNodePlugin
 poolMetadataDbSyncNodePlugin dataLayer =
   DbSyncNodePlugin
     { plugOnStartup = []
-    , plugInsertBlock = [insertCardanoBlock dataLayer]
+    , plugInsertBlock = [insertDefaultBlock dataLayer]
     , plugRollbackBlock = []
     }
 
+-- For information on what era we are in.
+data BlockName
+    = Shelley
+    | Allegra
+    | Mary
+    deriving (Eq, Show)
+
 -- |TODO(KS): We need to abstract over these blocks so we can test this functionality
 -- separatly from the actual blockchain, using tests only.
-insertCardanoBlock
+insertDefaultBlock
     :: DataLayer
     -> Trace IO Text
     -> DbSyncEnv
-    -> DbSync.BlockDetails
+    -> LedgerStateVar
+    -> BlockDetails
     -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
-insertCardanoBlock dataLayer tracer _env block = do
-  case block of
-    ByronBlockDetails blk details -> Right <$> insertByronBlock tracer blk details
-    ShelleyBlockDetails blk _details -> insertShelleyBlock dataLayer tracer blk
+insertDefaultBlock dataLayer tracer env ledgerStateVar (BlockDetails cblk details) = do
+  -- Calculate the new ledger state to pass to the DB insert functions but do not yet
+  -- update ledgerStateVar.
+  lStateSnap <- liftIO $ applyBlock env ledgerStateVar cblk
+  res <- case cblk of
+            BlockByron blk -> do
+              insertByronBlock tracer blk details
+            BlockShelley blk -> do
+              insertShelleyBlock Shelley dataLayer tracer env (Generic.fromShelleyBlock blk) lStateSnap details
+            BlockAllegra blk -> do
+              insertShelleyBlock Allegra dataLayer tracer env (Generic.fromAllegraBlock blk) lStateSnap details
+            BlockMary blk -> do
+              insertShelleyBlock Mary dataLayer tracer env (Generic.fromMaryBlock blk) lStateSnap details
+
+  -- Now we update it in ledgerStateVar and (possibly) store it to disk.
+  liftIO $ saveLedgerState (envLedgerStateDir env) ledgerStateVar
+                (lssState lStateSnap) (isSyncedWithinSeconds details 60)
+
+  pure res
+
 
 -- We don't care about Byron, no pools there
 insertByronBlock
-    :: Trace IO Text -> ByronBlock -> DbSync.SlotDetails
-    -> ReaderT SqlBackend (LoggingT IO) ()
+    :: Trace IO Text
+    -> ByronBlock
+    -> DbSync.SlotDetails
+    -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
 insertByronBlock tracer blk _details = do
   case byronBlockRaw blk of
     Byron.ABOBBlock byronBlock -> do
@@ -87,54 +125,67 @@ insertByronBlock tracer blk _details = do
             liftIO . logInfo tracer $ "Byron block, slot: " <> show slotNum
     Byron.ABOBBoundary {} -> pure ()
 
-  transactionSaveWithIsolation Serializable
+  return $ Right ()
 
+-- Here we insert pools.
 insertShelleyBlock
-    :: DataLayer
+    :: BlockName
+    -> DataLayer
     -> Trace IO Text
-    -> ShelleyBlock TPraosStandardCrypto
+    -> DbSyncEnv
+    -> Generic.Block
+    -> LedgerStateSnapshot
+    -> SlotDetails
     -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
-insertShelleyBlock dataLayer tracer blk = do
+insertShelleyBlock blockName dataLayer tracer env blk _lStateSnap details = do
+
   runExceptT $ do
 
-    meta <- firstExceptT (\(e :: DBFail) -> NEError $ show e) . newExceptT $ DB.queryMeta
-
-    let slotsPerEpoch = DB.metaSlotsPerEpoch meta
-
+    -- TODO(KS): Move to DataLayer.
     _blkId <- lift . DB.insertBlock $
                   DB.Block
-                    { DB.blockHash = Shelley.blockHash blk
-                    , DB.blockEpochNo = Just $ Shelley.slotNumber blk `div` slotsPerEpoch
-                    , DB.blockSlotNo = Just $ Shelley.slotNumber blk
-                    , DB.blockBlockNo = Just $ Shelley.blockNumber blk
+                    { DB.blockHash = Shelley.blkHash blk
+                    , DB.blockEpochNo = Just $ unEpochNo (sdEpochNo details)
+                    , DB.blockSlotNo = Just $ unSlotNo (Generic.blkSlotNo blk)
+                    , DB.blockBlockNo = Just $ unBlockNo (Generic.blkBlockNo blk)
                     }
 
-    zipWithM_ (insertTx dataLayer tracer) [0 .. ] (Shelley.blockTxs blk)
+    zipWithM_ (insertTx dataLayer tracer env) [0 .. ] (Shelley.blkTxs blk)
 
     liftIO $ do
-      logInfo tracer $ mconcat
-        [ "insertShelleyBlock pool info: slot ", show (Shelley.slotNumber blk)
-        , ", block ", show (Shelley.blockNumber blk)
-        ]
+      let epoch = unEpochNo (sdEpochNo details)
+          slotWithinEpoch = unEpochSlot (sdEpochSlot details)
+          blockNumber = Generic.blkBlockNo blk
+
+      when (slotWithinEpoch `mod` 1000 == 0) $
+        logInfo tracer $ mconcat
+          [ "Insert '", show blockName
+          , "' block pool info: epoch ", show epoch
+          , ", slot ", show slotWithinEpoch
+          , ", block ", show blockNumber
+          ]
+
     lift $ transactionSaveWithIsolation Serializable
 
 insertTx
     :: (MonadIO m)
     => DataLayer
     -> Trace IO Text
+    -> DbSyncEnv
     -> Word64
-    -> ShelleyTx
+    -> Generic.Tx
     -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
-insertTx dataLayer tracer _blockIndex tx =
-    mapM_ (insertCertificate dataLayer tracer) (Shelley.txCertificates tx)
+insertTx dataLayer tracer env _blockIndex tx =
+    mapM_ (insertCertificate dataLayer tracer env) $ Generic.txCertificates tx
 
 insertCertificate
     :: (MonadIO m)
     => DataLayer
     -> Trace IO Text
-    -> (Word16, ShelleyDCert)
+    -> DbSyncEnv
+    -> Generic.TxCertificate
     -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
-insertCertificate dataLayer tracer (_idx, cert) =
+insertCertificate dataLayer tracer _env (Generic.TxCertificate _idx cert) =
   case cert of
     Shelley.DCertDeleg _deleg ->
         liftIO $ logInfo tracer "insertCertificate: DCertDeleg"
@@ -148,7 +199,7 @@ insertPoolCert
     :: (MonadIO m)
     => DataLayer
     -> Trace IO Text
-    -> ShelleyPoolCert
+    -> Shelley.PoolCert StandardShelley
     -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
 insertPoolCert dataLayer tracer pCert =
   case pCert of
@@ -156,7 +207,7 @@ insertPoolCert dataLayer tracer pCert =
 
     -- RetirePool (KeyHash 'StakePool era) _ = PoolId
     Shelley.RetirePool poolPubKey _epochNum -> do
-        let poolIdHash = B16.encode . Shelley.unKeyHashBS $ poolPubKey
+        let poolIdHash = B16.encode . Generic.unKeyHashRaw $ poolPubKey
         let poolId = PoolId . decodeUtf8 $ poolIdHash
 
         liftIO . logInfo tracer $ "Retiring pool with poolId: " <> show poolId
@@ -173,10 +224,10 @@ insertPoolRegister
     :: forall m. (MonadIO m)
     => DataLayer
     -> Trace IO Text
-    -> ShelleyPoolParams
+    -> Shelley.PoolParams StandardShelley
     -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
 insertPoolRegister dataLayer tracer params = do
-  let poolIdHash = B16.encode . Shelley.unKeyHashBS $ Shelley._poolPubKey params
+  let poolIdHash = B16.encode . Generic.unKeyHashRaw $ Shelley._poolId params
   let poolId = PoolId . decodeUtf8 $ poolIdHash
 
   liftIO . logInfo tracer $ "Inserting pool register with pool id: " <> decodeUtf8 poolIdHash
