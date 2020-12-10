@@ -69,11 +69,14 @@ let
         (packagePlatforms project);
       in (mapTestOn (__trace (__toJSON filteredBuilds) filteredBuilds));
     # only build nixos tests on first supported system (linux)
+    inherit (pkgsFor (builtins.head  supportedSystems)) nixosTests;
   } // (mkRequiredJob (concatLists [
     (collectJobs jobs.native.checks)
     (collectJobs jobs.native.libs)
     (collectJobs jobs.native.exes)
-    [ jobs.native.cardano-node.x86_64-linux ]
+    [ jobs.nixosTests.smashTest.x86_64-linux
+      jobs.native.cardano-node.x86_64-linux
+    ]
   ]));
 
 in jobs
