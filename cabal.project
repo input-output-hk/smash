@@ -251,7 +251,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/ouroboros-network
-  tag: f0eb6e439e7c0121476ded5e88d2f638e8aa36ac
+  tag: b6d51e74568f7fb3cef1d02a4ad55a124de9ca6f
   --sha256: 0pii9myzb5ckf2vagd9b7fsmk78w72z8lw3zyyfzw58dyapy5c70
   subdir: cardano-client
 
