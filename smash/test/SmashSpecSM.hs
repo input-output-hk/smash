@@ -20,6 +20,7 @@ import           Prelude (Show (..))
 
 import           Data.TreeDiff (ToExpr (..), Expr (..))
 import qualified Data.Map as Map
+import           Data.IORef (newIORef)
 
 import           Test.Hspec (Spec, describe, it)
 
@@ -30,6 +31,7 @@ import           Test.StateMachine
 import           Test.StateMachine.Types
 import qualified Test.StateMachine.Types.Rank2 as Rank2
 
+import           Cardano.SMASH.Lib
 import           Cardano.SMASH.Types
 import           Cardano.SMASH.DB
 
@@ -71,15 +73,15 @@ smUnused = smashSM $ unsafePerformIO createStubbedDataLayer
 --initialModel :: Model r
 --initialModel = DBModel [] [] [] [] [] [] [] []
 
---data DBModel = DBModel
---    { poolsMetadata         :: [(Text, Text)]
---    , metadataReferences    :: [PoolMetadataReferenceId]
---    , reservedTickers       :: [ReservedTickerId]
---    , delistedPools         :: [PoolId]
---    , retiredPools          :: [PoolId]
---    , adminUsers            :: [AdminUser]
---    , fetchErrors           :: [PoolFetchError]
---    }
+data DBModel = DBModel
+    { poolsMetadata         :: [(Text, Text)]
+    , metadataReferences    :: [PoolMetadataReferenceId]
+    , reservedTickers       :: [ReservedTickerId]
+    , delistedPools         :: [PoolId]
+    , retiredPools          :: [PoolId]
+    , adminUsers            :: [AdminUser]
+    , fetchErrors           :: [PoolFetchError]
+    }
 
 -------------------------------------------------------------------------------
 -- Language
@@ -116,7 +118,7 @@ deriving instance ToExpr (Model Concrete)
 
 -- No way to convert this.
 instance ToExpr DataLayer where
-    toExpr _dataLayer = Rec "DataLayer" (Map.empty)
+    toExpr dataLayer = Rec "DataLayer" (Map.empty)
 
 -------------------------------------------------------------------------------
 -- The model we keep track of
@@ -157,16 +159,16 @@ smashSM dataLayer = StateMachine
   where
     -- | Let's handle ju
     mTransitions :: Model r -> Action r -> Response r -> Model r
-    mTransitions m@(RunningModel _model) _action _response = m
+    mTransitions m@(RunningModel model) action response = m
 
     -- | Preconditions for this model.
     -- No preconditions?
     mPreconditions :: Model Symbolic -> Action Symbolic -> Logic
-    mPreconditions (RunningModel _model) _ = Top
+    mPreconditions (RunningModel model) _ = Top
 
     -- | Post conditions for the system.
     mPostconditions :: Model Concrete -> Action Concrete -> Response Concrete -> Logic
-    mPostconditions _ (InsertPool _poolId _poolHash _poolOfflineMeta) (PoolInserted _poolId' _poolHash' _poolOfflineMeta')   = Top
+    mPostconditions _ (InsertPool poolId poolHash poolOfflineMeta) (PoolInserted poolId' poolHash' poolOfflineMeta')   = Top
     mPostconditions _ _                                     _                                           = Bot
 
     -- | Generator for symbolic actions.
@@ -186,7 +188,7 @@ smashSM dataLayer = StateMachine
         -- TODO(KS): Fix this.
         result <- addPoolMetadata Nothing poolId poolHash poolOfflineMeta (PoolTicker "tickerName")
         case result of
-            Left _err -> return $ MissingPoolHash poolId poolHash
+            Left err -> return $ MissingPoolHash poolId poolHash
             Right poolOfflineMeta' -> return $ PoolInserted poolId poolHash poolOfflineMeta'
 
     -- | Compare symbolic and SUT.
@@ -195,8 +197,8 @@ smashSM dataLayer = StateMachine
     --mMock _ (MissingPoolHash _)    = return PoolInserted
 
 -- | A simple utility function so we don't have to pass panic around.
---doNotUse :: a
---doNotUse = panic "Should not be used!"
+doNotUse :: a
+doNotUse = panic "Should not be used!"
 
 genPoolId :: Gen PoolId
 genPoolId = PoolId <$> genSafeText

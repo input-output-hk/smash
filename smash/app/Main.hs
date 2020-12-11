@@ -74,8 +74,8 @@ runCommand cmd =
     CreateMigration mdir -> doCreateMigration mdir
 
     RunMigrations configFile mdir mldir -> do
-        enc <- readDbSyncNodeConfig configFile
-        trce <- Logging.setupTrace (Right $ dncLoggingConfig enc) "smash-node"
+        enc <- readDbSyncNodeConfig (unConfigFile configFile)
+        trce <- Logging.setupTrace (Right $ encLoggingConfig enc) "smash-node"
         runMigrations trce (\pgConfig -> pgConfig) mdir mldir
 
     RunApplication -> runApp defaultConfiguration
@@ -84,7 +84,7 @@ runCommand cmd =
 #endif
     RunApplicationWithDbSync dbSyncNodeParams ->
         race_
-            (runDbSyncNode postgresqlDataLayer poolMetadataDbSyncNodePlugin dbSyncNodeParams)
+            (runDbSyncNode (poolMetadataDbSyncNodePlugin postgresqlDataLayer) dbSyncNodeParams)
             (runApp defaultConfiguration)
 
 doCreateMigration :: SmashMigrationDir -> IO ()
@@ -101,7 +101,6 @@ pCommandLine =
   SmashDbSyncNodeParams
     <$> pConfigFile
     <*> pSocketPath
-    <*> pLedgerStateDir
     <*> pMigrationDir
     <*> optional pSlotNo
 
@@ -111,15 +110,6 @@ pConfigFile =
     ( Opt.long "config"
     <> Opt.help "Path to the db-sync node config file"
     <> Opt.completer (Opt.bashCompleter "file")
-    <> Opt.metavar "FILEPATH"
-    )
-
-pLedgerStateDir :: Parser LedgerStateDir
-pLedgerStateDir =
-  LedgerStateDir <$> Opt.strOption
-    (  Opt.long "state-dir"
-    <> Opt.help "The directory for persisting ledger state."
-    <> Opt.completer (Opt.bashCompleter "directory")
     <> Opt.metavar "FILEPATH"
     )
 

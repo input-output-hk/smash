@@ -36,7 +36,7 @@ insertBlock :: (MonadIO m) => Block -> ReaderT SqlBackend m (Either DBFail Block
 insertBlock = insertByReturnKey
 
 insertMeta :: (MonadIO m) => Meta -> ReaderT SqlBackend m (Either DBFail MetaId)
-insertMeta meta = insertByReturnKey meta
+insertMeta = insertByReturnKey
 
 insertPoolMetadata :: (MonadIO m) => PoolMetadata -> ReaderT SqlBackend m (Either DBFail PoolMetadataId)
 insertPoolMetadata = insertByReturnKey

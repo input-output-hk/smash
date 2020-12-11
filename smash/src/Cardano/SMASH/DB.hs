@@ -21,22 +21,20 @@ module Cardano.SMASH.DB
 
 import           Cardano.Prelude
 
-import           Control.Monad.Trans.Except.Extra          (left, newExceptT)
-
 import           Data.IORef                                (IORef, modifyIORef,
                                                             newIORef, readIORef)
 import qualified Data.Map                                  as Map
 import           Data.Time.Clock                           (UTCTime)
 import           Data.Time.Clock.POSIX                     (utcTimeToPOSIXSeconds)
 
-import           Cardano.Slotting.Slot                     (SlotNo)
+import           Cardano.BM.Trace                          (Trace)
+
+import           Cardano.SMASH.Types
 
 import           Cardano.SMASH.DBSync.Db.Delete            (deleteAdminUser,
                                                             deleteDelistedPool)
 import           Cardano.SMASH.DBSync.Db.Insert            (insertAdminUser,
-                                                            insertBlock,
                                                             insertDelistedPool,
-                                                            insertMeta,
                                                             insertPoolMetadata,
                                                             insertPoolMetadataFetchError,
                                                             insertPoolMetadataReference,
@@ -44,7 +42,6 @@ import           Cardano.SMASH.DBSync.Db.Insert            (insertAdminUser,
                                                             insertRetiredPool)
 import           Cardano.SMASH.DBSync.Db.Query             (DBFail (..),
                                                             queryPoolMetadata)
-import           Cardano.SMASH.Types
 
 import           Cardano.SMASH.DBSync.Db.Error             as X
 import           Cardano.SMASH.DBSync.Db.Migration         as X
@@ -54,17 +51,15 @@ import           Cardano.SMASH.DBSync.Db.Query             as X
 import           Cardano.SMASH.DBSync.Db.Run               as X
 import           Cardano.SMASH.DBSync.Db.Schema            as X (AdminUser (..),
                                                                  Block (..),
-                                                                 BlockId,
                                                                  DelistedPool (..),
                                                                  Meta (..),
-                                                                 MetaId,
                                                                  PoolMetadata (..),
                                                                  PoolMetadataFetchError (..),
                                                                  PoolMetadataFetchErrorId,
                                                                  PoolMetadataReference (..),
                                                                  PoolMetadataReferenceId,
                                                                  ReservedTicker (..),
-                                                                 ReservedTickerId,
+                                                                 ReservedTickerId (..),
                                                                  RetiredPool (..),
                                                                  poolMetadataMetadata)
 import           Cardano.SMASH.DBSync.Db.Types             (TickerName (..))
@@ -96,11 +91,6 @@ data DataLayer = DataLayer
     -- TODO(KS): Switch to PoolFetchError!
     , dlAddFetchError           :: PoolMetadataFetchError -> IO (Either DBFail PoolMetadataFetchErrorId)
     , dlGetFetchErrors          :: PoolId -> Maybe UTCTime -> IO (Either DBFail [PoolFetchError])
-
-    , dlAddGenesisMetaBlock     :: X.Meta -> X.Block -> IO (Either DBFail (MetaId, BlockId))
-
-    , dlGetSlotHash             :: SlotNo -> IO (Maybe (SlotNo, ByteString))
-
     } deriving (Generic)
 
 newtype DelistedPoolsIORef = DelistedPoolsIORef (IORef [PoolId])
@@ -128,10 +118,10 @@ stubbedDataLayer ioDataMap (DelistedPoolsIORef ioDelistedPool) (RetiredPoolsIORe
         _ <- modifyIORef ioDataMap (Map.insert (poolId, poolmdHash) (TickerName $ getPoolTicker poolTicker, poolMetadata))
         return . Right $ poolMetadata
 
-    , dlAddMetaDataReference = \_poolId _poolUrl _poolMetadataHash -> panic "!"
+    , dlAddMetaDataReference = \poolId poolUrl poolMetadataHash -> panic "!"
 
-    , dlAddReservedTicker = \_tickerName _poolMetadataHash -> panic "!"
-    , dlCheckReservedTicker = \_tickerName -> pure Nothing
+    , dlAddReservedTicker = \tickerName poolMetadataHash -> panic "!"
+    , dlCheckReservedTicker = \tickerName -> pure Nothing
 
     , dlGetDelistedPools = readIORef ioDelistedPool
     , dlCheckDelistedPool = \poolId -> do
@@ -155,10 +145,6 @@ stubbedDataLayer ioDataMap (DelistedPoolsIORef ioDelistedPool) (RetiredPoolsIORe
 
     , dlAddFetchError       = \_ -> panic "!"
     , dlGetFetchErrors      = \_ -> panic "!"
-
-    , dlAddGenesisMetaBlock = \_ _ -> panic "!"
-
-    , dlGetSlotHash         = \_ -> panic "!"
     }
 
 -- The approximation for the table.
@@ -191,8 +177,8 @@ createStubbedDataLayer = do
 -- TODO(KS): Passing the optional tracer.
 postgresqlDataLayer :: DataLayer
 postgresqlDataLayer = DataLayer
-    { dlGetPoolMetadata = \poolId poolMetadataHash' -> do
-        poolMetadata <- runDbAction Nothing $ queryPoolMetadata poolId poolMetadataHash'
+    { dlGetPoolMetadata = \poolId poolMetadataHash -> do
+        poolMetadata <- runDbAction Nothing $ queryPoolMetadata poolId poolMetadataHash
         let poolTickerName = poolMetadataTickerName <$> poolMetadata
         let poolMetadata' = poolMetadataMetadata <$> poolMetadata
         return $ (,) <$> poolTickerName <*> poolMetadata'
@@ -204,17 +190,17 @@ postgresqlDataLayer = DataLayer
             Left err  -> return $ Left err
             Right _id -> return $ Right poolMetadata
 
-    , dlAddMetaDataReference = \poolId poolUrl poolMetadataHash' -> do
+    , dlAddMetaDataReference = \poolId poolUrl poolMetadataHash -> do
         poolMetadataRefId <- runDbAction Nothing $ insertPoolMetadataReference $
             PoolMetadataReference
                 { poolMetadataReferenceUrl = poolUrl
-                , poolMetadataReferenceHash = poolMetadataHash'
+                , poolMetadataReferenceHash = poolMetadataHash
                 , poolMetadataReferencePoolId = poolId
                 }
         return poolMetadataRefId
 
-    , dlAddReservedTicker = \tickerName poolMetadataHash' ->
-        runDbAction Nothing $ insertReservedTicker $ ReservedTicker tickerName poolMetadataHash'
+    , dlAddReservedTicker = \tickerName poolMetadataHash ->
+        runDbAction Nothing $ insertReservedTicker $ ReservedTicker tickerName poolMetadataHash
     , dlCheckReservedTicker = \tickerName ->
         runDbAction Nothing $ queryReservedTicker tickerName
 
@@ -269,24 +255,6 @@ postgresqlDataLayer = DataLayer
     , dlGetFetchErrors      = \poolId mTimeFrom -> do
         poolMetadataFetchErrors <- runDbAction Nothing (queryPoolMetadataFetchErrorByTime poolId mTimeFrom)
         pure $ sequence $ Right <$> map convertPoolMetadataFetchError poolMetadataFetchErrors
-
-    , dlAddGenesisMetaBlock = \meta block -> do
-        -- This whole function has to be atomic!
-        runExceptT $ do
-            -- Well, in theory this should be handled differently.
-            count <- newExceptT (Right <$> (runDbAction Nothing $ queryBlockCount))
-
-            when (count > 0) $
-              left $ UnknownError "Shelley.insertValidateGenesisDist: Genesis data mismatch."
-
-            metaId <- newExceptT $ runDbAction Nothing $ insertMeta $ meta
-            blockId <- newExceptT $ runDbAction Nothing $ insertBlock $ block
-
-            pure (metaId, blockId)
-
-    , dlGetSlotHash = \slotNo ->
-            runDbAction Nothing $ querySlotHash slotNo
-
     }
 
 convertPoolMetadataFetchError :: PoolMetadataFetchError -> PoolFetchError

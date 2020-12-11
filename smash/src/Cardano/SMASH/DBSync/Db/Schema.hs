@@ -1,5 +1,4 @@
 {-# LANGUAGE ConstraintKinds            #-}
-{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE DerivingStrategies         #-}
@@ -118,7 +117,6 @@ share
     slotsPerEpoch       Word64              -- Number of slots per epoch.
     networkName         Text Maybe
     UniqueMeta          startTime
-    deriving Show
 
   -- A table containing a list of delisted pools.
   DelistedPool

@@ -1,8 +1,17 @@
-resolver: https://raw.githubusercontent.com/input-output-hk/cardano-haskell/master/snapshots/cardano-1.24.1.yaml
+resolver: https://raw.githubusercontent.com/input-output-hk/cardano-haskell/da70d67ff662b85e72e1f203defbf5e3028d03cd/snapshots/cardano-1.19.1.yaml
 compiler: ghc-8.6.5
 
 #allow-newer: true
 
+# User packages to be built.
+# Various formats can be used as shown in the example below.
+#
+# packages:
+# - some-directory
+# - https://example.com/foo/bar/baz-0.0.2.tar.gz
+#   subdirs:
+#   - auto-update
+#   - wai
 packages:
 - smash
 - smash-servant-types
@@ -13,26 +22,34 @@ flags:
   cardano-crypto-praos:
     external-libsodium-vrf: false
 
-ghc-options:
-  smash:                    -Wall -Werror -fwarn-redundant-constraints
-  #smash-servant-types:      -Wall -Werror -fwarn-redundant-constraints
-
 extra-deps:
-  - persistent-2.11.0.1
-  - persistent-postgresql-2.11.0.0
-  - persistent-template-2.9.1.0
+  - persistent-2.10.5.1
+  - persistent-postgresql-2.10.1.2
+  - persistent-template-2.8.2.3
 
-  - esqueleto-3.4.0.1
+  # Just checking to see what version we have
+  - servant-0.16.2
+  - servant-server-0.16.2
 
-  # Compiler error 'System.Metrics.Prometheus.Http.Scrape (serveMetricsT)'
-  - prometheus-2.2.2
+  # This is something extra we need.
+  - git: https://github.com/input-output-hk/ouroboros-network
+    commit: f0eb6e439e7c0121476ded5e88d2f638e8aa36ac
+    subdirs:
+    - cardano-client
 
   - git: https://github.com/input-output-hk/cardano-db-sync
-    commit: 3cf868ec8c06265e4b670ac737af640d716e5ef7
+    commit: 9f95fb8bd63c2ce4ff973b7cd11dbada69e86597
     subdirs:
       - cardano-db
       - cardano-db-sync
       - cardano-db-sync-extended
+
+  - git: https://github.com/input-output-hk/cardano-node
+    commit: 4814003f14340d5a1fc02f3ac15437387a7ada9f
+    subdirs:
+      - cardano-config
+      - cardano-api
+      - cardano-node
 
 nix:
   shell-file: nix/stack-shell.nix

@@ -6,7 +6,6 @@
 module Cardano.SMASH.DBSync.Db.Query
   ( DBFail (..)
   , querySchemaVersion
-  , querySlotHash
   , queryPoolMetadata
   , queryBlockCount
   , queryBlockNo
@@ -46,8 +45,6 @@ import           Database.Esqueleto             (Entity, PersistField, SqlExpr,
                                                  (^.))
 import           Database.Persist.Sql           (SqlBackend, selectList)
 
-import           Cardano.Slotting.Slot          (SlotNo (..))
-
 import           Cardano.SMASH.DBSync.Db.Error
 import           Cardano.SMASH.DBSync.Db.Schema
 import qualified Cardano.SMASH.DBSync.Db.Types  as Types
@@ -60,24 +57,16 @@ querySchemaVersion = do
             pure sch
   pure $ entityVal <$> listToMaybe res
 
--- {-# WARNING querySlotHash "Include in the DataLayer!" #-}
-querySlotHash :: MonadIO m => SlotNo -> ReaderT SqlBackend m (Maybe (SlotNo, ByteString))
-querySlotHash slotNo = do
-  res <- select . from $ \ blk -> do
-            where_ (blk ^. BlockSlotNo ==. just (val $ unSlotNo slotNo))
-            pure (blk ^. BlockHash)
-  pure $ (\vh -> (slotNo, unValue vh)) <$> listToMaybe res
-
 -- | Get the 'Block' associated with the given hash.
 -- We use the @Types.PoolId@ to get the nice error message out.
 queryPoolMetadata :: MonadIO m => Types.PoolId -> Types.PoolMetadataHash -> ReaderT SqlBackend m (Either DBFail PoolMetadata)
-queryPoolMetadata poolId poolMetadataHash' = do
+queryPoolMetadata poolId poolMetadataHash = do
   res <- select . from $ \ poolMetadata -> do
             where_ (poolMetadata ^. PoolMetadataPoolId ==. val poolId
-                &&. poolMetadata ^. PoolMetadataHash ==. val poolMetadataHash'
+                &&. poolMetadata ^. PoolMetadataHash ==. val poolMetadataHash
                 &&. poolMetadata ^. PoolMetadataPoolId `notIn` retiredPoolsPoolId)
             pure poolMetadata
-  pure $ maybeToEither (DbLookupPoolMetadataHash poolId poolMetadataHash') entityVal (listToMaybe res)
+  pure $ maybeToEither (DbLookupPoolMetadataHash poolId poolMetadataHash) entityVal (listToMaybe res)
   where
     -- |Subselect that selects all the retired pool ids.
     retiredPoolsPoolId :: SqlExpr (ValueList (Types.PoolId))
@@ -189,9 +178,9 @@ queryAllDelistedPools = do
 
 -- | Check if the ticker is in the table.
 queryReservedTicker :: MonadIO m => Types.TickerName -> ReaderT SqlBackend m (Maybe ReservedTicker)
-queryReservedTicker reservedTickerName' = do
+queryReservedTicker reservedTickerName = do
   res <- select . from $ \(reservedTicker :: SqlExpr (Entity ReservedTicker)) -> do
-            where_ (reservedTicker ^. ReservedTickerName ==. val reservedTickerName')
+            where_ (reservedTicker ^. ReservedTickerName ==. val reservedTickerName)
             limit 1
             pure $ reservedTicker
   pure $ fmap entityVal (listToMaybe res)

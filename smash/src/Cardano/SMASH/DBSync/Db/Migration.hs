@@ -58,7 +58,7 @@ import           System.IO                                 (Handle,
 
 
 newtype SmashMigrationDir
-  = SmashMigrationDir { getSmashMigrationDir :: FilePath }
+  = SmashMigrationDir FilePath
   deriving (Show)
 
 newtype SmashLogFileDir

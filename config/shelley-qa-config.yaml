@@ -7,13 +7,15 @@ EnableLogging: True
 
 Protocol: Cardano
 
-# The config file for the node we are connecting to. If this is not the correct
-# config, it will likely lead to db-sync throwing up weird error messages from
-# the consensus layer.
-# The path to the node config file is relative to this config file.
-NodeConfigFile: ../../cardano-node/configuration/cardano/shelley_qa-config.json
+RequiresNetworkMagic: RequiresMagic
 
-# ------------------------------------------------------------------------------
+ByronGenesisFile: shelley_qa-byron-genesis.json
+ByronGenesisHash: 9325495d3ac7554d4bfaf2392cc3c74676d5add873d6ef8862d7562e660940bf
+
+# Shelley genesis is not actully used but to specify Protocol Cardano, we need to sepcify one.
+ShelleyGenesisFile: shelley_qa-shelley-genesis.json
+ShelleyGenesisHash: 85d1783750753deaa6560158eb85fcb30078ea32a36e12dd8af39168bc053d09
+
 # Logging configuration follows.
 
 # global filter; messages must have at least this severity to pass:

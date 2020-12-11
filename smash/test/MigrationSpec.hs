@@ -52,7 +52,7 @@ migrationSpec = do
 
                 timeNow <- run $ getPOSIXTime --secondsToNominalDiffTime timeNowInt
 
-                let retry' =
+                let retry =
                         Retry
                             { fetchTime = timeNow
                             , retryTime = timeNow + 60
@@ -65,7 +65,7 @@ migrationSpec = do
                             , pfrPoolIdWtf   = PoolId "1"
                             , pfrPoolUrl     = PoolUrl "http://test.com"
                             , pfrPoolMDHash  = PoolMetadataHash "hash"
-                            , pfrRetry       = retry'
+                            , pfrRetry       = retry
                             }
 
                 let dataLayer = postgresqlDataLayer
@@ -74,16 +74,16 @@ migrationSpec = do
 
                 --print $ showRetryTimes (pfrRetry poolFetchRetry)
 
-                poolFetchRetry1 <- run $ fetchInsertNewPoolMetadataOld dataLayer Logging.nullTracer fetchInsert poolFetchRetry
-                --print $ showRetryTimes (pfrRetry poolFetchRetry1)
+                poolFetchRetry <- run $ fetchInsertNewPoolMetadataOld dataLayer Logging.nullTracer fetchInsert poolFetchRetry
+                --print $ showRetryTimes (pfrRetry poolFetchRetry)
 
-                poolFetchRetry2 <- run $ fetchInsertNewPoolMetadataOld dataLayer Logging.nullTracer fetchInsert poolFetchRetry1
-                --print $ showRetryTimes (pfrRetry poolFetchRetry2)
+                poolFetchRetry <- run $ fetchInsertNewPoolMetadataOld dataLayer Logging.nullTracer fetchInsert poolFetchRetry
+                --print $ showRetryTimes (pfrRetry poolFetchRetry)
 
-                poolFetchRetry3 <- run $ fetchInsertNewPoolMetadataOld dataLayer Logging.nullTracer fetchInsert poolFetchRetry2
-                --print $ showRetryTimes (pfrRetry poolFetchRetry3)
+                poolFetchRetry <- run $ fetchInsertNewPoolMetadataOld dataLayer Logging.nullTracer fetchInsert poolFetchRetry
+                --print $ showRetryTimes (pfrRetry poolFetchRetry)
 
-                let newRetryCount = retryCount (pfrRetry poolFetchRetry3)
+                let newRetryCount = retryCount (pfrRetry poolFetchRetry)
 
                 assert $ newRetryCount == initialCount + 3
 
