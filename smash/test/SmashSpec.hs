@@ -1,6 +1,8 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module SmashSpec
     ( smashSpec
     ) where
@@ -93,8 +95,8 @@ smashSpec = do
                 let addPoolMetadata = dlAddPoolMetadata dataLayer
                 newPoolOfflineMetadata  <- run $ addPoolMetadata Nothing newPoolId newPoolHash poolOfflineMetadata poolTicker
 
-                let getPoolMetadata = dlGetPoolMetadata dataLayer
-                newPoolOfflineMetadata' <- run $ getPoolMetadata newPoolId newPoolHash
+                let getPoolMetadata' = dlGetPoolMetadata dataLayer
+                newPoolOfflineMetadata' <- run $ getPoolMetadata' newPoolId newPoolHash
 
                 assert $ isRight newPoolOfflineMetadata
                 assert $ isRight newPoolOfflineMetadata'
@@ -113,8 +115,8 @@ smashSpec = do
 
                 dataLayer <- run createStubbedDataLayer
 
-                let getPoolMetadata = dlGetPoolMetadata dataLayer
-                newPoolOfflineMetadata <- run $ getPoolMetadata newPoolId newPoolHash
+                let getPoolMetadata' = dlGetPoolMetadata dataLayer
+                newPoolOfflineMetadata <- run $ getPoolMetadata' newPoolId newPoolHash
 
                 -- This pool hash does not exist!
                 assert $ isLeft newPoolOfflineMetadata

@@ -19,7 +19,7 @@ import           Control.Monad.Logger             (LoggingT)
 import           Control.Monad.Trans.Except.Extra (handleExceptT, hoistEither,
                                                    left)
 
-import           Cardano.SMASH.DB                 (DataLayer (..), PoolMetadata,
+import           Cardano.SMASH.DB                 (DataLayer (..),
                                                    PoolMetadataFetchError (..),
                                                    PoolMetadataReference (..),
                                                    PoolMetadataReferenceId,
@@ -54,11 +54,11 @@ import qualified Data.ByteString.Base16           as B16
 
 import           Database.Esqueleto               (Entity (..), InnerJoin (..),
                                                    SqlExpr, Value, ValueList,
-                                                   desc, entityKey, entityVal,
-                                                   from, groupBy, in_, just,
-                                                   max_, notExists, on, orderBy,
-                                                   select, subList_select,
-                                                   unValue, where_, (==.), (^.))
+                                                   desc, from, groupBy, in_,
+                                                   just, max_, notExists, on,
+                                                   orderBy, select,
+                                                   subList_select, unValue,
+                                                   where_, (==.), (^.))
 import           Database.Persist.Sql             (SqlBackend)
 
 import           Network.HTTP.Client              (HttpException (..))
@@ -67,7 +67,7 @@ import           Network.HTTP.Client.TLS          (tlsManagerSettings)
 import qualified Network.HTTP.Types.Status        as Http
 
 import qualified Shelley.Spec.Ledger.BaseTypes    as Shelley
-import qualified Shelley.Spec.Ledger.TxData       as Shelley
+import qualified Shelley.Spec.Ledger.TxBody       as Shelley
 
 -- This is what we call from the actual block-syncing code.
 fetchInsertNewPoolMetadata
@@ -140,7 +140,7 @@ fetchInsertNewPoolMetadataOld dataLayer tracer fetchInsert pfr = do
             let addFetchError = dlAddFetchError dataLayer
 
             -- Here we add the fetch error. The fetch time is always constant.
-            pmfeIdE_ <- addFetchError $ PoolMetadataFetchError
+            _pmfeIdE <- addFetchError $ PoolMetadataFetchError
                 (posixSecondsToUTCTime $ fetchTimePOSIX)
                 poolId
                 poolHash
