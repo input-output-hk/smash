@@ -1,10 +1,21 @@
 # Changelog for smash
 
-## Next version
+## 1.3.0
 
 ### Story
 
 - [CAD-2169] - Expose API types in a separate package
+- [CAD-2177] - smash should work also with pool_ids in Bech32 format
+- [CAD-2182] - Pool insertion and ticker insertion should be added into API
+- [CAD-2183] - Add/remove admin user via CLI
+- [CAD-2323] - Bump up to Allegra Hard Fork
+
+### Bug
+
+- [CAD-2176] - errors endpoint doesn't validate poolId properly
+- [CAD-2178] - The retryCount from the /errors endpoint is not correctly incremented
+- [CAD-2179] - pool_id delist endpoint is returning 200 for any string (not only for valid pool_ids)
+- [CAD-2181] - All queries that don't return anything should return 404
 
 ## 1.2.0
 
