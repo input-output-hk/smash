@@ -122,13 +122,14 @@ in {
       exec ${cfg.package}/bin/smash-exe run-app-with-db-sync \
         --config ${configFile} \
         --socket-path "$CARDANO_NODE_SOCKET_PATH" \
-        --schema-dir ${../../schema}
+        --schema-dir ${../../schema} \
+        --state-dir $STATE_DIRECTORY
     '';
     environment.systemPackages = [ cfg.package config.services.postgresql.package ];
     systemd.services.smash = {
       path = [ cfg.package pkgs.netcat pkgs.postgresql ];
       preStart = ''
-        for x in {1..30}; do
+        for x in {1..60}; do
           nc -z localhost ${toString config.services.smash.postgres.port} && break
           echo loop $x: waiting for postgresql 2 sec...
           sleep 2
@@ -139,6 +140,7 @@ in {
         ExecStart = config.services.smash.script;
         DynamicUser = true;
         RuntimeDirectory = "smash";
+        StateDirectory = "smash";
       };
 
       wantedBy = [ "multi-user.target" ];
