@@ -28,7 +28,9 @@ import           Cardano.Prelude             hiding (Handler)
 
 import           Data.Aeson                  (encode)
 
-import           Data.Swagger                (Info (..), Swagger (..))
+import           Data.Swagger                (Contact (..), Info (..),
+                                              License (..), Swagger (..),
+                                              URL (..))
 import           Data.Time                   (UTCTime, addUTCTime,
                                               getCurrentTime, nominalDay)
 import           Data.Version                (showVersion)
@@ -74,17 +76,29 @@ import           Paths_smash                 (version)
 todoSwagger :: Swagger
 todoSwagger =
     let swaggerDefinition = toSwagger smashApi
+
     in swaggerDefinition {_swaggerInfo = swaggerInfo}
   where
-    -- (Licence (Just "APACHE2" "https://github.com/input-output-hk/smash/blob/master/LICENSE"))
+    smashVersion :: Text
+    smashVersion = toS $ showVersion version
+
     swaggerInfo :: Info
     swaggerInfo = Info
-        "Smash"
-        (Just "Stakepool Metadata Aggregation Server")
-        Nothing
-        Nothing
-        Nothing
-        "1.1.0"
+        { _infoTitle = "Smash"
+        , _infoDescription = Just "Stakepool Metadata Aggregation Server"
+        , _infoTermsOfService = Nothing
+        , _infoContact = Just $ Contact
+            { _contactName = Just "IOHK"
+            , _contactUrl = Just $ URL "https://iohk.io/"
+            , _contactEmail = Just "operations@iohk.io"
+            }
+
+        , _infoLicense = Just $ License
+            { _licenseName = "APACHE2"
+            , _licenseUrl = Just $ URL "https://github.com/input-output-hk/smash/blob/master/LICENSE"
+            }
+        , _infoVersion = smashVersion
+        }
 
 runApp :: Configuration -> IO ()
 runApp configuration = do
