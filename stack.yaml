@@ -1,4 +1,4 @@
-resolver: https://raw.githubusercontent.com/input-output-hk/cardano-haskell/master/snapshots/cardano-1.24.1.yaml
+resolver: https://raw.githubusercontent.com/input-output-hk/cardano-haskell/5ed4af4df2a609361260f159cd0e47e1c4073e2c/snapshots/cardano-1.24.2.yaml
 compiler: ghc-8.6.5
 
 #allow-newer: true

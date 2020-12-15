@@ -102,7 +102,7 @@ We need to run it using appropriate parameters, since running it requires it to 
 The socket path is just pointing to a socket that will be used for communication with the node.
 The example:
 ```
-SMASHPGPASSFILE=config/pgpass ./smash-local run-app-with-db-sync --config config/testnet-config.yaml --socket-path ../cardano-node/state-node-shelley_testnet/node.socket --schema-dir schema/
+SMASHPGPASSFILE=config/pgpass ./smash-local run-app-with-db-sync --config config/testnet-config.yaml --socket-path ../cardano-node/state-node-shelley_testnet/node.socket --schema-dir schema/ --state-dir ledger-state/shelley-testnet
 ```
 
 After this, the SMASH application should start syncing blocks and picking up pools.

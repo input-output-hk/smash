@@ -128,7 +128,7 @@ cardano-node --genesis-file genesis.json --socket-path node.socket --config conf
 
 You can then run ``smash`` using e.g:
 ```
-SMASHPGPASSFILE=./config/pgpass cabal run smash-exe -- run-app-with-db-sync --config config.yaml --socket-path node.socket --schema-dir schema/
+SMASHPGPASSFILE=./config/pgpass cabal run smash-exe -- run-app-with-db-sync --config config.yaml --socket-path node.socket --schema-dir schema/ --state-dir ledger-state/mainnet
 ```
 You can also run a mainnet node using a Nix command:
 ```
