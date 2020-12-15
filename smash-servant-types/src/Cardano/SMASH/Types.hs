@@ -87,18 +87,15 @@ examplePoolOfflineMetadata =
         (PoolTicker "testp")
         (PoolHomepage "https://iohk.io")
 
-instance ToParamSchema TickerName where
-  toParamSchema _ = mempty
+instance ToParamSchema TickerName
 
-instance ToParamSchema PoolId where
-  toParamSchema _ = mempty
+instance ToSchema TickerName
 
-instance ToSchema PoolId where
-  declareNamedSchema _ =
-    return $ NamedSchema (Just "PoolId") $ mempty
+instance ToParamSchema PoolId
 
-instance ToParamSchema PoolMetadataHash where
-  toParamSchema _ = mempty
+instance ToSchema PoolId
+
+instance ToParamSchema PoolMetadataHash
 
 -- A data type we use to store user credentials.
 data ApplicationUser = ApplicationUser
@@ -134,16 +131,14 @@ checkIfUserValid (ApplicationUsers applicationUsers) applicationUser@(Applicatio
         else UserInvalid
 
 instance FromHttpApiData TickerName where
-    parseUrlPiece tickerName = Right $ TickerName tickerName
+    parseUrlPiece tickerName = validateTickerName tickerName
 
 -- Currently deserializing from safe types, unwrapping and wrapping it up again.
 -- The underlying DB representation is HEX.
 instance FromHttpApiData PoolId where
     parseUrlPiece poolId = parsePoolId poolId
 
-instance ToSchema PoolMetadataHash where
-  declareNamedSchema _ =
-    return $ NamedSchema (Just "PoolMetadataHash") $ mempty
+instance ToSchema PoolMetadataHash
 
 -- TODO(KS): Temporarily, validation!?
 instance FromHttpApiData PoolMetadataHash where
@@ -263,7 +258,6 @@ instance ToJSON PoolOfflineMetadata where
             , "homepage"        .= getPoolHomepage homepage'
             ]
 
---instance ToParamSchema PoolOfflineMetadata
 instance ToSchema PoolOfflineMetadata
 
 instance MimeUnrender OctetStream PoolMetadataRaw where
@@ -275,20 +269,17 @@ instance ToJSON PoolMetadataRaw where
     toJSON (PoolMetadataRaw metadata) = toJSON metadata
     toEncoding (PoolMetadataRaw metadata) = unsafeToEncoding $ encodeUtf8Builder metadata
 
-instance ToSchema PoolMetadataRaw where
-  declareNamedSchema _ =
-    return $ NamedSchema (Just "PoolMetadataRaw") $ mempty
+instance ToSchema PoolMetadataRaw
 
 instance ToSchema DBFail where
   declareNamedSchema _ =
     return $ NamedSchema (Just "DBFail") $ mempty
 
-instance ToSchema (ApiResult err a) where
-  declareNamedSchema _ =
-    return $ NamedSchema (Just "ApiResult") $ mempty
-
 -- Result wrapper.
 newtype ApiResult err a = ApiResult (Either err a)
+    deriving (Generic)
+
+instance (ToSchema a, ToSchema err) => ToSchema (ApiResult err a)
 
 instance (ToJSON err, ToJSON a) => ToJSON (ApiResult err a) where
 
@@ -309,10 +300,11 @@ data FetchError
   | FEIOException !Text
   | FETimeout !PoolId !Text !Text
   | FEConnectionFailure !PoolId !Text
+  deriving (Eq, Generic)
 
 -- |Fetch error for the specific @PoolId@ and the @PoolMetadataHash@.
 data PoolFetchError = PoolFetchError !Time.POSIXTime !PoolId !PoolMetadataHash !Text !Word
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 instance ToJSON PoolFetchError where
     toJSON (PoolFetchError time poolId poolHash errorCause retryCount) =
@@ -325,12 +317,14 @@ instance ToJSON PoolFetchError where
             , "retryCount"  .= retryCount
             ]
 
+instance ToSchema PoolFetchError
+
 formatTimeToNormal :: Time.POSIXTime -> Text
 formatTimeToNormal = toS . formatTime defaultTimeLocale "%d.%m.%Y. %T" . Time.posixSecondsToUTCTime
 
 -- |Specific time string format.
 newtype TimeStringFormat = TimeStringFormat { unTimeStringFormat :: UTCTime }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 instance FromHttpApiData TimeStringFormat where
     --parseQueryParam :: Text -> Either Text a
@@ -341,8 +335,7 @@ instance FromHttpApiData TimeStringFormat where
             parsedTime = parseTimeM False defaultTimeLocale timeFormat $ toS queryParam
         in  TimeStringFormat <$> parsedTime
 
-instance ToParamSchema TimeStringFormat where
-    toParamSchema _ = mempty
+instance ToParamSchema TimeStringFormat
 
 -- |The data for returning the health check for SMASH.
 data HealthStatus = HealthStatus
@@ -366,6 +359,8 @@ instance FromJSON HealthStatus where
             { hsStatus  = status
             , hsVersion = version
             }
+
+instance ToSchema HealthStatus
 
 -- We need a "conversion" layer between custom DB types and the rest of the
 -- codebase se we can have a clean separation and replace them at any point.

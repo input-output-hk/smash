@@ -124,12 +124,23 @@ instance ToJSON TickerName where
 instance FromJSON TickerName where
     parseJSON = withObject "TickerName" $ \o -> do
         name <- o .: "name"
-        let tickerLen = length name
-        if tickerLen >= 3 && tickerLen <= 5
-            then return $ TickerName name
-            else fail $
-                 "\"ticker\" must have at least 3 and at most 5 "
-              <> "characters, but it has "
-              <> show (length name)
-              <> " characters."
+
+        eitherToMonadFail $ validateTickerName name
+
+-- |Util.
+eitherToMonadFail :: MonadFail m => Either Text a -> m a
+eitherToMonadFail (Left err) = fail $ toS err
+eitherToMonadFail (Right val) = return val
+
+-- |The validation for the ticker name we can reuse.
+validateTickerName :: Text -> Either Text TickerName
+validateTickerName name =  do
+    let tickerLen = length name
+    if tickerLen >= 3 && tickerLen <= 5
+        then Right $ TickerName name
+        else Left $
+             "\"ticker\" must have at least 3 and at most 5 "
+          <> "characters, but it has "
+          <> show (length name)
+          <> " characters."
 
