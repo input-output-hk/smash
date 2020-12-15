@@ -91,8 +91,7 @@ import           Ouroboros.Consensus.BlockchainTime.WallClock.Types    (mkSlotLe
                                                                         slotLengthToMillisec)
 import           Ouroboros.Consensus.Byron.Ledger                      (CodecConfig,
                                                                         mkByronCodecConfig)
-import           Ouroboros.Consensus.Cardano.Block                     (
-                                                                        CardanoEras,
+import           Ouroboros.Consensus.Cardano.Block                     (CardanoEras,
                                                                         CodecConfig (CardanoCodecConfig),
                                                                         StandardCrypto,
                                                                         StandardShelley)
@@ -154,6 +153,7 @@ import           Ouroboros.Network.Subscription                        (Subscrip
 
 import qualified Shelley.Spec.Ledger.Genesis                           as Shelley
 
+import           System.Directory                                      (createDirectoryIfMissing)
 import qualified System.Metrics.Prometheus.Metric.Gauge                as Gauge
 
 
@@ -195,6 +195,8 @@ runDbSyncNode dataLayer plugin enp =
 
     let configFile = senpConfigFile enp
     enc <- readDbSyncNodeConfig configFile
+
+    createDirectoryIfMissing True (unLedgerStateDir $ senpLedgerStateDir enp)
 
     trce <- if not (dncEnableLogging enc)
               then pure Logging.nullTracer
@@ -286,7 +288,7 @@ insertValidateGenesisDistSmash dataLayer tracer (NetworkName networkName) cfg = 
 
             case metaIdBlockIdE of
                 Right (_metaId, _blockId) -> pure $ Right ()
-                Left err -> pure . Left . NEError $ show err
+                Left err                  -> pure . Left . NEError $ show err
 
 -- | Validate that the initial Genesis distribution in the DB matches the Genesis data.
 validateGenesisDistribution
