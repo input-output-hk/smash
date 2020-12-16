@@ -105,6 +105,7 @@ applyMigration tracer pgconfig mLogFilename logHandle (version, script) = do
             , "--quiet"
             , "--username=" <> BS.unpack (pgcUser pgconfig)
             , "--host=" <> BS.unpack (pgcHost pgconfig)
+            , "--port=" <> BS.unpack (pgcPort pgconfig)
             , "--no-psqlrc"                     -- Ignore the ~/.psqlrc file.
             , "--single-transaction"            -- Run the file as a transaction.
             , "--set ON_ERROR_STOP=on"          -- Exit with non-zero on error.
