@@ -10,38 +10,46 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
 
-module Cardano.SMASH.DBSync.SmashDbSync
+module Cardano.Sync.SmashDbSync
   ( ConfigFile (..)
-  , SmashDbSyncNodeParams (..)
+  --, SmashDbSyncNodeParams (..)
   , DbSyncNodePlugin (..)
   , NetworkName (..)
   , SocketPath (..)
-
   , runDbSyncNode
+  , MetricsLayer (..)
+  , CardanoSyncDataLayer (..)
+  , CardanoSyncError (..)
+  -- * Types
+  , LogFileDir (..)
+  , MigrationDir (..)
+
+  , BlockId (..)
+  , MetaId (..)
+
+  , Meta (..)
+  , Block (..)
   ) where
 
-import           Prelude                                               (String)
-import qualified Prelude
+import           Cardano.Prelude                                       hiding
+                                                                        (Meta,
+                                                                        Nat,
+                                                                        option,
+                                                                        (%))
 
-import           Control.Monad.Trans.Except.Extra                      (firstExceptT,
-                                                                        hoistEither,
+import           Control.Monad.Trans.Except.Extra                      (hoistEither,
+                                                                        left,
                                                                         newExceptT)
 import           Control.Tracer                                        (Tracer, contramap)
 
 import           Cardano.BM.Data.Tracer                                (ToLogObject (..))
 import qualified Cardano.BM.Setup                                      as Logging
 import           Cardano.BM.Trace                                      (Trace, appendName,
-                                                                        logInfo,
-                                                                        modifyName)
+                                                                        logInfo)
 import qualified Cardano.BM.Trace                                      as Logging
 import qualified Cardano.Crypto                                        as Crypto
 
 import           Cardano.Client.Subscription                           (subscribe)
-
-import           Cardano.SMASH.DB                                      (DataLayer (..))
-import qualified Cardano.SMASH.DB                                      as DB
-import           Cardano.SMASH.DBSync.Db.Database
-import           Cardano.SMASH.DBSync.Metrics
 
 import           Cardano.DbSync.Config
 import           Cardano.DbSync.Config.Types                           hiding (adjustGenesisFilePath)
@@ -50,11 +58,6 @@ import           Cardano.DbSync.Plugin                                 (DbSyncNo
 import           Cardano.DbSync.Tracing.ToObjectOrphans                ()
 
 import           Cardano.DbSync.Util
-
-import           Cardano.Prelude                                       hiding
-                                                                        (Nat,
-                                                                        option,
-                                                                        (%))
 
 import           Cardano.Slotting.Slot                                 (SlotNo (..),
                                                                         WithOrigin (..),
@@ -72,16 +75,12 @@ import           Data.Time                                             (UTCTime 
 import qualified Data.Time                                             as Time
 import           Data.Void                                             (Void)
 
-import           Database.Persist.Sql                                  (SqlBackend)
-
 import           Network.Mux                                           (MuxTrace,
                                                                         WithMuxBearer)
 import           Network.Mux.Types                                     (MuxMode (..))
 import           Network.Socket                                        (SockAddr (..))
 
 import           Network.TypedProtocol.Pipelined                       (Nat (Succ, Zero))
-
-import           Cardano.SMASH.Offline                                 (runOfflineFetchThread)
 
 import           Ouroboros.Network.Driver.Simple                       (runPipelinedPeer)
 import           Ouroboros.Network.Protocol.LocalStateQuery.Client     (localStateQueryClientPeer)
@@ -154,8 +153,6 @@ import           Ouroboros.Network.Subscription                        (Subscrip
 import qualified Shelley.Spec.Ledger.Genesis                           as Shelley
 
 import           System.Directory                                      (createDirectoryIfMissing)
-import qualified System.Metrics.Prometheus.Metric.Gauge                as Gauge
-
 
 import           Ouroboros.Consensus.HardFork.History.Qry              (Interpreter)
 
@@ -166,37 +163,86 @@ import           Cardano.DbSync.StateQuery
 
 import qualified Cardano.Chain.Genesis                                 as Byron
 
+-- The hash must be unique!
+data Block = Block
+    { bHash    :: !ByteString
+    , bEpochNo :: !(Maybe Word64)
+    , bSlotNo  :: !(Maybe Word64)
+    , bBlockNo :: !(Maybe Word64)
+    } deriving (Eq, Show)
+
+-- The startTime must be unique!
+data Meta = Meta
+    { mProtocolConst :: !Word64
+    -- ^ The block security parameter.
+    , mSlotDuration  :: !Word64
+    -- ^ Slot duration in milliseconds.
+    , mStartTime     :: !UTCTime
+    , mSlotsPerEpoch :: !Word64
+    , mNetworkName   :: !(Maybe Text)
+    } deriving (Eq, Show)
+
+data CardanoSyncError = CardanoSyncError Text
+    deriving (Eq, Show)
+
+renderCardanoSyncError :: CardanoSyncError -> Text
+renderCardanoSyncError (CardanoSyncError cardanoSyncError') = cardanoSyncError'
+
+cardanoSyncError :: Monad m => Text -> ExceptT CardanoSyncError m a
+cardanoSyncError = left . CardanoSyncError
+
+-- @Word64@ is valid as well.
+newtype BlockId = BlockId Int
+    deriving (Eq, Show)
+
+-- @Word64@ is valid as well.
+newtype MetaId = MetaId Int
+    deriving (Eq, Show)
+
+-- The base @DataLayer@ that contains the functions required for syncing to work.
+data CardanoSyncDataLayer = CardanoSyncDataLayer
+    { csdlGetBlockId :: ByteString -> IO (Either CardanoSyncError BlockId)
+    -- ^ TODO(KS): Wrap @ByteString@.
+    , csdlGetMeta :: IO (Either CardanoSyncError Meta)
+    , csdlGetSlotHash :: SlotNo -> IO (Maybe (SlotNo, ByteString))
+    -- ^ TODO(KS): Wrap @ByteString@.
+    , csdlGetLatestBlock :: IO (Maybe Block)
+    , csdlAddGenesisMetaBlock :: Meta -> Block -> IO (Either CardanoSyncError (MetaId, BlockId))
+    }
+
+-- The metrics we use.
+data MetricsLayer = MetricsLayer
+    { gmSetNodeHeight     :: Double -> IO ()
+    , gmSetQueuePostWrite :: Double -> IO ()
+    }
 
 data Peer = Peer SockAddr SockAddr deriving Show
 
+-- The function
+type RunDBThreadFunction
+    =  Trace IO Text
+    -> DbSyncEnv
+    -> DbSyncNodePlugin
+    -> MetricsLayer
+    -> DbActionQueue
+    -> LedgerStateVar
+    -> IO ()
 
--- | The product type of all command line arguments
-data SmashDbSyncNodeParams = SmashDbSyncNodeParams
-  { senpConfigFile     :: !ConfigFile
-  , senpSocketPath     :: !SocketPath
-  , senpLedgerStateDir :: !LedgerStateDir
-  , senpMigrationDir   :: !DB.SmashMigrationDir
-  , senpMaybeRollback  :: !(Maybe SlotNo)
-  }
-
-convertSmashToDbSyncParams :: SmashDbSyncNodeParams -> DbSyncNodeParams
-convertSmashToDbSyncParams smashParams =
-    DbSyncNodeParams
-        { enpConfigFile = senpConfigFile smashParams
-        , enpSocketPath = senpSocketPath smashParams
-        , enpLedgerStateDir = senpLedgerStateDir smashParams
-        , enpMigrationDir = MigrationDir . DB.getSmashMigrationDir $ senpMigrationDir smashParams
-        , enpMaybeRollback = senpMaybeRollback smashParams
-        }
-
-runDbSyncNode :: DataLayer -> (DataLayer -> DbSyncNodePlugin) -> SmashDbSyncNodeParams -> IO ()
-runDbSyncNode dataLayer plugin enp =
+runDbSyncNode
+    :: CardanoSyncDataLayer
+    -> MetricsLayer
+    -> (Trace IO Text -> IO ())
+    -> DbSyncNodePlugin
+    -> DbSyncNodeParams
+    -> RunDBThreadFunction
+    -> IO ()
+runDbSyncNode dataLayer metricsLayer runDbStartup plugin enp runDBThreadFunction =
   withIOManager $ \iomgr -> do
 
-    let configFile = senpConfigFile enp
+    let configFile = enpConfigFile enp
     enc <- readDbSyncNodeConfig configFile
 
-    createDirectoryIfMissing True (unLedgerStateDir $ senpLedgerStateDir enp)
+    createDirectoryIfMissing True (unLedgerStateDir $ enpLedgerStateDir enp)
 
     trce <- if not (dncEnableLogging enc)
               then pure Logging.nullTracer
@@ -205,17 +251,11 @@ runDbSyncNode dataLayer plugin enp =
     logInfo trce $ "Using byron genesis file from: " <> (show . unGenesisFile $ dncByronGenesisFile enc)
     logInfo trce $ "Using shelley genesis file from: " <> (show . unGenesisFile $ dncShelleyGenesisFile enc)
 
-    logInfo trce $ "Running migrations."
-
-    DB.runMigrations trce Prelude.id (senpMigrationDir enp) (Just $ DB.SmashLogFileDir "/tmp")
-
-    logInfo trce $ "Migrations complete."
-
     orDie renderDbSyncNodeError $ do
       liftIO . logInfo trce $ "Reading genesis config."
 
       genCfg <- readCardanoGenesisConfig enc
-      genesisEnv <- hoistEither $ genesisConfigToEnv (convertSmashToDbSyncParams enp) genCfg
+      genesisEnv <- hoistEither $ genesisConfigToEnv enp genCfg
 
       logProtocolMagicId trce $ genesisProtocolMagicId genCfg
 
@@ -224,15 +264,15 @@ runDbSyncNode dataLayer plugin enp =
       liftIO $ do
         -- Must run plugin startup after the genesis distribution has been inserted/validate.
         logInfo trce $ "Run DB startup."
-        runDbStartup trce (plugin dataLayer)
+        runDbStartup trce
         logInfo trce $ "DB startup complete."
         case genCfg of
           GenesisCardano _ bCfg sCfg -> do
-            orDie renderDbSyncNodeError $ insertValidateGenesisDistSmash dataLayer trce (dncNetworkName enc) (scConfig sCfg)
+            orDie renderCardanoSyncError $ insertValidateGenesisDistSmash dataLayer trce (dncNetworkName enc) (scConfig sCfg)
 
             ledgerVar <- initLedgerStateVar genCfg
-            runDbSyncNodeNodeClient dataLayer genesisEnv ledgerVar
-                iomgr trce (plugin dataLayer) (cardanoCodecConfig bCfg) (senpSocketPath enp)
+            runDbSyncNodeNodeClient dataLayer metricsLayer genesisEnv ledgerVar
+                iomgr trce plugin runDBThreadFunction (cardanoCodecConfig bCfg) (enpSocketPath enp)
 
   where
     cardanoCodecConfig :: Byron.Config -> CodecConfig CardanoBlock
@@ -252,91 +292,100 @@ runDbSyncNode dataLayer plugin enp =
 -- | Idempotent insert the initial Genesis distribution transactions into the DB.
 -- If these transactions are already in the DB, they are validated.
 insertValidateGenesisDistSmash
-    :: DataLayer
+    :: CardanoSyncDataLayer
     -> Trace IO Text
     -> NetworkName
     -> ShelleyGenesis StandardShelley
-    -> ExceptT DbSyncNodeError IO ()
+    -> ExceptT CardanoSyncError IO ()
 insertValidateGenesisDistSmash dataLayer tracer (NetworkName networkName) cfg = do
     newExceptT $ insertAtomicAction
   where
-    insertAtomicAction :: IO (Either DbSyncNodeError ())
+    insertAtomicAction :: IO (Either CardanoSyncError ())
     insertAtomicAction = do
-      -- TODO(KS): This needs to be moved into DataLayer.
-      ebid <- DB.runDbIohkLogging tracer $ DB.queryBlockId (configGenesisHash cfg)
+      let getBlockId = csdlGetBlockId dataLayer
+      ebid <- getBlockId (configGenesisHash cfg)
       case ebid of
         -- TODO(KS): This needs to be moved into DataLayer.
-        Right _bid -> DB.runDbIohkLogging tracer $ validateGenesisDistribution tracer networkName cfg
+        Right _bid -> runExceptT $ do
+            let getMeta = csdlGetMeta dataLayer
+            meta <- newExceptT getMeta
+
+            newExceptT $ validateGenesisDistribution tracer meta networkName cfg
+
         Left _ -> do
             liftIO $ logInfo tracer "Inserting Genesis distribution"
-            let meta =  DB.Meta
-                            (protocolConstant cfg)
-                            (configSlotDuration cfg)
-                            (configStartTime cfg)
-                            (configSlotsPerEpoch cfg)
-                            (Just networkName)
 
-            let block = DB.Block
-                            { DB.blockHash = configGenesisHash cfg
-                            , DB.blockEpochNo = Nothing
-                            , DB.blockSlotNo = Nothing
-                            , DB.blockBlockNo = Nothing
+            let meta =  Meta
+                            { mProtocolConst = protocolConstant cfg
+                            , mSlotDuration = configSlotDuration cfg
+                            , mStartTime = configStartTime cfg
+                            , mSlotsPerEpoch = configSlotsPerEpoch cfg
+                            , mNetworkName = Just networkName
                             }
 
-            let addGenesisMetaBlock = dlAddGenesisMetaBlock dataLayer
+            let block = Block
+                            { bHash = configGenesisHash cfg
+                            , bEpochNo = Nothing
+                            , bSlotNo = Nothing
+                            , bBlockNo = Nothing
+                            }
+
+            let addGenesisMetaBlock = csdlAddGenesisMetaBlock dataLayer
             metaIdBlockIdE <- addGenesisMetaBlock meta block
 
             case metaIdBlockIdE of
                 Right (_metaId, _blockId) -> pure $ Right ()
-                Left err                  -> pure . Left . NEError $ show err
+                Left err                  -> pure . Left . CardanoSyncError $ show err
 
 -- | Validate that the initial Genesis distribution in the DB matches the Genesis data.
 validateGenesisDistribution
     :: (MonadIO m)
-    => Trace IO Text -> Text -> ShelleyGenesis StandardShelley
-    -> ReaderT SqlBackend m (Either DbSyncNodeError ())
-validateGenesisDistribution tracer networkName cfg =
+    => Trace IO Text
+    -> Meta
+    -> Text
+    -> ShelleyGenesis StandardShelley
+    -> m (Either CardanoSyncError ())
+validateGenesisDistribution tracer meta networkName cfg =
   runExceptT $ do
     liftIO $ logInfo tracer "Validating Genesis distribution"
-    meta <- firstExceptT (\(e :: DB.DBFail) -> NEError $ show e) . newExceptT $ DB.queryMeta
 
     -- Show configuration we are validating
     print cfg
 
-    when (DB.metaProtocolConst meta /= protocolConstant cfg) $
-      dbSyncNodeError $ Text.concat
+    when (mProtocolConst meta /= protocolConstant cfg) $
+      cardanoSyncError $ Text.concat
             [ "Shelley: Mismatch protocol constant. Config value "
             , textShow (protocolConstant cfg)
-            , " does not match DB value of ", textShow (DB.metaProtocolConst meta)
+            , " does not match DB value of ", textShow (mProtocolConst meta)
             ]
 
-    when (DB.metaSlotDuration meta /= configSlotDuration cfg) $
-      dbSyncNodeError $ Text.concat
+    when (mSlotDuration meta /= configSlotDuration cfg) $
+      cardanoSyncError $ Text.concat
             [ "Shelley: Mismatch slot duration time. Config value "
             , textShow (configSlotDuration cfg)
-            , " does not match DB value of ", textShow (DB.metaSlotDuration meta)
+            , " does not match DB value of ", textShow (mSlotDuration meta)
             ]
 
-    when (DB.metaStartTime meta /= configStartTime cfg) $
-      dbSyncNodeError $ Text.concat
+    when (mStartTime meta /= configStartTime cfg) $
+      cardanoSyncError $ Text.concat
             [ "Shelley: Mismatch chain start time. Config value "
             , textShow (configStartTime cfg)
-            , " does not match DB value of ", textShow (DB.metaStartTime meta)
+            , " does not match DB value of ", textShow (mStartTime meta)
             ]
 
-    when (DB.metaSlotsPerEpoch meta /= configSlotsPerEpoch cfg) $
-      dbSyncNodeError $ Text.concat
+    when (mSlotsPerEpoch meta /= configSlotsPerEpoch cfg) $
+      cardanoSyncError $ Text.concat
             [ "Shelley: Mismatch in slots per epoch. Config value "
             , textShow (configSlotsPerEpoch cfg)
-            , " does not match DB value of ", textShow (DB.metaSlotsPerEpoch meta)
+            , " does not match DB value of ", textShow (mSlotsPerEpoch meta)
             ]
 
-    case DB.metaNetworkName meta of
+    case mNetworkName meta of
       Nothing ->
-        dbSyncNodeError $ "Shelley.validateGenesisDistribution: Missing network name"
+        cardanoSyncError $ "Shelley.validateGenesisDistribution: Missing network name"
       Just name ->
         when (name /= networkName) $
-          dbSyncNodeError $ Text.concat
+          cardanoSyncError $ Text.concat
               [ "Shelley.validateGenesisDistribution: Provided network name "
               , networkName
               , " does not match DB value "
@@ -373,16 +422,18 @@ roundToMillseconds (UTCTime day picoSecs) =
 ---------------------------------------------------------------------------------------------------
 
 runDbSyncNodeNodeClient
-    :: DataLayer
+    :: CardanoSyncDataLayer
+    -> MetricsLayer
     -> DbSyncEnv
     -> LedgerStateVar
     -> IOManager
     -> Trace IO Text
     -> DbSyncNodePlugin
+    -> RunDBThreadFunction
     -> CodecConfig CardanoBlock
     -> SocketPath
     -> IO ()
-runDbSyncNodeNodeClient dataLayer env ledgerVar iomgr trce plugin codecConfig (SocketPath socketPath) = do
+runDbSyncNodeNodeClient dataLayer metricsLayer env ledgerVar iomgr trce plugin runDBThreadFunction codecConfig (SocketPath socketPath) = do
   queryVar <- newStateQueryTMVar
   logInfo trce $ "localInitiatorNetworkApplication: connecting to node via " <> textShow socketPath
 
@@ -392,7 +443,7 @@ runDbSyncNodeNodeClient dataLayer env ledgerVar iomgr trce plugin codecConfig (S
     (envNetworkMagic env)
     networkSubscriptionTracers
     clientSubscriptionParams
-    (dbSyncProtocols dataLayer trce env plugin queryVar ledgerVar)
+    (dbSyncProtocols dataLayer metricsLayer trce env plugin queryVar ledgerVar runDBThreadFunction)
   where
     clientSubscriptionParams = ClientSubscriptionParams {
         cspAddress = Snocket.localAddressFromPath socketPath,
@@ -423,17 +474,19 @@ runDbSyncNodeNodeClient dataLayer env ledgerVar iomgr trce plugin codecConfig (S
 
 -- Db sync protocols.
 dbSyncProtocols
-    :: DataLayer
+    :: CardanoSyncDataLayer
+    -> MetricsLayer
     -> Trace IO Text
     -> DbSyncEnv
     -> DbSyncNodePlugin
     -> StateQueryTMVar CardanoBlock (Interpreter (CardanoEras StandardCrypto))
     -> LedgerStateVar
+    -> RunDBThreadFunction
     -> Network.NodeToClientVersion
     -> ClientCodecs CardanoBlock IO
     -> ConnectionId LocalAddress
     -> NodeToClientProtocols 'InitiatorMode BSL.ByteString IO () Void
-dbSyncProtocols dataLayer trce env plugin queryVar ledgerVar _version codecs _connectionId =
+dbSyncProtocols dataLayer metricsLayer trce env plugin queryVar ledgerVar runDBThreadFunction _version codecs _connectionId =
     NodeToClientProtocols {
           localChainSyncProtocol = localChainSyncProtocol
         , localTxSubmissionProtocol = dummylocalTxSubmit
@@ -449,28 +502,32 @@ dbSyncProtocols dataLayer trce env plugin queryVar ledgerVar _version codecs _co
         logInfo trce "Starting localChainSyncProtocol."
 
         latestPoints <- getLatestPoints dataLayer (envLedgerStateDir env)
-        currentTip <- getCurrentTipBlockNo trce
-        logDbState trce
+        currentTip <- getCurrentTipBlockNo dataLayer trce
+        logDbState dataLayer trce
         actionQueue <- newDbActionQueue
-        (metrics, server) <- registerMetricsServer 8080
 
         logInfo trce "Starting threads for client, db and offline fetch thread."
 
+        -- This is something we need to inject
         race_
-            (race_
-                (runDbThread trce env plugin metrics actionQueue ledgerVar)
-                (runOfflineFetchThread $ modifyName (const "fetch") trce)
-            )
+            (runDBThreadFunction trce env plugin metricsLayer actionQueue ledgerVar)
             (runPipelinedPeer
                 localChainSyncTracer
                 (cChainSyncCodec codecs)
                 channel
-                (chainSyncClientPeerPipelined
-                    $ chainSyncClient trce env queryVar metrics latestPoints currentTip actionQueue)
+                (chainSyncClientPeerPipelined $ chainSyncClient
+                     dataLayer
+                     metricsLayer
+                     trce
+                     env
+                     queryVar
+                     latestPoints
+                     currentTip
+                     actionQueue)
             )
 
         atomically $ writeDbActionQueue actionQueue DbFinish
-        cancel server
+
         -- We should return leftover bytes returned by 'runPipelinedPeer', but
         -- client application do not care about them (it's only important if one
         -- would like to restart a protocol on the same mux and thus bearer).
@@ -489,31 +546,32 @@ dbSyncProtocols dataLayer trce env plugin queryVar ledgerVar _version codecs _co
         (cStateQueryCodec codecs)
         (localStateQueryClientPeer (localStateQueryHandler queryVar))
 
-logDbState :: Trace IO Text -> IO ()
-logDbState trce = do
-    mblk <- DB.runDbNoLogging DB.queryLatestBlock
+logDbState :: CardanoSyncDataLayer -> Trace IO Text -> IO ()
+logDbState dataLayer trce = do
+    let getLatestBlock = csdlGetLatestBlock dataLayer
+    mblk <- getLatestBlock
     case mblk of
       Nothing -> logInfo trce "Cardano.Db is empty"
       Just block ->
           logInfo trce $ Text.concat
                   [ "Cardano.Db tip is at "
-                  , Text.pack (showTip block)
+                  , showTip block
                   ]
   where
-    showTip :: DB.Block -> String
+    showTip :: Block -> Text
     showTip blk =
-      case (DB.blockSlotNo blk, DB.blockBlockNo blk) of
-        (Just slotNo, Just blkNo) -> "slot " ++ show slotNo ++ ", block " ++ show blkNo
-        (Just slotNo, Nothing) -> "slot " ++ show slotNo
-        (Nothing, Just blkNo) -> "block " ++ show blkNo
+      case (bSlotNo blk, bBlockNo blk) of
+        (Just slotNo, Just blkNo) -> toS $ "slot " ++ show slotNo ++ ", block " ++ show blkNo
+        (Just slotNo, Nothing) -> toS $ "slot " ++ show slotNo
+        (Nothing, Just blkNo) -> toS $ "block " ++ show blkNo
         (Nothing, Nothing) -> "empty (genesis)"
 
 
-getLatestPoints :: DataLayer -> LedgerStateDir -> IO [Point CardanoBlock]
+getLatestPoints :: CardanoSyncDataLayer -> LedgerStateDir -> IO [Point CardanoBlock]
 getLatestPoints dataLayer ledgerStateDir = do
     xs <- listLedgerStateSlotNos ledgerStateDir
 
-    let getSlotHash = dlGetSlotHash dataLayer
+    let getSlotHash = csdlGetSlotHash dataLayer
     ys <- catMaybes <$> mapM getSlotHash xs
 
     pure $ mapMaybe convert ys
@@ -525,18 +583,19 @@ getLatestPoints dataLayer ledgerStateDir = do
     convertHashBlob :: ByteString -> Maybe (HeaderHash CardanoBlock)
     convertHashBlob = Just . fromRawHash (Proxy @CardanoBlock)
 
-getCurrentTipBlockNo :: Trace IO Text -> IO (WithOrigin BlockNo)
-getCurrentTipBlockNo trce = do
-    maybeTip <- DB.runDbNoLogging DB.queryLatestBlock
+getCurrentTipBlockNo :: CardanoSyncDataLayer -> Trace IO Text -> IO (WithOrigin BlockNo)
+getCurrentTipBlockNo dataLayer trce = do
+    let getLatestBlock = csdlGetLatestBlock dataLayer
+    maybeTip <- getLatestBlock
     case maybeTip of
       Just tip -> pure $ convert tip
       Nothing -> do
           logInfo trce "Current tip block, Nothing."
           pure Origin
   where
-    convert :: DB.Block -> WithOrigin BlockNo
+    convert :: Block -> WithOrigin BlockNo
     convert blk =
-      case DB.blockBlockNo blk of
+      case bBlockNo blk of
         Just blockno -> At (BlockNo blockno)
         Nothing      -> Origin
 
@@ -548,11 +607,16 @@ getCurrentTipBlockNo trce = do
 --  * update its state when the client receives next block or is requested to
 --    rollback, see 'clientStNext' below.
 chainSyncClient
-    :: Trace IO Text -> DbSyncEnv
+    :: CardanoSyncDataLayer
+    -> MetricsLayer
+    -> Trace IO Text
+    -> DbSyncEnv
     -> StateQueryTMVar CardanoBlock (Interpreter (CardanoEras StandardCrypto))
-    -> Metrics -> [Point CardanoBlock] -> WithOrigin BlockNo -> DbActionQueue
+    -> [Point CardanoBlock]
+    -> WithOrigin BlockNo
+    -> DbActionQueue
     -> ChainSyncClientPipelined CardanoBlock (Point CardanoBlock) (Tip CardanoBlock) IO ()
-chainSyncClient trce env queryVar metrics latestPoints currentTip actionQueue = do
+chainSyncClient dataLayer metricsLayer trce env queryVar  latestPoints currentTip actionQueue = do
     ChainSyncClientPipelined $ pure $
       -- Notify the core node about the our latest points at which we are
       -- synchronised.  This client is not persistent and thus it just
@@ -594,12 +658,17 @@ chainSyncClient trce env queryVar metrics latestPoints currentTip actionQueue = 
       ClientStNext
         { recvMsgRollForward = \blk tip -> do
               logException trce "recvMsgRollForward: " $ do
-                Gauge.set (withOrigin 0 (fromIntegral . unBlockNo) (getTipBlockNo tip)) (mNodeHeight metrics)
+                let setNodeHeight = gmSetNodeHeight metricsLayer
+                setNodeHeight (withOrigin 0 (fromIntegral . unBlockNo) (getTipBlockNo tip))
+
                 details <- getSlotDetails trce env queryVar (getTipPoint tip) (cardanoBlockSlotNo blk)
                 newSize <- atomically $ do
                             writeDbActionQueue actionQueue $ mkDbApply blk details
                             lengthDbActionQueue actionQueue
-                Gauge.set (fromIntegral newSize) $ mQueuePostWrite metrics
+
+                let setQueuePostWrite = gmSetQueuePostWrite metricsLayer
+                setQueuePostWrite (fromIntegral newSize)
+
                 pure $ finish (At (blockNo blk)) tip
         , recvMsgRollBackward = \point tip -> do
               logException trce "recvMsgRollBackward: " $ do
@@ -607,6 +676,7 @@ chainSyncClient trce env queryVar metrics latestPoints currentTip actionQueue = 
                 -- but will only be incorrect for a short time span.
                 let slot = toRollbackSlot point
                 atomically $ writeDbActionQueue actionQueue (mkDbRollback slot)
-                newTip <- getCurrentTipBlockNo trce
+                newTip <- getCurrentTipBlockNo dataLayer trce
                 pure $ finish newTip tip
         }
+

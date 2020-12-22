@@ -16,7 +16,6 @@ module Cardano.SMASH.DBSync.Db.Database
 import           Cardano.BM.Trace                       (Trace, logDebug,
                                                          logError, logInfo)
 import qualified Cardano.Chain.Block                    as Ledger
-import qualified Cardano.DbSync.Era.Byron.Util          as Byron
 import           Cardano.Prelude
 
 import           Control.Monad.Logger                   (LoggingT)
@@ -26,8 +25,8 @@ import           Control.Monad.Trans.Except.Extra       (left, newExceptT,
 import           Cardano.Slotting.Slot                  (SlotNo)
 
 import qualified Cardano.SMASH.DB                       as DB
-import           Cardano.SMASH.DBSync.Metrics
 
+import qualified Cardano.DbSync.Era.Byron.Util          as Byron
 import           Cardano.DbSync.Config
 import           Cardano.DbSync.DbAction
 import           Cardano.DbSync.Error
@@ -41,40 +40,41 @@ import           Database.Persist.Sql                   (SqlBackend)
 import           Ouroboros.Consensus.Byron.Ledger       (ByronBlock (..))
 import           Ouroboros.Consensus.Cardano.Block      (HardForkBlock (..))
 
-import qualified System.Metrics.Prometheus.Metric.Gauge as Gauge
-
+-- TODO(KS): This whole module is suspect for deletion. I have no clue why there
+-- are so many different things in one module.
 
 data NextState
   = Continue
   | Done
   deriving Eq
 
-runDbStartup :: Trace IO Text -> DbSyncNodePlugin -> IO ()
-runDbStartup trce plugin =
+-- TODO(KS): Do we even need this? What is this?
+runDbStartup :: DbSyncNodePlugin -> Trace IO Text -> IO ()
+runDbStartup plugin trce =
   DB.runDbAction (Just trce) $
     mapM_ (\action -> action trce) $ plugOnStartup plugin
 
 -- TODO(KS): Needs a @DataLayer@.
+-- TODO(KS): Metrics layer!
 runDbThread
-    :: Trace IO Text -> DbSyncEnv -> DbSyncNodePlugin -> Metrics
-    -> DbActionQueue -> LedgerStateVar
+    :: Trace IO Text
+    -> DbSyncEnv
+    -> DbSyncNodePlugin
+    -> DbActionQueue
+    -> LedgerStateVar
     -> IO ()
-runDbThread trce env plugin metrics queue ledgerStateVar = do
+runDbThread trce env plugin queue ledgerStateVar = do
     logInfo trce "Running DB thread"
     logException trce "runDBThread: " loop
     logInfo trce "Shutting down DB thread"
   where
     loop = do
       xs <- blockingFlushDbActionQueue queue
+
       when (length xs > 1) $ do
         logDebug trce $ "runDbThread: " <> textShow (length xs) <> " blocks"
+
       eNextState <- runExceptT $ runActions trce env plugin ledgerStateVar xs
-
-      mBlkNo <-  DB.runDbAction (Just trce) DB.queryLatestBlockNo
-
-      case mBlkNo of
-        Nothing    -> pure ()
-        Just blkNo -> Gauge.set (fromIntegral blkNo) $ mDbHeight metrics
 
       case eNextState of
         Left err       -> logError trce $ renderDbSyncNodeError err
@@ -113,6 +113,7 @@ runActions trce env plugin ledgerState actions = do
             then pure Continue
             else dbAction Continue zs
 
+-- TODO(KS): This seems wrong, why do we validate something here?
 checkDbState :: Trace IO Text -> [DbAction] -> ExceptT DbSyncNodeError IO NextState
 checkDbState trce xs =
     case filter isMainBlockApply (reverse xs) of
@@ -134,7 +135,6 @@ checkDbState trce xs =
                 Just dbBlk -> do
                   when (DB.blockHash dbBlk /= Byron.blockHash chBlk) $ do
                     liftIO $ logInfo trce (textShow chBlk)
-                    -- liftIO $ logInfo trce (textShow dbBlk)
                     left $ NEBlockMismatch (Byron.blockNumber chBlk) (DB.blockHash dbBlk) (Byron.blockHash chBlk)
 
                   liftIO . logInfo trce $

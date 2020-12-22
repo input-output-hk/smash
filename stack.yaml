@@ -4,6 +4,7 @@ compiler: ghc-8.6.5
 #allow-newer: true
 
 packages:
+- smash-sync
 - smash
 - smash-servant-types
 
