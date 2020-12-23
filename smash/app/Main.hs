@@ -1,33 +1,52 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP                   #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeSynonymInstances  #-}
+
+-- The db conversion.
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main where
 
-import           Cardano.Prelude
+import           Cardano.Prelude                        hiding (Meta)
 
-import           Cardano.SMASH.DB
+--import           Cardano.SMASH.DB
+import qualified Cardano.SMASH.DB                       as DB
+import           Cardano.SMASH.DBSync.Db.Database       (runDbStartup,
+                                                         runDbThread)
+
+import           Cardano.SMASH.Offline                  (runOfflineFetchThread)
+
 import           Cardano.SMASH.Lib
 import           Cardano.SMASH.Types
 
 -- For reading configuration files.
 import           Cardano.DbSync.Config
+import           Cardano.Sync.SmashDbSync
 
+import           Control.Applicative                    (optional)
+import           Control.Monad.Trans.Maybe
 
+import           Data.Monoid                            ((<>))
+import           Database.Esqueleto
 
-import           Control.Applicative              (optional)
+import           Options.Applicative                    (Parser, ParserInfo,
+                                                         ParserPrefs)
+import qualified Options.Applicative                    as Opt
 
-import           Data.Monoid                      ((<>))
+import qualified System.Metrics.Prometheus.Metric.Gauge as Gauge
 
-import           Options.Applicative              (Parser, ParserInfo,
-                                                   ParserPrefs)
-import qualified Options.Applicative              as Opt
-
-import qualified Cardano.BM.Setup                 as Logging
-import           Cardano.Slotting.Slot            (SlotNo (..))
-import           Cardano.SMASH.DBSync.SmashDbSync (ConfigFile (..),
-                                                   SmashDbSyncNodeParams (..),
-                                                   SocketPath (..),
-                                                   runDbSyncNode)
-import           Cardano.SMASH.DBSyncPlugin       (poolMetadataDbSyncNodePlugin)
+import qualified Cardano.BM.Setup                       as Logging
+import           Cardano.BM.Trace                       (Trace, logInfo,
+                                                         modifyName)
+import           Cardano.Slotting.Slot                  (SlotNo (..))
+import           Cardano.SMASH.DBSync.Metrics           (Metrics (..),
+                                                         registerMetricsServer)
+import           Cardano.SMASH.DBSyncPlugin             (poolMetadataDbSyncNodePlugin)
+import           Cardano.Sync.SmashDbSync               (ConfigFile (..),
+                                                         MetricsLayer (..),
+                                                         SocketPath (..),
+                                                         runDbSyncNode)
 
 
 main :: IO ()
@@ -48,57 +67,191 @@ main = do
 data Command
   = CreateAdminUser !ApplicationUser
   | DeleteAdminUser !ApplicationUser
-  | CreateMigration SmashMigrationDir
-  | RunMigrations ConfigFile SmashMigrationDir (Maybe SmashLogFileDir)
+  | CreateMigration MigrationDir
+  | RunMigrations ConfigFile MigrationDir (Maybe LogFileDir)
   | RunApplication
 #ifdef TESTING_MODE
   | RunStubApplication
 #endif
-  | RunApplicationWithDbSync SmashDbSyncNodeParams
+  | RunApplicationWithDbSync DbSyncNodeParams
+
+setupTraceFromConfig :: ConfigFile -> IO (Trace IO Text)
+setupTraceFromConfig configFile = do
+    enc <- readDbSyncNodeConfig configFile
+    trce <- Logging.setupTrace (Right $ dncLoggingConfig enc) "smash-node"
+    return trce
 
 runCommand :: Command -> IO ()
 runCommand cmd =
   case cmd of
     CreateAdminUser applicationUser -> do
-        adminUserE <- createAdminUser postgresqlDataLayer applicationUser
+        adminUserE <- createAdminUser DB.postgresqlDataLayer applicationUser
         case adminUserE of
-            Left err -> panic $ renderLookupFail err
+            Left err -> panic $ DB.renderLookupFail err
             Right adminUser -> putTextLn $ "Created admin user: " <> show adminUser
 
     DeleteAdminUser applicationUser -> do
-        adminUserE <- deleteAdminUser postgresqlDataLayer applicationUser
+        adminUserE <- deleteAdminUser DB.postgresqlDataLayer applicationUser
         case adminUserE of
-            Left err -> panic $ renderLookupFail err
+            Left err -> panic $ DB.renderLookupFail err
             Right adminUser -> putTextLn $ "Deleted admin user: " <> show adminUser
 
     CreateMigration mdir -> doCreateMigration mdir
 
-    RunMigrations configFile mdir mldir -> do
-        enc <- readDbSyncNodeConfig configFile
-        trce <- Logging.setupTrace (Right $ dncLoggingConfig enc) "smash-node"
-        runMigrations trce (\pgConfig -> pgConfig) mdir mldir
+    RunMigrations configFile (MigrationDir mdir) mldir -> do
+        trce <- setupTraceFromConfig configFile
+        let smashLogFileDir =
+                case mldir of
+                    Nothing               -> Nothing
+                    Just (LogFileDir dir) -> return $ DB.SmashLogFileDir dir
+        DB.runMigrations trce (\pgConfig -> pgConfig) (DB.SmashMigrationDir mdir) smashLogFileDir
 
     RunApplication -> runApp defaultConfiguration
 #ifdef TESTING_MODE
     RunStubApplication -> runAppStubbed defaultConfiguration
 #endif
-    RunApplicationWithDbSync dbSyncNodeParams ->
-        race_
-            (runDbSyncNode postgresqlDataLayer poolMetadataDbSyncNodePlugin dbSyncNodeParams)
-            (runApp defaultConfiguration)
+    RunApplicationWithDbSync dbSyncNodeParams -> runCardanoSyncWithSmash dbSyncNodeParams
 
-doCreateMigration :: SmashMigrationDir -> IO ()
-doCreateMigration mdir = do
-  mfp <- createMigration mdir
+-- Running SMASH with cardano-sync.
+runCardanoSyncWithSmash :: DbSyncNodeParams -> IO ()
+runCardanoSyncWithSmash dbSyncNodeParams = do
+
+    -- Setup trace
+    let configFile = enpConfigFile dbSyncNodeParams
+    tracer <- setupTraceFromConfig configFile
+
+    let (MigrationDir migrationDir') = enpMigrationDir dbSyncNodeParams
+
+    -- Run migrations
+    logInfo tracer $ "Running migrations."
+    DB.runMigrations tracer (\x -> x) (DB.SmashMigrationDir migrationDir') (Just $ DB.SmashLogFileDir "/tmp")
+    logInfo tracer $ "Migrations complete."
+
+    -- Run metrics server
+    (metrics, server) <- registerMetricsServer 8080
+
+    -- Metrics layer.
+    let metricsLayer =
+            MetricsLayer
+                { gmSetNodeHeight = \nodeHeight ->
+                    Gauge.set nodeHeight $ mNodeHeight metrics
+
+                , gmSetQueuePostWrite = \queuePostWrite ->
+                    Gauge.set queuePostWrite $ mQueuePostWrite metrics
+                }
+
+    -- The plugin requires the @DataLayer@.
+    let smashDbSyncNodePlugin = poolMetadataDbSyncNodePlugin DB.postgresqlDataLayer
+
+    let runDbStartupCall = runDbStartup smashDbSyncNodePlugin
+
+    -- The base @DataLayer@.
+    let cardanoSyncDataLayer =
+            CardanoSyncDataLayer
+                { csdlGetBlockId = \genesisHash -> runExceptT $ do
+                    blockId <- ExceptT $ dbFailToCardanoSyncError <$> (DB.runDbIohkLogging tracer $ DB.queryBlockId genesisHash)
+                    return . BlockId . fromIntegral . fromSqlKey $ blockId
+
+                , csdlGetMeta = runExceptT $ do
+                    meta <- ExceptT $ dbFailToCardanoSyncError <$> (DB.runDbIohkLogging tracer DB.queryMeta)
+                    return $ Meta
+                        { mProtocolConst = DB.metaProtocolConst meta
+                        , mSlotDuration = DB.metaSlotDuration meta
+                        , mStartTime = DB.metaStartTime meta
+                        , mSlotsPerEpoch = DB.metaSlotsPerEpoch meta
+                        , mNetworkName = DB.metaNetworkName meta
+                        }
+
+                , csdlGetSlotHash = \slotNo ->
+                    DB.runDbIohkLogging tracer $ DB.querySlotHash slotNo
+
+                , csdlGetLatestBlock = runMaybeT $ do
+                    block <- MaybeT $ DB.runDbIohkLogging tracer DB.queryLatestBlock
+                    return $ convertFromDB block
+
+                -- This is how all the calls should work, implemented on the base @DataLayer@.
+                , csdlAddGenesisMetaBlock = \meta block -> runExceptT $ do
+                    let addGenesisMetaBlock = DB.dlAddGenesisMetaBlock DB.postgresqlDataLayer
+
+                    let metaDB = convertToDB meta
+                    let blockDB = convertToDB block
+
+                    (metaId, blockId) <- ExceptT $ dbFailToCardanoSyncError <$> addGenesisMetaBlock metaDB blockDB
+
+                    return (MetaId . fromIntegral . fromSqlKey $ metaId, BlockId . fromIntegral . fromSqlKey $ blockId)
+                }
+
+    -- The actual DB Thread.
+    let runDBThreadFunction =
+            \tracer' env plugin _metricsLayer actionQueue ledgerVar ->
+                race_
+                    (runDbThread tracer' env plugin actionQueue ledgerVar)
+                    (runOfflineFetchThread $ modifyName (const "fetch") tracer')
+
+    race_
+        (runDbSyncNode cardanoSyncDataLayer metricsLayer runDbStartupCall smashDbSyncNodePlugin dbSyncNodeParams runDBThreadFunction)
+        (runApp defaultConfiguration)
+
+    -- Finish and close the metrics server
+    -- TODO(KS): Bracket!
+    cancel server
+
+
+dbFailToCardanoSyncError :: Either DBFail a -> Either CardanoSyncError a
+dbFailToCardanoSyncError (Left dbFail)  = Left . CardanoSyncError . DB.renderLookupFail $ dbFail
+dbFailToCardanoSyncError (Right aValue) = Right aValue
+
+doCreateMigration :: MigrationDir -> IO ()
+doCreateMigration (MigrationDir mdir) = do
+  mfp <- DB.createMigration . DB.SmashMigrationDir $ mdir
   case mfp of
     Nothing -> putTextLn "No migration needed."
     Just fp -> putTextLn $ toS ("New migration '" ++ fp ++ "' created.")
 
 -------------------------------------------------------------------------------
 
-pCommandLine :: Parser SmashDbSyncNodeParams
+instance DBConversion DB.Block Block where
+    convertFromDB block =
+        Block
+            { bHash = DB.blockHash block
+            , bEpochNo = DB.blockEpochNo block
+            , bSlotNo = DB.blockSlotNo block
+            , bBlockNo = DB.blockBlockNo block
+            }
+
+    convertToDB block =
+        DB.Block
+            { DB.blockHash = bHash block
+            , DB.blockEpochNo = bEpochNo block
+            , DB.blockSlotNo = bSlotNo block
+            , DB.blockBlockNo = bBlockNo block
+            }
+
+instance DBConversion DB.Meta Meta where
+    convertFromDB meta =
+        Meta
+            { mProtocolConst = DB.metaProtocolConst meta
+            , mSlotDuration = DB.metaSlotDuration meta
+            , mStartTime = DB.metaStartTime meta
+            , mSlotsPerEpoch = DB.metaSlotsPerEpoch meta
+            , mNetworkName = DB.metaNetworkName meta
+            }
+
+    convertToDB meta =
+        DB.Meta
+            { DB.metaProtocolConst = mProtocolConst meta
+            , DB.metaSlotDuration = mSlotDuration meta
+            , DB.metaStartTime = mStartTime meta
+            , DB.metaSlotsPerEpoch = mSlotsPerEpoch meta
+            , DB.metaNetworkName = mNetworkName meta
+            }
+
+-------------------------------------------------------------------------------
+
+--pCommandLine :: Parser SmashDbSyncNodeParams
+pCommandLine :: Parser DbSyncNodeParams
 pCommandLine =
-  SmashDbSyncNodeParams
+  DbSyncNodeParams
     <$> pConfigFile
     <*> pSocketPath
     <*> pLedgerStateDir
@@ -123,9 +276,9 @@ pLedgerStateDir =
     <> Opt.metavar "FILEPATH"
     )
 
-pMigrationDir :: Parser SmashMigrationDir
+pMigrationDir :: Parser MigrationDir
 pMigrationDir =
-  SmashMigrationDir <$> Opt.strOption
+  MigrationDir <$> Opt.strOption
     (  Opt.long "schema-dir"
     <> Opt.help "The directory containing the migrations."
     <> Opt.completer (Opt.bashCompleter "directory")
@@ -149,9 +302,10 @@ pSlotNo =
     <> Opt.metavar "WORD"
     )
 
+-- TOOD(KS): Fix this to pick up a proper version.
 pVersion :: Parser (a -> a)
 pVersion =
-  Opt.infoOption "cardano-db-tool version 0.1.0.0"
+  Opt.infoOption "SMASH version 1.3.0"
     (  Opt.long "version"
     <> Opt.short 'v'
     <> Opt.help "Print the version and exit"
@@ -268,17 +422,17 @@ pPoolHash =
     <> Opt.help "The JSON metadata Blake2 256 hash."
     )
 
-pSmashMigrationDir :: Parser SmashMigrationDir
+pSmashMigrationDir :: Parser MigrationDir
 pSmashMigrationDir =
-  SmashMigrationDir <$> Opt.strOption
+  MigrationDir <$> Opt.strOption
     (  Opt.long "mdir"
     <> Opt.help "The SMASH directory containing the migrations."
     <> Opt.completer (Opt.bashCompleter "directory")
     )
 
-pLogFileDir :: Parser SmashLogFileDir
+pLogFileDir :: Parser LogFileDir
 pLogFileDir =
-  SmashLogFileDir <$> Opt.strOption
+  LogFileDir <$> Opt.strOption
     (  Opt.long "ldir"
     <> Opt.help "The directory to write the log to."
     <> Opt.completer (Opt.bashCompleter "directory")
@@ -290,5 +444,4 @@ pTickerName =
     (  Opt.long "tickerName"
     <> Opt.help "The name of the ticker."
     )
-
 

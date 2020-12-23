@@ -2,6 +2,7 @@ index-state: 2020-11-15T00:00:00Z
 
 packages:
     ./smash
+    ./smash-sync
     ./smash-servant-types
 
 constraints:

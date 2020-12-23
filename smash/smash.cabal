@@ -44,7 +44,6 @@ library
     Cardano.SMASH.DBSync.Db.Run
     Cardano.SMASH.DBSync.Db.Schema
     Cardano.SMASH.DBSync.Metrics
-    Cardano.SMASH.DBSync.SmashDbSync
     Cardano.SMASH.DBSyncPlugin
     Cardano.SMASH.FetchQueue
     Cardano.SMASH.Lib
@@ -57,12 +56,7 @@ library
     , base                         >=4.7   && <5
     , base16-bytestring
     , bytestring
-    , cardano-binary
-    , cardano-client
-    , cardano-config
-    , cardano-crypto
     , cardano-crypto-class
-    , cardano-crypto-wrapper
     , cardano-db-sync
     , cardano-ledger
     , cardano-prelude
@@ -82,14 +76,8 @@ library
     , io-sim-classes
     , iohk-monitoring
     , monad-logger
-    , network
-    , network-mux
-    , ouroboros-consensus
     , ouroboros-consensus-byron
     , ouroboros-consensus-cardano
-    , ouroboros-consensus-shelley
-    , ouroboros-network
-    , ouroboros-network-framework
     , persistent
     , persistent-postgresql
     , persistent-template          >=2.7.0
@@ -109,6 +97,7 @@ library
     , transformers
     , transformers-except
     , typed-protocols
+    , smash-sync
     , unix
     , wai
     , warp
@@ -140,6 +129,10 @@ executable smash-exe
     , iohk-monitoring
     , smash
     , smash-servant-types
+    , smash-sync
+    , esqueleto
+    , transformers
+    , prometheus
 
   default-language:   Haskell2010
   default-extensions:
