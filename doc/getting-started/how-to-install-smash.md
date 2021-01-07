@@ -95,7 +95,8 @@ cabal build smash
 cabal install smash
 ```
 
-You can also use `stack` if you prefer. For this, replace `cabal`commands with `stack` as in the examples, in case you are already using `cabal`.
+You can also use `stack` if you prefer.
+For this, replace `cabal`commands with `stack` as in the examples, in case you are already using `stack`.
 
 ## Metadata
 
@@ -149,7 +150,7 @@ curl --verbose --header "Content-Type: application/json" --request PATCH --data 
 ```
 
 You can use additional commands, which help test the functionality of the SMASH server.
-You can insert a pool manually:
+You can insert a pool manually, the file should be local and not remote:
 ```
 curl -X POST -v -H 'content-type: application/octet-stream' http://localhost:3100/api/v1/metadata/i<POOL_ID>/<POOL_HASH> --data-binary @<POOL_JSON_FILE_PATH>
 ```
@@ -163,7 +164,7 @@ curl --verbose --header "Content-Type: application/json" --request POST --data '
 
 Run commands provided in the example:
 ```
-curl --verbose --header "Content-Type: application/json" --request GET http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/2560993cf1b6f3f1ebde429f062ce48751ed6551c2629ce62e4e169f140a3524
+curl --verbose --header "Content-Type: application/json" --request GET http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66/4b2221a0ac0b0197308323080ba97e3e453f8625393d30f96eebe0fca4cb7335
 
 curl --verbose --user ksaric:cirask --header "Content-Type: application/json" --request PATCH --data '{"poolId":"xyz"}' http://localhost:3100/api/v1/delist
 ```
@@ -175,32 +176,47 @@ Interacting with a server via a regular HTTP protocol is unsafe since it is usin
 
 ## How to get the Swagger/OpenAPI info?
 
-First, run the application. Then, go to the localhost and copy the content into an [editor](https://editor.swagger.io/). 
+First, run the application. Then, go to the localhost and copy the content into an [editor](https://editor.swagger.io/).
 
 ## How to use SMASH
 
 ## Inserting pool metadata
 
-This is an example (the hash from Blake2 256):
+This is an example (the hash from Blake2 256), the file should be local and not remote:
 ```
 curl -X POST -v -H 'content-type: application/octet-stream' http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66/4b2221a0ac0b0197308323080ba97e3e453f8625393d30f96eebe0fca4cb7335 --data-binary @test_pool.json
 ```
 
 ## Testing delisting feature
 
-If you find a pool hash that has been inserted, like in our example, '93b13334b5edf623fd4c7a716f3cf47be5baf7fb3a431c16ee07aab8ff074873', you can test the delisting by sending a PATCH on the delist endpoint.
+If you find a pool hash that has been inserted, like in our example:
 ```
-curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7"}'
+curl -X GET -v http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66/4b2221a0ac0b0197308323080ba97e3e453f8625393d30f96eebe0fca4cb7335 | jq .
+```
+
+You can test the delisting by sending a PATCH on the delist endpoint.
+```
+curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66"}'
 ```
 
 If you have Basic Auth enabled (replace with the username/pass for your DB):
 ```
-curl -u ksaric:test -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7"}'
+curl -u ksaric:test -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66"}'
 ```
 
-Fetching the pool:
+Try fetching the pool:
 ```
-curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f | jq .
+curl -X GET -v http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66/4b2221a0ac0b0197308323080ba97e3e453f8625393d30f96eebe0fca4cb7335 | jq .
+```
+
+If you have made a mistake by delisting the wrong pool id, you can whitelist it (the example with the Basic Auth):
+```
+curl -u ksaric:test -X PATCH -v http://localhost:3100/api/v1/enlist -H 'content-type: application/json' -d '{"poolId": "8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66"}'
+```
+
+Try fetching the pool:
+```
+curl -X GET -v http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66/4b2221a0ac0b0197308323080ba97e3e453f8625393d30f96eebe0fca4cb7335 | jq .
 ```
 
 ## Basic Auth and DB
@@ -219,19 +235,29 @@ Now you will be able to run your SMASH server with user authentication from DB. 
 
 ## Test script
 
+We need to have the `testing-mode` enabled on all projects!
 Below is provided an example of how SMASH works:
 ```
 SMASHPGPASSFILE=config/pgpass ./scripts/postgresql-setup.sh --recreatedb
 SMASHPGPASSFILE=config/pgpass cabal run smash-exe -- run-migrations --mdir ./schema
 SMASHPGPASSFILE=config/pgpass cabal run smash-exe -- create-migration --mdir ./schema
 SMASHPGPASSFILE=config/pgpass cabal run smash-exe -- run-migrations --mdir ./schema
+```
 
-SMASHPGPASSFILE=config/pgpass cabal run smash-exe -- insert-pool --metadata test_pool.json --poolId "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7" --poolhash "cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f"
+Then we insert the pool (which is what happens when we sync with the blockchain):
+```
+curl -X POST -v -H 'content-type: application/octet-stream' http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66/4b2221a0ac0b0197308323080ba97e3e453f8625393d30f96eebe0fca4cb7335 --data-binary @test_pool.json
+```
 
+We run SMASH:
+```
 SMASHPGPASSFILE=config/pgpass cabal run smash-exe -- run-app
 ```
 
-After the server is running, you can check the hash on the localhost to see it return the JSON metadata.
+After the server is running, you can check the hash on the localhost to see it return the JSON metadata:
+```
+curl -X GET http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66/4b2221a0ac0b0197308323080ba97e3e453f8625393d30f96eebe0fca4cb7335
+```
 
 ## How to figure out the JSON hash?
 
@@ -269,30 +295,30 @@ The example we used for testing shows that we can delist the pool id. That pool 
 
 We first insert the `test_pool.json` we have in the provided example:
 ```
-
+curl -X POST -v -H 'content-type: application/octet-stream' http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66/4b2221a0ac0b0197308323080ba97e3e453f8625393d30f96eebe0fca4cb7335 --data-binary @test_pool.json
 ```
 
 Then we change the ticker name of `test_pool.json` from `testy` to `testo`. This changes the pool hash. You can check the hash using the example in https://github.com/input-output-hk/smash#how-to-figure-out-the-json-hash:
 ```
-curl -X POST -v -H 'content-type: application/octet-stream' http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699 --data-binary @test_pool.json
+curl -X POST -v -H 'content-type: application/octet-stream' http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66/3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699 --data-binary @test_pool.json
 ```
 
 We now have two pools from the same pool id. Run this to see if they are in the database: 
 ```
-curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f | jq .
+curl -X GET -v http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66/4b2221a0ac0b0197308323080ba97e3e453f8625393d30f96eebe0fca4cb7335 | jq .
 
-curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699 | jq .
+curl -X GET -v http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66/3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699 | jq .
 ```
 We can try to delist that pool id and then try fetching both pools to see if delisting works on the level of the pool id:
 ```
-curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7"}'
+curl -X PATCH -v http://localhost:3100/api/v1/delist -H 'content-type: application/json' -d '{"poolId": "8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66"}'
 ```
 
 Fetching them again should result in 403:
 ```
-curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f | jq .
+curl -X GET -v http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66/4b2221a0ac0b0197308323080ba97e3e453f8625393d30f96eebe0fca4cb7335 | jq .
 
-curl -X GET -v http://localhost:3100/api/v1/metadata/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7/3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699 | jq .
+curl -X GET -v http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c87780b4975c0bd402e3ed85168aa66/3b842358a698119a4b0c0f4934d26cff69190552bf47a85f40f5d1d646c82699 | jq .
 ```
 
 This assumes that you have a file called "test_pool.json" in your current directory that contains the JSON
@@ -305,7 +331,7 @@ This is a nice way to check what went wrong.
 
 If you have a specific pool id you want to check, you can add that pool id (`c0b0e43213a8c898e373928fbfc3df81ee77c0df7dadc3ad6e5bae17`) in there:
 ```
-http://localhost:3100/api/v1/errors/c0b0e43213a8c898e373928fbfc3df81ee77c0df7dadc3ad6e5bae17
+http://localhost:3100/api/v1/errors/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7
 ```
 
 **This shows all the errors for the pool from a day ago**.
