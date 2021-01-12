@@ -68,7 +68,7 @@ migrationSpec = do
                             , pfrRetry       = retry'
                             }
 
-                let dataLayer = postgresqlDataLayer
+                let dataLayer = postgresqlDataLayer Nothing
 
                 let fetchInsert = \_ _ _ -> left $ FEIOException "Dunno"
 
@@ -97,7 +97,7 @@ migrationTest = do
 
     -- TODO(KS): This version HAS to be changed manually so we don't mess up the
     -- migration.
-    let expected = SchemaVersion 1 5 0
+    let expected = SchemaVersion 1 6 0
     actual <- getDbSchemaVersion
     unless (expected == actual) $
         panic $ mconcat

@@ -104,6 +104,7 @@ type EnlistPoolAPI = BasicAuthURL :> "api" :> APIVersion :> "enlist" :> ReqBody 
 
 type RetiredPoolsAPI = "api" :> APIVersion :> "retired" :> ApiRes Get [PoolId]
 
+type CheckPoolAPI = "api" :> APIVersion :> "exists" :> Capture "poolId" PoolId :> ApiRes Get PoolId
 
 -- The full API.
 type SmashAPI =  OfflineMetadataAPI
@@ -113,6 +114,7 @@ type SmashAPI =  OfflineMetadataAPI
             :<|> EnlistPoolAPI
             :<|> FetchPoolErrorAPI
             :<|> RetiredPoolsAPI
+            :<|> CheckPoolAPI
 #ifdef TESTING_MODE
             :<|> RetirePoolAPI
             :<|> AddPoolAPI

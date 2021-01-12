@@ -78,7 +78,7 @@ share
   -- The pools themselves (identified by the owner vkey hash)
 
   Pool
-    poolId              PoolId                    sqltype=text
+    poolId              Types.PoolId              sqltype=text
     UniquePoolId poolId
 
   -- The retired pools.
@@ -88,6 +88,7 @@ share
     UniqueRetiredPoolId poolId
 
   -- The pool metadata fetch error. We duplicate the poolId for easy access.
+  -- TODO(KS): Debatable whether we need to persist this between migrations!
 
   PoolMetadataFetchError
     fetchTime           UTCTime                   sqltype=timestamp
@@ -107,8 +108,13 @@ share
     blockNo             Word64 Maybe        sqltype=uinteger
     UniqueBlock         hash
 
+  --------------------------------------------------------------------------
+  -- Tables below should be preserved when migration occurs!
+  --------------------------------------------------------------------------
+
   -- A table containing metadata about the chain. There will probably only ever be one
   -- row in this table.
+  -- TODO(KS): This can be left alone when migration occurs since it should be the same!
   Meta
     protocolConst       Word64              -- The block security parameter.
     slotDuration        Word64              -- Slot duration in milliseconds.

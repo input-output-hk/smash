@@ -133,6 +133,7 @@ executable smash-exe
     , esqueleto
     , transformers
     , prometheus
+    , filepath
 
   default-language:   Haskell2010
   default-extensions:

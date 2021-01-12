@@ -53,7 +53,6 @@ import           Cardano.SMASH.API           (API, fullAPI, smashApi)
 import           Cardano.SMASH.DB            (AdminUser (..), DBFail (..),
                                               DataLayer (..),
                                               createStubbedDataLayer,
-                                              postgresqlDataLayer,
                                               reservedTickerPoolHash)
 
 import           Cardano.SMASH.Types         (ApiResult (..),
@@ -100,15 +99,15 @@ todoSwagger =
         , _infoVersion = smashVersion
         }
 
-runApp :: Configuration -> IO ()
-runApp configuration = do
+runApp :: DataLayer -> Configuration -> IO ()
+runApp dataLayer configuration = do
     let port = cPortNumber configuration
     let settings =
           setPort port $
           setBeforeMainLoop (hPutStrLn stderr ("listening on port " ++ show port)) $
           defaultSettings
 
-    runSettings settings =<< mkApp configuration
+    runSettings settings =<< (mkApp dataLayer configuration)
 
 runAppStubbed :: Configuration -> IO ()
 runAppStubbed configuration = do
@@ -130,11 +129,8 @@ mkAppStubbed configuration = do
         (basicAuthServerContext stubbedApplicationUsers)
         (server configuration dataLayer)
 
-mkApp :: Configuration -> IO Application
-mkApp configuration = do
-
-    let dataLayer :: DataLayer
-        dataLayer = postgresqlDataLayer
+mkApp :: DataLayer -> Configuration -> IO Application
+mkApp dataLayer configuration = do
 
     -- Ugly hack, wait 2s for migrations to run for the admin user to be created.
     -- You can always run the migrations first.
@@ -210,6 +206,7 @@ server _configuration dataLayer
     :<|>    enlistPool dataLayer
     :<|>    getPoolErrorAPI dataLayer
     :<|>    getRetiredPools dataLayer
+    :<|>    checkPool dataLayer
 #ifdef TESTING_MODE
     :<|>    retirePool dataLayer
     :<|>    addPool dataLayer
@@ -343,6 +340,15 @@ getRetiredPools dataLayer = convertIOToHandler $ do
     retiredPools <- getRetiredPools'
 
     return . ApiResult $ retiredPools
+
+checkPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
+checkPool dataLayer poolId = convertIOToHandler $ do
+
+    let getPool = dlGetPool dataLayer
+    existingPoolId <- getPool poolId
+
+    return . ApiResult $ existingPoolId
+
 
 #ifdef TESTING_MODE
 retirePool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)

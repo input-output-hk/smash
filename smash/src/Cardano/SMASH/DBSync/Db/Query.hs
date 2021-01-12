@@ -7,6 +7,8 @@ module Cardano.SMASH.DBSync.Db.Query
   ( DBFail (..)
   , querySchemaVersion
   , querySlotHash
+  , queryAllPools
+  , queryPoolByPoolId
   , queryPoolMetadata
   , queryBlockCount
   , queryBlockNo
@@ -67,6 +69,27 @@ querySlotHash slotNo = do
             where_ (blk ^. BlockSlotNo ==. just (val $ unSlotNo slotNo))
             pure (blk ^. BlockHash)
   pure $ (\vh -> (slotNo, unValue vh)) <$> listToMaybe res
+
+-- |Return all pools.
+queryAllPools :: MonadIO m => ReaderT SqlBackend m [Pool]
+queryAllPools = do
+  res <- selectList [] []
+  pure $ entityVal <$> res
+
+-- |Return pool, that is not RETIRED!
+queryPoolByPoolId :: MonadIO m => Types.PoolId -> ReaderT SqlBackend m (Either DBFail Pool)
+queryPoolByPoolId poolId = do
+  res <- select . from $ \(pool :: SqlExpr (Entity Pool)) -> do
+            where_ (pool ^. PoolPoolId ==. val poolId
+                &&. pool ^. PoolPoolId `notIn` retiredPoolsPoolId)
+            pure pool
+  pure $ maybeToEither RecordDoesNotExist entityVal (listToMaybe res)
+  where
+    -- |Subselect that selects all the retired pool ids.
+    retiredPoolsPoolId :: SqlExpr (ValueList (Types.PoolId))
+    retiredPoolsPoolId =
+        subList_select . from $ \(retiredPool :: SqlExpr (Entity RetiredPool)) ->
+        return $ retiredPool ^. RetiredPoolPoolId
 
 -- | Get the 'Block' associated with the given hash.
 -- We use the @Types.PoolId@ to get the nice error message out.

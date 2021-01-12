@@ -21,6 +21,7 @@ module Cardano.SMASH.DB
 
 import           Cardano.Prelude
 
+import           Cardano.BM.Trace                          (Trace, logInfo)
 import           Control.Monad.Trans.Except.Extra          (left, newExceptT)
 
 import           Data.IORef                                (IORef, modifyIORef,
@@ -37,6 +38,7 @@ import           Cardano.SMASH.DBSync.Db.Insert            (insertAdminUser,
                                                             insertBlock,
                                                             insertDelistedPool,
                                                             insertMeta,
+                                                            insertPool,
                                                             insertPoolMetadata,
                                                             insertPoolMetadataFetchError,
                                                             insertPoolMetadataReference,
@@ -58,6 +60,7 @@ import           Cardano.SMASH.DBSync.Db.Schema            as X (AdminUser (..),
                                                                  DelistedPool (..),
                                                                  Meta (..),
                                                                  MetaId,
+                                                                 Pool (..),
                                                                  PoolMetadata (..),
                                                                  PoolMetadataFetchError (..),
                                                                  PoolMetadataFetchErrorId,
@@ -96,6 +99,9 @@ data DataLayer = DataLayer
     -- TODO(KS): Switch to PoolFetchError!
     , dlAddFetchError           :: PoolMetadataFetchError -> IO (Either DBFail PoolMetadataFetchErrorId)
     , dlGetFetchErrors          :: PoolId -> Maybe UTCTime -> IO (Either DBFail [PoolFetchError])
+
+    , dlGetPool                 :: PoolId -> IO (Either DBFail PoolId)
+    , dlAddPool                 :: PoolId -> IO (Either DBFail PoolId)
 
     , dlAddGenesisMetaBlock     :: X.Meta -> X.Block -> IO (Either DBFail (MetaId, BlockId))
 
@@ -156,6 +162,9 @@ stubbedDataLayer ioDataMap (DelistedPoolsIORef ioDelistedPool) (RetiredPoolsIORe
     , dlAddFetchError       = \_ -> panic "!"
     , dlGetFetchErrors      = \_ -> panic "!"
 
+    , dlGetPool             = \_ -> panic "!"
+    , dlAddPool             = \_ -> panic "!"
+
     , dlAddGenesisMetaBlock = \_ _ -> panic "!"
 
     , dlGetSlotHash         = \_ -> panic "!"
@@ -189,23 +198,23 @@ createStubbedDataLayer = do
     return dataLayer
 
 -- TODO(KS): Passing the optional tracer.
-postgresqlDataLayer :: DataLayer
-postgresqlDataLayer = DataLayer
+postgresqlDataLayer :: Maybe (Trace IO Text) -> DataLayer
+postgresqlDataLayer tracer = DataLayer
     { dlGetPoolMetadata = \poolId poolMetadataHash' -> do
-        poolMetadata <- runDbAction Nothing $ queryPoolMetadata poolId poolMetadataHash'
+        poolMetadata <- runDbAction tracer $ queryPoolMetadata poolId poolMetadataHash'
         let poolTickerName = poolMetadataTickerName <$> poolMetadata
         let poolMetadata' = poolMetadataMetadata <$> poolMetadata
         return $ (,) <$> poolTickerName <*> poolMetadata'
     , dlAddPoolMetadata     = \mRefId poolId poolHash poolMetadata poolTicker -> do
         let poolTickerName = TickerName $ getPoolTicker poolTicker
-        poolMetadataId <- runDbAction Nothing $ insertPoolMetadata $ PoolMetadata poolId poolTickerName poolHash poolMetadata mRefId
+        poolMetadataId <- runDbAction tracer $ insertPoolMetadata $ PoolMetadata poolId poolTickerName poolHash poolMetadata mRefId
 
         case poolMetadataId of
             Left err  -> return $ Left err
             Right _id -> return $ Right poolMetadata
 
     , dlAddMetaDataReference = \poolId poolUrl poolMetadataHash' -> do
-        poolMetadataRefId <- runDbAction Nothing $ insertPoolMetadataReference $
+        poolMetadataRefId <- runDbAction tracer $ insertPoolMetadataReference $
             PoolMetadataReference
                 { poolMetadataReferenceUrl = poolUrl
                 , poolMetadataReferenceHash = poolMetadataHash'
@@ -214,78 +223,92 @@ postgresqlDataLayer = DataLayer
         return poolMetadataRefId
 
     , dlAddReservedTicker = \tickerName poolMetadataHash' ->
-        runDbAction Nothing $ insertReservedTicker $ ReservedTicker tickerName poolMetadataHash'
+        runDbAction tracer $ insertReservedTicker $ ReservedTicker tickerName poolMetadataHash'
     , dlCheckReservedTicker = \tickerName ->
-        runDbAction Nothing $ queryReservedTicker tickerName
+        runDbAction tracer $ queryReservedTicker tickerName
 
     , dlGetDelistedPools = do
-        delistedPoolsDB <- runDbAction Nothing queryAllDelistedPools
+        delistedPoolsDB <- runDbAction tracer queryAllDelistedPools
         -- Convert from DB-specific type to the "general" type
         return $ map (\delistedPoolDB -> PoolId . getPoolId $ delistedPoolPoolId delistedPoolDB) delistedPoolsDB
     , dlCheckDelistedPool = \poolId -> do
-        runDbAction Nothing $ queryDelistedPool poolId
+        runDbAction tracer $ queryDelistedPool poolId
     , dlAddDelistedPool  = \poolId -> do
-        delistedPoolId <- runDbAction Nothing $ insertDelistedPool $ DelistedPool poolId
+        delistedPoolId <- runDbAction tracer $ insertDelistedPool $ DelistedPool poolId
 
         case delistedPoolId of
             Left err  -> return $ Left err
             Right _id -> return $ Right poolId
     , dlRemoveDelistedPool = \poolId -> do
-        isDeleted <- runDbAction Nothing $ deleteDelistedPool poolId
+        isDeleted <- runDbAction tracer $ deleteDelistedPool poolId
         -- Up for a discussion, but this might be more sensible in the lower DB layer.
         if isDeleted
             then return $ Right poolId
             else return $ Left RecordDoesNotExist
 
     , dlAddRetiredPool  = \poolId -> do
-        retiredPoolId <- runDbAction Nothing $ insertRetiredPool $ RetiredPool poolId
+        retiredPoolId <- runDbAction tracer $ insertRetiredPool $ RetiredPool poolId
 
         case retiredPoolId of
             Left err  -> return $ Left err
             Right _id -> return $ Right poolId
     , dlGetRetiredPools = do
-        retiredPools <- runDbAction Nothing $ queryAllRetiredPools
+        retiredPools <- runDbAction tracer $ queryAllRetiredPools
         return $ Right $ map retiredPoolPoolId retiredPools
 
     , dlGetAdminUsers       = do
-        adminUsers <- runDbAction Nothing $ queryAdminUsers
+        adminUsers <- runDbAction tracer $ queryAdminUsers
         return $ Right adminUsers
     , dlAddAdminUser        = \(ApplicationUser user pass') -> do
         let adminUser = AdminUser user pass'
-        adminUserId <- runDbAction Nothing $ insertAdminUser adminUser
+        adminUserId <- runDbAction tracer $ insertAdminUser adminUser
         case adminUserId of
             Left err  -> return $ Left err
             Right _id -> return $ Right adminUser
     , dlRemoveAdminUser     = \(ApplicationUser user pass') -> do
         let adminUser = AdminUser user pass'
-        isDeleted <- runDbAction Nothing $ deleteAdminUser adminUser
+        isDeleted <- runDbAction tracer $ deleteAdminUser adminUser
         if isDeleted
             then return $ Right adminUser
             else return $ Left $ UnknownError "Admin user not deleted. Both username and password must match."
 
     , dlAddFetchError       = \poolMetadataFetchError -> do
-        poolMetadataFetchErrorId <- runDbAction Nothing $ insertPoolMetadataFetchError poolMetadataFetchError
+        poolMetadataFetchErrorId <- runDbAction tracer $ insertPoolMetadataFetchError poolMetadataFetchError
         return poolMetadataFetchErrorId
     , dlGetFetchErrors      = \poolId mTimeFrom -> do
-        poolMetadataFetchErrors <- runDbAction Nothing (queryPoolMetadataFetchErrorByTime poolId mTimeFrom)
+        poolMetadataFetchErrors <- runDbAction tracer (queryPoolMetadataFetchErrorByTime poolId mTimeFrom)
         pure $ sequence $ Right <$> map convertPoolMetadataFetchError poolMetadataFetchErrors
+
+    , dlGetPool             = \poolId -> do
+        pool <- runDbAction tracer $ queryPoolByPoolId poolId
+        case pool of
+            Left err   -> return $ Left err
+            Right _val -> return $ Right poolId
+    , dlAddPool             = \poolId -> do
+        case tracer of
+            Nothing -> pure ()
+            Just trcr -> logInfo trcr $ "Inserting pool, pool id -'" <> show poolId <> "'."
+        poolId' <- runDbAction tracer $ insertPool (Pool poolId)
+        case poolId' of
+            Left err   -> return $ Left err
+            Right _val -> return $ Right poolId
 
     , dlAddGenesisMetaBlock = \meta block -> do
         -- This whole function has to be atomic!
         runExceptT $ do
             -- Well, in theory this should be handled differently.
-            count <- newExceptT (Right <$> (runDbAction Nothing $ queryBlockCount))
+            count <- newExceptT (Right <$> (runDbAction tracer $ queryBlockCount))
 
             when (count > 0) $
               left $ UnknownError "Shelley.insertValidateGenesisDist: Genesis data mismatch."
 
-            metaId <- newExceptT $ runDbAction Nothing $ insertMeta $ meta
-            blockId <- newExceptT $ runDbAction Nothing $ insertBlock $ block
+            metaId <- newExceptT $ runDbAction tracer $ insertMeta $ meta
+            blockId <- newExceptT $ runDbAction tracer $ insertBlock $ block
 
             pure (metaId, blockId)
 
     , dlGetSlotHash = \slotNo ->
-            runDbAction Nothing $ querySlotHash slotNo
+        runDbAction tracer $ querySlotHash slotNo
 
     }
 
