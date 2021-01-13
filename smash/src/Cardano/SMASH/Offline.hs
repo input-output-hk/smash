@@ -190,7 +190,8 @@ fetchInsertDefault poolId tracer pfr = do
       then left $ FEHashMismatch poolId expectedHash (renderByteStringHex hashFromMetadata) poolMetadataURL
       else liftIO . logInfo tracer $ "Inserting pool data with hash: " <> expectedHash
 
-    let addPoolMetadata = dlAddPoolMetadata postgresqlDataLayer
+    let dataLayer = postgresqlDataLayer (Just tracer)
+    let addPoolMetadata = dlAddPoolMetadata dataLayer
 
     _ <- liftIO $
             addPoolMetadata
@@ -206,7 +207,8 @@ fetchInsertDefault poolId tracer pfr = do
 runOfflineFetchThread :: Trace IO Text -> IO ()
 runOfflineFetchThread trce = do
     liftIO $ logInfo trce "Runing Offline fetch thread"
-    fetchLoop postgresqlDataLayer FetchLoopForever trce queryPoolFetchRetryDefault
+    let dataLayer = postgresqlDataLayer (Just trce)
+    fetchLoop dataLayer FetchLoopForever trce queryPoolFetchRetryDefault
 
 ---------------------------------------------------------------------------------------------------
 

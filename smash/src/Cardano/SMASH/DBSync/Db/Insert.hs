@@ -4,6 +4,7 @@
 module Cardano.SMASH.DBSync.Db.Insert
   ( insertBlock
   , insertMeta
+  , insertPool
   , insertPoolMetadata
   , insertPoolMetadataReference
   , insertReservedTicker
@@ -37,6 +38,9 @@ insertBlock = insertByReturnKey
 
 insertMeta :: (MonadIO m) => Meta -> ReaderT SqlBackend m (Either DBFail MetaId)
 insertMeta meta = insertByReturnKey meta
+
+insertPool :: (MonadIO m) => Pool -> ReaderT SqlBackend m (Either DBFail PoolId)
+insertPool pool = insertByReturnKey pool
 
 insertPoolMetadata :: (MonadIO m) => PoolMetadata -> ReaderT SqlBackend m (Either DBFail PoolMetadataId)
 insertPoolMetadata = insertByReturnKey

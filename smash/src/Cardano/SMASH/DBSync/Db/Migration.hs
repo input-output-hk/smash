@@ -6,6 +6,7 @@ module Cardano.SMASH.DBSync.Db.Migration
   , createMigration
   , applyMigration
   , runMigrations
+  , runSingleScript
   ) where
 
 import           Cardano.Prelude
@@ -22,7 +23,7 @@ import           Cardano.BM.Trace                          (Trace, logInfo)
 
 import qualified Data.ByteString.Char8                     as BS
 import           Data.Conduit.Binary                       (sinkHandle)
-import           Data.Conduit.Process                      (sourceCmdWithConsumer)
+import           Data.Conduit.Process                      (sourceCmdWithConsumer, system)
 import           Data.Either                               (partitionEithers)
 import qualified Data.List                                 as List
 import           Data.Text                                 (Text)
@@ -91,6 +92,40 @@ runMigrations tracer cfgOverride migrationDir mLogfiledir = do
       (logdir </>)
         . formatTime defaultTimeLocale ("migrate-" ++ iso8601DateFormat (Just "%H%M%S") ++ ".log")
         <$> getCurrentTime
+
+-- A simple way to run a single script
+runSingleScript :: Trace IO Text -> PGConfig -> FilePath -> IO ()
+runSingleScript tracer pgConfig script = do
+    -- This assumes that the credentials for 'psql' are already sorted out.
+    -- One way to achive this is via a 'PGPASSFILE' environment variable
+    -- as per the PostgreSQL documentation.
+    let command =
+          List.intercalate " "
+            [ "psql"
+            , BS.unpack (pgcDbname pgConfig)
+            , "--no-password"
+            , "--quiet"
+            , "--username=" <> BS.unpack (pgcUser pgConfig)
+            , "--host=" <> BS.unpack (pgcHost pgConfig)
+            , "--port=" <> BS.unpack (pgcPort pgConfig)
+            , "--no-psqlrc"                     -- Ignore the ~/.psqlrc file.
+            , "--single-transaction"            -- Run the file as a transaction.
+            , "--set ON_ERROR_STOP=on"          -- Exit with non-zero on error.
+            , "--file='" ++ script ++ "'"
+            , "2>&1"                            -- Pipe stderr to stdout.
+            ]
+
+    logInfo tracer $ toS $ "Running: " ++ takeFileName script
+
+    hFlush stdout
+    exitCode <- system command
+
+    case exitCode of
+        ExitSuccess ->
+            logInfo tracer "ExitSuccess."
+        ExitFailure _ -> do
+            print exitCode
+            exitFailure
 
 applyMigration :: Trace IO Text -> PGConfig -> Maybe FilePath -> Handle -> (MigrationVersion, FilePath) -> IO ()
 applyMigration tracer pgconfig mLogFilename logHandle (version, script) = do

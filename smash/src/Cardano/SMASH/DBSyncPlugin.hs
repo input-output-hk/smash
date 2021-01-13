@@ -174,7 +174,7 @@ insertTx
     -> DbSyncEnv
     -> Word64
     -> Generic.Tx
-    -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
+    -> ExceptT DbSyncNodeError m ()
 insertTx dataLayer tracer env _blockIndex tx =
     mapM_ (insertCertificate dataLayer tracer env) $ Generic.txCertificates tx
 
@@ -184,12 +184,13 @@ insertCertificate
     -> Trace IO Text
     -> DbSyncEnv
     -> Generic.TxCertificate
-    -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
+    -> ExceptT DbSyncNodeError m ()
 insertCertificate dataLayer tracer _env (Generic.TxCertificate _idx cert) =
   case cert of
     Shelley.DCertDeleg _deleg ->
         liftIO $ logInfo tracer "insertCertificate: DCertDeleg"
-    Shelley.DCertPool pool -> insertPoolCert dataLayer tracer pool
+    Shelley.DCertPool pool ->
+        insertPoolCert dataLayer tracer pool
     Shelley.DCertMir _mir ->
         liftIO $ logInfo tracer "insertCertificate: DCertMir"
     Shelley.DCertGenesis _gen ->
@@ -200,10 +201,22 @@ insertPoolCert
     => DataLayer
     -> Trace IO Text
     -> Shelley.PoolCert StandardShelley
-    -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
+    -> ExceptT DbSyncNodeError m ()
 insertPoolCert dataLayer tracer pCert =
   case pCert of
-    Shelley.RegPool pParams -> insertPoolRegister dataLayer tracer pParams
+    Shelley.RegPool pParams -> do
+        let poolIdHash = B16.encode . Generic.unKeyHashRaw $ Shelley._poolId pParams
+        let poolId = PoolId . decodeUtf8 $ poolIdHash
+
+        -- Insert pool id
+        let addPool = dlAddPool dataLayer
+        addedPool <- liftIO $ addPool poolId
+
+        case addedPool of
+          Left _err -> liftIO . logInfo tracer $ "Pool already registered with pool id: " <> decodeUtf8 poolIdHash
+          Right _pool -> liftIO . logInfo tracer $ "Inserting pool register with pool id: " <> decodeUtf8 poolIdHash
+
+        insertPoolRegister dataLayer tracer pParams
 
     -- RetirePool (KeyHash 'StakePool era) _ = PoolId
     Shelley.RetirePool poolPubKey _epochNum -> do
@@ -225,12 +238,11 @@ insertPoolRegister
     => DataLayer
     -> Trace IO Text
     -> Shelley.PoolParams StandardShelley
-    -> ExceptT DbSyncNodeError (ReaderT SqlBackend m) ()
+    -> ExceptT DbSyncNodeError m ()
 insertPoolRegister dataLayer tracer params = do
   let poolIdHash = B16.encode . Generic.unKeyHashRaw $ Shelley._poolId params
   let poolId = PoolId . decodeUtf8 $ poolIdHash
 
-  liftIO . logInfo tracer $ "Inserting pool register with pool id: " <> decodeUtf8 poolIdHash
   case strictMaybeToMaybe $ Shelley._poolMD params of
     Just md -> do
 

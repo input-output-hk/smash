@@ -34,6 +34,7 @@ import           Options.Applicative                    (Parser, ParserInfo,
                                                          ParserPrefs)
 import qualified Options.Applicative                    as Opt
 
+import           System.FilePath                        ((</>))
 import qualified System.Metrics.Prometheus.Metric.Gauge as Gauge
 
 import qualified Cardano.BM.Setup                       as Logging
@@ -67,9 +68,10 @@ main = do
 data Command
   = CreateAdminUser !ApplicationUser
   | DeleteAdminUser !ApplicationUser
-  | CreateMigration MigrationDir
-  | RunMigrations ConfigFile MigrationDir (Maybe LogFileDir)
-  | RunApplication
+  | CreateMigration !MigrationDir
+  | RunMigrations !ConfigFile !MigrationDir !(Maybe LogFileDir)
+  | ForceResync !ConfigFile !MigrationDir !(Maybe LogFileDir)
+  | RunApplication !ConfigFile
 #ifdef TESTING_MODE
   | RunStubApplication
 #endif
@@ -85,13 +87,21 @@ runCommand :: Command -> IO ()
 runCommand cmd =
   case cmd of
     CreateAdminUser applicationUser -> do
-        adminUserE <- createAdminUser DB.postgresqlDataLayer applicationUser
+
+        let dataLayer :: DB.DataLayer
+            dataLayer = DB.postgresqlDataLayer Nothing
+
+        adminUserE <- createAdminUser dataLayer applicationUser
         case adminUserE of
             Left err -> panic $ DB.renderLookupFail err
             Right adminUser -> putTextLn $ "Created admin user: " <> show adminUser
 
     DeleteAdminUser applicationUser -> do
-        adminUserE <- deleteAdminUser DB.postgresqlDataLayer applicationUser
+
+        let dataLayer :: DB.DataLayer
+            dataLayer = DB.postgresqlDataLayer Nothing
+
+        adminUserE <- deleteAdminUser dataLayer applicationUser
         case adminUserE of
             Left err -> panic $ DB.renderLookupFail err
             Right adminUser -> putTextLn $ "Deleted admin user: " <> show adminUser
@@ -106,7 +116,21 @@ runCommand cmd =
                     Just (LogFileDir dir) -> return $ DB.SmashLogFileDir dir
         DB.runMigrations trce (\pgConfig -> pgConfig) (DB.SmashMigrationDir mdir) smashLogFileDir
 
-    RunApplication -> runApp defaultConfiguration
+    -- We could reuse the log file dir in the future
+    ForceResync configFile (MigrationDir mdir) _mldir -> do
+        trce <- setupTraceFromConfig configFile
+        pgConfig <- DB.readPGPassFileEnv
+
+        -- Just run the force-resync which deletes all the state tables.
+        DB.runSingleScript trce pgConfig (mdir </> "force-resync.sql")
+
+    RunApplication configFile -> do
+        trce <- setupTraceFromConfig configFile
+
+        let dataLayer :: DB.DataLayer
+            dataLayer = DB.postgresqlDataLayer (Just trce)
+
+        runApp dataLayer defaultConfiguration
 #ifdef TESTING_MODE
     RunStubApplication -> runAppStubbed defaultConfiguration
 #endif
@@ -140,8 +164,11 @@ runCardanoSyncWithSmash dbSyncNodeParams = do
                     Gauge.set queuePostWrite $ mQueuePostWrite metrics
                 }
 
+    let dataLayer :: DB.DataLayer
+        dataLayer = DB.postgresqlDataLayer (Just tracer)
+
     -- The plugin requires the @DataLayer@.
-    let smashDbSyncNodePlugin = poolMetadataDbSyncNodePlugin DB.postgresqlDataLayer
+    let smashDbSyncNodePlugin = poolMetadataDbSyncNodePlugin dataLayer
 
     let runDbStartupCall = runDbStartup smashDbSyncNodePlugin
 
@@ -171,7 +198,7 @@ runCardanoSyncWithSmash dbSyncNodeParams = do
 
                 -- This is how all the calls should work, implemented on the base @DataLayer@.
                 , csdlAddGenesisMetaBlock = \meta block -> runExceptT $ do
-                    let addGenesisMetaBlock = DB.dlAddGenesisMetaBlock DB.postgresqlDataLayer
+                    let addGenesisMetaBlock = DB.dlAddGenesisMetaBlock dataLayer
 
                     let metaDB = convertToDB meta
                     let blockDB = convertToDB block
@@ -190,7 +217,7 @@ runCardanoSyncWithSmash dbSyncNodeParams = do
 
     race_
         (runDbSyncNode cardanoSyncDataLayer metricsLayer runDbStartupCall smashDbSyncNodePlugin dbSyncNodeParams runDBThreadFunction)
-        (runApp defaultConfiguration)
+        (runApp dataLayer defaultConfiguration)
 
     -- Finish and close the metrics server
     -- TODO(KS): Bracket!
@@ -330,6 +357,10 @@ pCommand =
         ( Opt.info pRunMigrations
           $ Opt.progDesc "Run the database migrations (which are idempotent)."
           )
+    <> Opt.command "force-resync"
+        ( Opt.info pForceResync
+          $ Opt.progDesc "Clears all the block information and forces a resync."
+          )
     <> Opt.command "run-app"
         ( Opt.info pRunApp
           $ Opt.progDesc "Run the application that just serves the pool info."
@@ -363,10 +394,14 @@ pCommand =
     pRunMigrations =
         RunMigrations <$> pConfigFile <*> pSmashMigrationDir <*> optional pLogFileDir
 
+    pForceResync :: Parser Command
+    pForceResync =
+        ForceResync <$> pConfigFile <*> pSmashMigrationDir <*> optional pLogFileDir
+
     -- Empty right now but we might add some params over time. Like ports and stuff?
     pRunApp :: Parser Command
     pRunApp =
-        pure RunApplication
+        RunApplication <$> pConfigFile
 
 #ifdef TESTING_MODE
     pRunStubApp :: Parser Command
