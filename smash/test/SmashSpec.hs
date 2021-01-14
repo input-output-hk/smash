@@ -48,7 +48,7 @@ smashSpec = do
                 assert $ isDelisted
 
         describe "Fetch errors" $
-            prop "adding a fetch error adds it to the data layer" $ monadicIO $ do
+            prop "adding a fetch error adds it to the data layer" $ \(blockNo) -> monadicIO $ do
 
                 (pk, _) <- run $ createKeypair
 
@@ -58,7 +58,7 @@ smashSpec = do
                 dataLayer <- run createStubbedDataLayer
 
                 let addRetiredPool = dlAddRetiredPool dataLayer
-                retiredPoolId <- run $ addRetiredPool newPoolId
+                retiredPoolId <- run $ addRetiredPool newPoolId blockNo
 
                 let getRetiredPools = dlGetRetiredPools dataLayer
                 retiredPoolsId <- run $ getRetiredPools

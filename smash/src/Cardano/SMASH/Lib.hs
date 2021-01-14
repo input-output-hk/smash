@@ -19,7 +19,8 @@ module Cardano.SMASH.Lib
     ) where
 
 #ifdef TESTING_MODE
-import           Cardano.SMASH.Types         (TickerName, pomTicker)
+import           Cardano.SMASH.Types         (PoolIdBlockNumber (..), TickerName,
+                                              pomTicker)
 import           Data.Aeson                  (eitherDecode')
 import qualified Data.ByteString.Lazy        as BL
 #endif
@@ -351,11 +352,11 @@ checkPool dataLayer poolId = convertIOToHandler $ do
 
 
 #ifdef TESTING_MODE
-retirePool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
-retirePool dataLayer poolId = convertIOToHandler $ do
+retirePool :: DataLayer -> PoolIdBlockNumber -> Handler (ApiResult DBFail PoolId)
+retirePool dataLayer (PoolIdBlockNumber poolId blockNo) = convertIOToHandler $ do
 
     let addRetiredPool = dlAddRetiredPool dataLayer
-    retiredPoolId <- addRetiredPool poolId
+    retiredPoolId <- addRetiredPool poolId blockNo
 
     return . ApiResult $ retiredPoolId
 

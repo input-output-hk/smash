@@ -85,6 +85,7 @@ share
 
   RetiredPool
     poolId              Types.PoolId              sqltype=text
+    blockNo             Word64                    sqltype=uinteger -- When the pool was retired.
     UniqueRetiredPoolId poolId
 
   -- The pool metadata fetch error. We duplicate the poolId for easy access.

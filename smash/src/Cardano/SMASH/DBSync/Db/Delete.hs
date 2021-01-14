@@ -3,6 +3,7 @@
 
 module Cardano.SMASH.DBSync.Db.Delete
   ( deleteDelistedPool
+  , deleteRetiredPool
   , deleteAdminUser
   ) where
 
@@ -22,6 +23,14 @@ import qualified Cardano.SMASH.DBSync.Db.Types  as Types
 deleteDelistedPool :: MonadIO m => Types.PoolId -> ReaderT SqlBackend m Bool
 deleteDelistedPool poolId = do
   keys <- selectKeysList [ DelistedPoolPoolId ==. poolId ] []
+  mapM_ deleteCascade keys
+  pure $ not (null keys)
+
+-- | Delete a retired pool if it exists. Returns 'True' if it did exist and has been
+-- deleted and 'False' if it did not exist.
+deleteRetiredPool :: MonadIO m => Types.PoolId -> ReaderT SqlBackend m Bool
+deleteRetiredPool poolId = do
+  keys <- selectKeysList [ RetiredPoolPoolId ==. poolId ] []
   mapM_ deleteCascade keys
   pure $ not (null keys)
 
