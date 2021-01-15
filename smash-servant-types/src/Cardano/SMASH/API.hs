@@ -38,7 +38,8 @@ import           Servant.Swagger               (HasSwagger (..))
 import           Cardano.SMASH.DBSync.Db.Error (DBFail (..))
 import           Cardano.SMASH.Types           (ApiResult, HealthStatus,
                                                 PoolFetchError, PoolId (..),
-                                                PoolId, PoolMetadataHash,
+                                                PoolId, PoolIdBlockNumber (..),
+                                                PoolMetadataHash,
                                                 PoolMetadataRaw, TickerName,
                                                 TimeStringFormat, User)
 
@@ -120,7 +121,7 @@ type SmashAPI =  OfflineMetadataAPI
             :<|> AddPoolAPI
             :<|> AddTickerAPI
 
-type RetirePoolAPI = "api" :> APIVersion :> "retired" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+type RetirePoolAPI = "api" :> APIVersion :> "retired" :> ReqBody '[JSON] PoolIdBlockNumber :> ApiRes Patch PoolId
 type AddPoolAPI = "api" :> APIVersion :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> ReqBody '[OctetStream] PoolMetadataRaw :> ApiRes Post PoolId
 type AddTickerAPI = "api" :> APIVersion :> "tickers" :> Capture "name" TickerName :> ReqBody '[JSON] PoolMetadataHash :> ApiRes Post TickerName
 

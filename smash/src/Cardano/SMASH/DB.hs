@@ -21,7 +21,7 @@ module Cardano.SMASH.DB
 
 import           Cardano.Prelude
 
-import           Cardano.BM.Trace                          (Trace, logInfo)
+import           Cardano.BM.Trace                          (Trace)
 import           Control.Monad.Trans.Except.Extra          (left, newExceptT)
 
 import           Data.IORef                                (IORef, modifyIORef,
@@ -33,7 +33,8 @@ import           Data.Time.Clock.POSIX                     (utcTimeToPOSIXSecond
 import           Cardano.Slotting.Slot                     (SlotNo)
 
 import           Cardano.SMASH.DBSync.Db.Delete            (deleteAdminUser,
-                                                            deleteDelistedPool)
+                                                            deleteDelistedPool,
+                                                            deleteRetiredPool)
 import           Cardano.SMASH.DBSync.Db.Insert            (insertAdminUser,
                                                             insertBlock,
                                                             insertDelistedPool,
@@ -89,8 +90,10 @@ data DataLayer = DataLayer
     , dlAddDelistedPool         :: PoolId -> IO (Either DBFail PoolId)
     , dlRemoveDelistedPool      :: PoolId -> IO (Either DBFail PoolId)
 
-    , dlAddRetiredPool          :: PoolId -> IO (Either DBFail PoolId)
+    , dlAddRetiredPool          :: PoolId -> Word64 -> IO (Either DBFail PoolId)
+    , dlCheckRetiredPool        :: PoolId -> IO (Either DBFail (PoolId, Word64))
     , dlGetRetiredPools         :: IO (Either DBFail [PoolId])
+    , dlRemoveRetiredPool       :: PoolId -> IO (Either DBFail PoolId)
 
     , dlGetAdminUsers           :: IO (Either DBFail [AdminUser])
     , dlAddAdminUser            :: ApplicationUser -> IO (Either DBFail AdminUser)
@@ -150,10 +153,12 @@ stubbedDataLayer ioDataMap (DelistedPoolsIORef ioDelistedPool) (RetiredPoolsIORe
         _ <- modifyIORef ioDelistedPool (\pools -> filter (/= poolId) pools)
         return $ Right poolId
 
-    , dlAddRetiredPool      = \poolId -> do
+    , dlAddRetiredPool      = \poolId _ -> do
         _ <- modifyIORef ioRetiredPools (\pools -> [poolId] ++ pools)
         return . Right $ poolId
+    , dlCheckRetiredPool    = \_ -> panic "!"
     , dlGetRetiredPools     = Right <$> readIORef ioRetiredPools
+    , dlRemoveRetiredPool   = \_ -> panic "!"
 
     , dlGetAdminUsers       = return $ Right []
     , dlAddAdminUser        = \_ -> panic "!"
@@ -246,15 +251,25 @@ postgresqlDataLayer tracer = DataLayer
             then return $ Right poolId
             else return $ Left RecordDoesNotExist
 
-    , dlAddRetiredPool  = \poolId -> do
-        retiredPoolId <- runDbAction tracer $ insertRetiredPool $ RetiredPool poolId
+    , dlAddRetiredPool  = \poolId blockNo -> do
+        retiredPoolId <- runDbAction tracer $ insertRetiredPool $ RetiredPool poolId blockNo
 
         case retiredPoolId of
             Left err  -> return $ Left err
             Right _id -> return $ Right poolId
+    , dlCheckRetiredPool = \poolId -> do
+        retiredPool <- runDbAction tracer $ queryRetiredPool poolId
+        case retiredPool of
+            Left err -> return $ Left err
+            Right retiredPool' -> return $ Right (retiredPoolPoolId retiredPool', retiredPoolBlockNo retiredPool')
     , dlGetRetiredPools = do
         retiredPools <- runDbAction tracer $ queryAllRetiredPools
         return $ Right $ map retiredPoolPoolId retiredPools
+    , dlRemoveRetiredPool = \poolId -> do
+        isDeleted <- runDbAction tracer $ deleteRetiredPool poolId
+        if isDeleted
+            then return $ Right poolId
+            else return $ Left $ UnknownError "Retired pool not deleted!"
 
     , dlGetAdminUsers       = do
         adminUsers <- runDbAction tracer $ queryAdminUsers
@@ -285,9 +300,6 @@ postgresqlDataLayer tracer = DataLayer
             Left err   -> return $ Left err
             Right _val -> return $ Right poolId
     , dlAddPool             = \poolId -> do
-        case tracer of
-            Nothing -> pure ()
-            Just trcr -> logInfo trcr $ "Inserting pool, pool id -'" <> show poolId <> "'."
         poolId' <- runDbAction tracer $ insertPool (Pool poolId)
         case poolId' of
             Left err   -> return $ Left err

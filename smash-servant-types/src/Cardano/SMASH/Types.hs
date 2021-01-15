@@ -11,6 +11,7 @@ module Cardano.SMASH.Types
     , checkIfUserValid
     -- * Pool info
     , PoolId (..)
+    , PoolIdBlockNumber (..)
     , PoolUrl (..)
     , PoolMetadataHash (..)
     , bytestringToPoolMetaHash
@@ -301,6 +302,25 @@ data FetchError
   | FETimeout !PoolId !Text !Text
   | FEConnectionFailure !PoolId !Text
   deriving (Eq, Generic)
+
+data PoolIdBlockNumber = PoolIdBlockNumber !PoolId !Word64
+    deriving (Eq, Show, Generic)
+
+instance ToJSON PoolIdBlockNumber where
+    toJSON (PoolIdBlockNumber poolId blockNumber) =
+        object
+            [ "poolId"      .= poolId
+            , "blockNumber" .= blockNumber
+            ]
+
+instance FromJSON PoolIdBlockNumber where
+    parseJSON = withObject "poolIdBlockNumber" $ \o -> do
+        poolId          <- o .: "poolId"
+        blockNumber     <- o .: "blockNumber"
+
+        return $ PoolIdBlockNumber poolId blockNumber
+
+instance ToSchema PoolIdBlockNumber
 
 -- |Fetch error for the specific @PoolId@ and the @PoolMetadataHash@.
 data PoolFetchError = PoolFetchError !Time.POSIXTime !PoolId !PoolMetadataHash !Text !Word

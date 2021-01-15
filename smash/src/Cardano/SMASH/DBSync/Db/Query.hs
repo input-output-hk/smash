@@ -24,6 +24,7 @@ module Cardano.SMASH.DBSync.Db.Query
   , queryPoolMetadataFetchError
   , queryPoolMetadataFetchErrorByTime
   , queryAllRetiredPools
+  , queryRetiredPool
   ) where
 
 import           Cardano.Prelude                hiding (Meta, from, isJust,
@@ -113,6 +114,14 @@ queryAllRetiredPools :: MonadIO m => ReaderT SqlBackend m [RetiredPool]
 queryAllRetiredPools = do
   res <- selectList [] []
   pure $ entityVal <$> res
+
+-- |Query retired pools.
+queryRetiredPool :: MonadIO m => Types.PoolId -> ReaderT SqlBackend m (Either DBFail RetiredPool)
+queryRetiredPool poolId = do
+  res <- select . from $ \retiredPools -> do
+            where_ (retiredPools ^. RetiredPoolPoolId ==. val poolId)
+            pure retiredPools
+  pure $ maybeToEither RecordDoesNotExist entityVal (listToMaybe res)
 
 -- | Count the number of blocks in the Block table.
 queryBlockCount :: MonadIO m => ReaderT SqlBackend m Word
