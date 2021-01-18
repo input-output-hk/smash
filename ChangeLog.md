@@ -1,5 +1,21 @@
 # Changelog for smash
 
+## 1.4.0
+
+### Story
+
+- [CAD-1357] - Remove any traces of cardano-db-sync
+- [CAD-2180] - Documentation improvements
+- [CAD-2184] - Fix Swagger documentation to be consistent, add more info
+- [CAD-2449] - Add API endpoint for checking valid pool id
+- [CAD-2450] - Bump up to Mary (Native tokens) support
+
+### Bug
+
+- [CAD-2408] - Create directory for --state-dir automatically if it does not exist
+- [CAD-2416] - Database connection inconsistency
+- [CAD-2476] - SMASH not returning active pools that were previously retired
+
 ## 1.3.0
 
 ### Story
