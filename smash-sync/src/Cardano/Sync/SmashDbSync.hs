@@ -616,7 +616,7 @@ chainSyncClient
     -> WithOrigin BlockNo
     -> DbActionQueue
     -> ChainSyncClientPipelined CardanoBlock (Point CardanoBlock) (Tip CardanoBlock) IO ()
-chainSyncClient dataLayer metricsLayer trce env queryVar  latestPoints currentTip actionQueue = do
+chainSyncClient dataLayer metricsLayer trce env queryVar latestPoints currentTip actionQueue = do
     ChainSyncClientPipelined $ pure $
       -- Notify the core node about the our latest points at which we are
       -- synchronised.  This client is not persistent and thus it just

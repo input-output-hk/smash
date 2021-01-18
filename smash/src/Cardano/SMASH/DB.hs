@@ -306,7 +306,7 @@ postgresqlDataLayer tracer = DataLayer
             Right _val -> return $ Right poolId
 
     , dlAddGenesisMetaBlock = \meta block -> do
-        -- This whole function has to be atomic!
+        -- This is a bit tricky, but will do the job.
         runExceptT $ do
             -- Well, in theory this should be handled differently.
             count <- newExceptT (Right <$> (runDbAction tracer $ queryBlockCount))
@@ -314,10 +314,13 @@ postgresqlDataLayer tracer = DataLayer
             when (count > 0) $
               left $ UnknownError "Shelley.insertValidateGenesisDist: Genesis data mismatch."
 
-            metaId <- newExceptT $ runDbAction tracer $ insertMeta $ meta
-            blockId <- newExceptT $ runDbAction tracer $ insertBlock $ block
+            -- First wrap it so we chain errors, run it and wrap it again so
+            -- we match the top level chain of errors.
+            newExceptT . runDbAction tracer . runExceptT $ do
+                metaId <- newExceptT $ insertMeta meta
+                blockId <- newExceptT $ insertBlock block
+                return (metaId, blockId)
 
-            pure (metaId, blockId)
 
     , dlGetSlotHash = \slotNo ->
         runDbAction tracer $ querySlotHash slotNo
