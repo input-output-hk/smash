@@ -15,8 +15,8 @@ flags:
     external-libsodium-vrf: false
 
 ghc-options:
-  smash:                    -Wall -Werror -fwarn-redundant-constraints
-  #smash-servant-types:      -Wall -Werror -fwarn-redundant-constraints
+  smash:                    -Wall -Werror -fno-warn-redundant-constraints
+  #smash-servant-types:      -Wall -Werror -fno-warn-redundant-constraints
 
 extra-deps:
   - persistent-2.11.0.1

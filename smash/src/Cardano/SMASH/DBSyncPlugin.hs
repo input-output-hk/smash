@@ -9,60 +9,59 @@ module Cardano.SMASH.DBSyncPlugin
 
 import           Cardano.Prelude
 
-import           Cardano.BM.Trace                         (Trace,
-                                                           logError, logInfo)
+import           Cardano.BM.Trace                   (Trace, logError, logInfo)
 
-import           Control.Monad.Logger                     (LoggingT)
-import           Control.Monad.Trans.Except.Extra         (firstExceptT,
-                                                           newExceptT,
-                                                           runExceptT)
-import           Control.Monad.Trans.Reader               (ReaderT)
+import           Control.Monad.Logger               (LoggingT)
+import           Control.Monad.Trans.Except.Extra   (firstExceptT, newExceptT,
+                                                     runExceptT)
+import           Control.Monad.Trans.Reader         (ReaderT)
 
-import           Cardano.SMASH.DB                         (DBFail (..),
-                                                           DataLayer (..))
-import           Cardano.SMASH.Offline                    (fetchInsertNewPoolMetadata)
-import           Cardano.SMASH.Types                      (PoolId (..),
-                                                           PoolMetadataHash (..),
-                                                           PoolUrl (..))
+import           Cardano.SMASH.DB                   (DBFail (..),
+                                                     DataLayer (..))
+import           Cardano.SMASH.Offline              (fetchInsertNewPoolMetadata)
+import           Cardano.SMASH.Types                (PoolId (..),
+                                                     PoolMetadataHash (..),
+                                                     PoolUrl (..))
 
-import qualified Cardano.Chain.Block                      as Byron
+import qualified Cardano.Chain.Block                as Byron
 
-import qualified Data.ByteString.Base16                   as B16
+import qualified Data.ByteString.Base16             as B16
 
-import           Database.Persist.Sql                     (IsolationLevel (..),
-                                                           SqlBackend,
-                                                           transactionSaveWithIsolation)
+import           Database.Persist.Sql               (IsolationLevel (..),
+                                                     SqlBackend,
+                                                     transactionSaveWithIsolation)
 
-import qualified Cardano.SMASH.DBSync.Db.Insert           as DB
-import qualified Cardano.SMASH.DBSync.Db.Schema           as DB
+import qualified Cardano.SMASH.DBSync.Db.Insert     as DB
+import qualified Cardano.SMASH.DBSync.Db.Schema     as DB
 
 import           Cardano.DbSync.Config.Types
 import           Cardano.DbSync.Error
-import           Cardano.DbSync.Types                     as DbSync
+import           Cardano.DbSync.Types               as DbSync
 
 import           Cardano.DbSync.LedgerState
 
-import           Cardano.DbSync                           (DbSyncNodePlugin (..))
+import           Cardano.DbSync                     (DbSyncNodePlugin (..))
 import           Cardano.DbSync.Util
 
 
-import qualified Cardano.DbSync.Era.Byron.Util            as Byron
-import qualified Cardano.DbSync.Era.Shelley.Generic       as Shelley
+import qualified Cardano.DbSync.Era.Byron.Util      as Byron
+import qualified Cardano.DbSync.Era.Shelley.Generic as Shelley
 
-import           Cardano.Slotting.Block                   (BlockNo (..))
-import           Cardano.Slotting.Slot                    (EpochNo (..),
-                                                           SlotNo (..))
+import           Cardano.Slotting.Block             (BlockNo (..))
+import           Cardano.Slotting.Slot              (EpochNo (..),
+                                                     EpochSize (..),
+                                                     SlotNo (..))
 
-import           Shelley.Spec.Ledger.BaseTypes            (strictMaybeToMaybe)
-import qualified Shelley.Spec.Ledger.BaseTypes            as Shelley
-import qualified Shelley.Spec.Ledger.TxBody               as Shelley
+import           Shelley.Spec.Ledger.BaseTypes      (strictMaybeToMaybe)
+import qualified Shelley.Spec.Ledger.BaseTypes      as Shelley
+import qualified Shelley.Spec.Ledger.TxBody         as Shelley
 
-import           Ouroboros.Consensus.Byron.Ledger         (ByronBlock (..))
+import           Ouroboros.Consensus.Byron.Ledger   (ByronBlock (..))
 
-import           Ouroboros.Consensus.Cardano.Block        (HardForkBlock (..),
-                                                           StandardShelley)
+import           Ouroboros.Consensus.Cardano.Block  (HardForkBlock (..),
+                                                     StandardShelley)
 
-import qualified Cardano.DbSync.Era.Shelley.Generic       as Generic
+import qualified Cardano.DbSync.Era.Shelley.Generic as Generic
 
 -- |Pass in the @DataLayer@.
 poolMetadataDbSyncNodePlugin :: DataLayer -> DbSyncNodePlugin
@@ -157,6 +156,7 @@ insertShelleyBlock blockName dataLayer tracer env blk _lStateSnap details = do
     liftIO $ do
       let epoch = unEpochNo (sdEpochNo details)
           slotWithinEpoch = unEpochSlot (sdEpochSlot details)
+          globalSlot = epoch * (unEpochSize $ sdEpochSize details) + slotWithinEpoch
 
       when (slotWithinEpoch `mod` 1000 == 0) $
         logInfo tracer $ mconcat
@@ -164,6 +164,7 @@ insertShelleyBlock blockName dataLayer tracer env blk _lStateSnap details = do
           , "' block pool info: epoch ", show epoch
           , ", slot ", show slotWithinEpoch
           , ", block ", show blockNumber
+          , ", global slot ", show globalSlot
           ]
 
     lift $ transactionSaveWithIsolation Serializable

@@ -57,7 +57,8 @@ runDbStartup plugin trce =
 -- TODO(KS): Needs a @DataLayer@.
 -- TODO(KS): Metrics layer!
 runDbThread
-    :: Trace IO Text
+    :: HasCallStack
+    => Trace IO Text
     -> DbSyncEnv
     -> DbSyncNodePlugin
     -> DbActionQueue
