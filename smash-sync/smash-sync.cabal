@@ -1,6 +1,6 @@
 cabal-version:      1.12
 name:               smash-sync
-version:            1.3.0
+version:            1.4.0
 description:
   Please see the README on GitHub at <https://github.com/input-output-hk/smash#readme>
 
