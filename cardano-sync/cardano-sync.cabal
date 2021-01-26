@@ -1,6 +1,6 @@
 cabal-version:      1.12
-name:               smash-sync
-version:            1.4.0
+name:               cardano-sync
+version:            1.0.0
 description:
   Please see the README on GitHub at <https://github.com/input-output-hk/smash#readme>
 
@@ -32,39 +32,54 @@ library
     cpp-options: -DTESTING_MODE
 
   exposed-modules:
-    Cardano.Sync.SmashDbSync
+    Cardano.Sync.CardanoSync
+
+    Cardano.Sync.DbAction
+    Cardano.Sync.Plugin
+    Cardano.Sync.Types
+    Cardano.Sync.Error
+
+    Cardano.Sync.StateQuery
+    Cardano.Sync.LedgerState
+
+    Cardano.Sync.Util
+    Cardano.Sync.Config.Types
+    Cardano.Sync.Tracing.ToObjectOrphans
+
+    Cardano.Sync.Config
+    Cardano.Sync.Config.Byron
+    Cardano.Sync.Config.Cardano
+    Cardano.Sync.Config.Node
+    Cardano.Sync.Config.Shelley
+    Cardano.Sync.Era.Cardano.Util
+    Cardano.Sync.Era.Byron.Util
+    Cardano.Sync.Era.Shelley.Generic.Block
+    Cardano.Sync.Era.Shelley.Generic.Metadata
+    Cardano.Sync.Era.Shelley.Generic.Tx
+    Cardano.Sync.Era.Shelley.Generic.Util
+    Cardano.Sync.Era.Shelley.Generic
+    Cardano.Sync.Era.Shelley.Generic.EpochUpdate
+    Cardano.Sync.Era.Shelley.Generic.ProtoParams
+    Cardano.Sync.Era.Shelley.Generic.Rewards
+    Cardano.Sync.Era.Shelley.Generic.StakeCred
+    Cardano.Sync.Era.Shelley.Generic.StakeDist
 
   hs-source-dirs:     src
   build-depends:
-      aeson
-    , base                         >=4.7   && <5
-    , base16-bytestring
+      base                         >=4.7   && <5
+    , aeson
     , bytestring
-    , cardano-binary
     , cardano-client
-    , cardano-config
-    , cardano-crypto
-    , cardano-crypto-class
     , cardano-crypto-wrapper
-    , cardano-db-sync
+    , cardano-crypto-class
     , cardano-ledger
     , cardano-prelude
     , cardano-slotting
+    , cardano-node
     , cborg
-    , conduit-extra
-    , containers
     , contra-tracer
     , directory
-    , esqueleto
-    , extra
-    , fast-logger
-    , filepath
-    , http-client
-    , http-client-tls
-    , http-types
-    , io-sim-classes
     , iohk-monitoring
-    , monad-logger
     , network
     , network-mux
     , ouroboros-consensus
@@ -73,28 +88,32 @@ library
     , ouroboros-consensus-shelley
     , ouroboros-network
     , ouroboros-network-framework
-    , persistent
-    , persistent-postgresql
-    , persistent-template          >=2.7.0
-    , postgresql-simple
-    , prometheus
-    , quiet
-    , resourcet
-    , servant
-    , servant-server
-    , servant-swagger
     , shelley-spec-ledger
-    , smash-servant-types
-    , swagger2
-    , template-haskell
+    , stm
     , text
     , time
     , transformers
     , transformers-except
     , typed-protocols
+    , lifted-base
+    , monad-control
+    , memory
+    , base16-bytestring
+    , pretty-show
     , unix
-    , wai
-    , warp
+    , cardano-binary
+    , extra
+    , filepath
+    , yaml
+    , containers
+    , cardano-crypto
+    , cryptonite
+    , cardano-ledger-shelley-ma
+    , vector
+    , cardano-api
+    , small-steps
+    , cardano-crypto-praos
+    , binary
 
   default-language:   Haskell2010
   default-extensions:

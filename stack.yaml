@@ -4,7 +4,7 @@ compiler: ghc-8.6.5
 #allow-newer: true
 
 packages:
-- smash-sync
+- cardano-sync
 - smash
 - smash-servant-types
 
@@ -17,6 +17,10 @@ flags:
 ghc-options:
   smash:                    -Wall -Werror -fno-warn-redundant-constraints
   #smash-servant-types:      -Wall -Werror -fno-warn-redundant-constraints
+
+# Generate files required by Weeder.
+# See https://github.com/ndmitchell/weeder/issues/53
+ghc-options: {"$locals": -ddump-to-file -ddump-hi}
 
 extra-deps:
   - persistent-2.11.0.1

@@ -1,8 +1,8 @@
 index-state: 2020-11-15T00:00:00Z
 
 packages:
+    ./cardano-sync
     ./smash
-    ./smash-sync
     ./smash-servant-types
 
 constraints:

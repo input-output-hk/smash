@@ -13,32 +13,29 @@ module Cardano.SMASH.DBSync.Db.Database
   , writeDbActionQueue
   ) where
 
-import           Cardano.BM.Trace                       (Trace, logDebug,
-                                                         logError, logInfo)
-import qualified Cardano.Chain.Block                    as Ledger
 import           Cardano.Prelude
 
-import           Control.Monad.Logger                   (LoggingT)
-import           Control.Monad.Trans.Except.Extra       (left, newExceptT,
-                                                         runExceptT)
+import           Cardano.BM.Trace                  (Trace, logDebug, logError,
+                                                    logInfo)
+import qualified Cardano.Chain.Block               as Ledger
 
-import           Cardano.Slotting.Slot                  (SlotNo)
+import           Control.Monad.Trans.Except.Extra  (left, newExceptT,
+                                                    runExceptT)
 
-import qualified Cardano.SMASH.DB                       as DB
+import           Cardano.Slotting.Slot             (SlotNo)
 
-import qualified Cardano.DbSync.Era.Byron.Util          as Byron
-import           Cardano.DbSync.Config
-import           Cardano.DbSync.DbAction
-import           Cardano.DbSync.Error
-import           Cardano.DbSync.LedgerState
-import           Cardano.DbSync.Plugin
-import           Cardano.DbSync.Types
-import           Cardano.DbSync.Util
+import qualified Cardano.SMASH.DB                  as DB
 
-import           Database.Persist.Sql                   (SqlBackend)
+import           Cardano.Sync.Config
+import           Cardano.Sync.DbAction
+import qualified Cardano.Sync.Era.Byron.Util       as Byron
+import           Cardano.Sync.Error
+import           Cardano.Sync.LedgerState
+import           Cardano.Sync.Plugin
+import           Cardano.Sync.Types
 
-import           Ouroboros.Consensus.Byron.Ledger       (ByronBlock (..))
-import           Ouroboros.Consensus.Cardano.Block      (HardForkBlock (..))
+import           Ouroboros.Consensus.Byron.Ledger  (ByronBlock (..))
+import           Ouroboros.Consensus.Cardano.Block (HardForkBlock (..))
 
 -- TODO(KS): This whole module is suspect for deletion. I have no clue why there
 -- are so many different things in one module.
@@ -51,14 +48,12 @@ data NextState
 -- TODO(KS): Do we even need this? What is this?
 runDbStartup :: DbSyncNodePlugin -> Trace IO Text -> IO ()
 runDbStartup plugin trce =
-  DB.runDbAction (Just trce) $
     mapM_ (\action -> action trce) $ plugOnStartup plugin
 
 -- TODO(KS): Needs a @DataLayer@.
 -- TODO(KS): Metrics layer!
 runDbThread
-    :: HasCallStack
-    => Trace IO Text
+    :: Trace IO Text
     -> DbSyncEnv
     -> DbSyncNodePlugin
     -> DbActionQueue
@@ -183,17 +178,13 @@ insertBlockList
     -> [BlockDetails]
     -> ExceptT DbSyncNodeError IO ()
 insertBlockList trce env ledgerState plugin blks =
-  -- Setting this to True will log all 'Persistent' operations which is great
-  -- for debugging, but otherwise is *way* too chatty.
-  newExceptT
-    . DB.runDbAction (Just trce)
-    $ traverseMEither insertBlock blks
+  newExceptT $ traverseMEither insertBlock blks
   where
     insertBlock
         :: BlockDetails
-        -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
+        -> IO (Either DbSyncNodeError ())
     insertBlock blkTip =
-      traverseMEither (\ f -> f trce env ledgerState blkTip) $ plugInsertBlock plugin
+      traverseMEither (\f -> f trce env ledgerState blkTip) $ plugInsertBlock plugin
 
 -- | Split the DbAction list into a prefix containing blocks to apply and a postfix.
 spanDbApply :: [DbAction] -> ([BlockDetails], [DbAction])
@@ -201,3 +192,30 @@ spanDbApply lst =
   case lst of
     (DbApplyBlock bt:xs) -> let (ys, zs) = spanDbApply xs in (bt:ys, zs)
     xs                   -> ([], xs)
+
+
+-- | ouroboros-network catches 'SomeException' and if a 'nullTracer' is passed into that
+-- code, the caught exception will not be logged. Therefore wrap all cardano-db-sync code that
+-- is called from network with an exception logger so at least the exception will be
+-- logged (instead of silently swallowed) and then rethrown.
+logException :: Trace IO Text -> Text -> IO a -> IO a
+logException tracer txt action =
+    action `catch` logger
+  where
+    logger :: SomeException -> IO a
+    logger e = do
+      logError tracer $ txt <> textShow e
+      throwIO e
+
+textShow :: Show a => a -> Text
+textShow a = show a
+
+-- | Run a function of type `a -> m (Either e ())` over a list and return
+-- the first `e` or `()`.
+-- TODO: Is this not just `traverse` ?
+traverseMEither :: Monad m => (a -> m (Either e ())) -> [a] -> m (Either e ())
+traverseMEither action xs = do
+  case xs of
+    [] -> pure $ Right ()
+    (y:ys) ->
+      action y >>= either (pure . Left) (const $ traverseMEither action ys)

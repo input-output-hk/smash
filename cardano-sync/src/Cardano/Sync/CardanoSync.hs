@@ -10,9 +10,8 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
 
-module Cardano.Sync.SmashDbSync
+module Cardano.Sync.CardanoSync
   ( ConfigFile (..)
-  --, SmashDbSyncNodeParams (..)
   , DbSyncNodePlugin (..)
   , NetworkName (..)
   , SocketPath (..)
@@ -51,13 +50,12 @@ import qualified Cardano.Crypto                                        as Crypto
 
 import           Cardano.Client.Subscription                           (subscribe)
 
-import           Cardano.DbSync.Config
-import           Cardano.DbSync.Config.Types                           hiding (adjustGenesisFilePath)
-import           Cardano.DbSync.Error
-import           Cardano.DbSync.Plugin                                 (DbSyncNodePlugin (..))
-import           Cardano.DbSync.Tracing.ToObjectOrphans                ()
-
-import           Cardano.DbSync.Util
+import           Cardano.Sync.Config
+import           Cardano.Sync.Config.Types                           hiding (adjustGenesisFilePath)
+import           Cardano.Sync.Error
+import           Cardano.Sync.Plugin                                 (DbSyncNodePlugin (..))
+import           Cardano.Sync.Tracing.ToObjectOrphans                ()
+import           Cardano.Sync.Util
 
 import           Cardano.Slotting.Slot                                 (SlotNo (..),
                                                                         WithOrigin (..),
@@ -156,10 +154,9 @@ import           System.Directory                                      (createDi
 
 import           Ouroboros.Consensus.HardFork.History.Qry              (Interpreter)
 
-import           Cardano.DbSync                                        (MigrationDir (..))
-import           Cardano.DbSync.DbAction
-import           Cardano.DbSync.LedgerState
-import           Cardano.DbSync.StateQuery
+import           Cardano.Sync.DbAction
+import           Cardano.Sync.LedgerState
+import           Cardano.Sync.StateQuery
 
 import qualified Cardano.Chain.Genesis                                 as Byron
 

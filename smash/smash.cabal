@@ -44,7 +44,7 @@ library
     Cardano.SMASH.DBSync.Db.Run
     Cardano.SMASH.DBSync.Db.Schema
     Cardano.SMASH.DBSync.Metrics
-    Cardano.SMASH.DBSyncPlugin
+    Cardano.SMASH.CardanoSyncPlugin
     Cardano.SMASH.FetchQueue
     Cardano.SMASH.Lib
     Cardano.SMASH.Offline
@@ -57,11 +57,10 @@ library
     , base16-bytestring
     , bytestring
     , cardano-crypto-class
-    , cardano-db-sync
+    , cardano-sync
     , cardano-ledger
     , cardano-prelude
     , cardano-slotting
-    , cborg
     , conduit-extra
     , containers
     , contra-tracer
@@ -73,7 +72,6 @@ library
     , http-client
     , http-client-tls
     , http-types
-    , io-sim-classes
     , iohk-monitoring
     , monad-logger
     , ouroboros-consensus-byron
@@ -83,7 +81,6 @@ library
     , persistent-template          >=2.7.0
     , postgresql-simple
     , prometheus
-    , quiet
     , resourcet
     , servant
     , servant-server
@@ -96,8 +93,6 @@ library
     , time
     , transformers
     , transformers-except
-    , typed-protocols
-    , smash-sync
     , unix
     , wai
     , warp
@@ -123,13 +118,12 @@ executable smash-exe
   build-depends:
       base                  >=4.7 && <5
     , cardano-prelude
-    , cardano-db-sync
+    , cardano-sync
     , cardano-slotting
     , optparse-applicative
     , iohk-monitoring
     , smash
     , smash-servant-types
-    , smash-sync
     , esqueleto
     , transformers
     , prometheus
@@ -161,7 +155,6 @@ test-suite smash-test
   build-depends:
       base                      >=4.7 && <5
     , cardano-prelude
-    , iohk-monitoring
     , containers
     , ed25519
     , hspec
@@ -170,7 +163,6 @@ test-suite smash-test
     , smash
     , smash-servant-types
     , tree-diff
-    , transformers-except
 
   default-language:   Haskell2010
   default-extensions:
@@ -200,15 +192,11 @@ test-suite db-spec-test
     , cardano-prelude
     , filepath
     , directory
-    , containers
-    , ed25519
     , hspec
     , QuickCheck
-    , quickcheck-state-machine  >=0.6
     , smash
     , smash-servant-types
     , iohk-monitoring
-    , tree-diff
     , time
     , transformers-except
 

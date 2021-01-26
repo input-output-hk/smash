@@ -10,7 +10,6 @@ module Main where
 
 import           Cardano.Prelude                        hiding (Meta)
 
---import           Cardano.SMASH.DB
 import qualified Cardano.SMASH.DB                       as DB
 import           Cardano.SMASH.DBSync.Db.Database       (runDbStartup,
                                                          runDbThread)
@@ -20,9 +19,18 @@ import           Cardano.SMASH.Offline                  (runOfflineFetchThread)
 import           Cardano.SMASH.Lib
 import           Cardano.SMASH.Types
 
--- For reading configuration files.
-import           Cardano.DbSync.Config
-import           Cardano.Sync.SmashDbSync
+import           Cardano.Sync.CardanoSync               (Block (..),
+                                                         BlockId (..),
+                                                         CardanoSyncDataLayer (..),
+                                                         CardanoSyncError (..),
+                                                         ConfigFile (..),
+                                                         LogFileDir (..),
+                                                         Meta (..), MetaId (..),
+                                                         MetricsLayer (..),
+                                                         MigrationDir (..),
+                                                         SocketPath (..),
+                                                         runDbSyncNode)
+import           Cardano.Sync.Config
 
 import           Control.Applicative                    (optional)
 import           Control.Monad.Trans.Maybe
@@ -41,13 +49,10 @@ import qualified Cardano.BM.Setup                       as Logging
 import           Cardano.BM.Trace                       (Trace, logInfo,
                                                          modifyName)
 import           Cardano.Slotting.Slot                  (SlotNo (..))
+
+import           Cardano.SMASH.CardanoSyncPlugin        (poolMetadataDbSyncNodePlugin)
 import           Cardano.SMASH.DBSync.Metrics           (Metrics (..),
                                                          registerMetricsServer)
-import           Cardano.SMASH.DBSyncPlugin             (poolMetadataDbSyncNodePlugin)
-import           Cardano.Sync.SmashDbSync               (ConfigFile (..),
-                                                         MetricsLayer (..),
-                                                         SocketPath (..),
-                                                         runDbSyncNode)
 
 
 main :: IO ()
