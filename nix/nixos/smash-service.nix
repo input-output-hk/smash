@@ -118,6 +118,12 @@ in {
       export SMASHPGPASSFILE=/$RUNTIME_DIRECTORY/pgpass
       ''}
 
+      if [ -f $STATE_DIRECTORY/force-resync ]; then
+        echo "Preparing DB for full-resync"
+        ${cfg.package}/bin/smash-exe force-resync --config ${configFile} --mdir ${../../schema}
+        rm $STATE_DIRECTORY/force-resync
+      fi
+
       ${cfg.package}/bin/smash-exe run-migrations --config ${configFile} --mdir ${../../schema}
       exec ${cfg.package}/bin/smash-exe run-app-with-db-sync \
         --config ${configFile} \
