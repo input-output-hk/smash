@@ -108,24 +108,20 @@ share
     slotNo              Word64 Maybe        sqltype=uinteger
     blockNo             Word64 Maybe        sqltype=uinteger
     UniqueBlock         hash
-
-  --------------------------------------------------------------------------
-  -- Tables below should be preserved when migration occurs!
-  --------------------------------------------------------------------------
+    deriving Show
 
   -- A table containing metadata about the chain. There will probably only ever be one
   -- row in this table.
   -- TODO(KS): This can be left alone when migration occurs since it should be the same!
   Meta
-    protocolConst       Word64              -- The block security parameter.
-    slotDuration        Word64              -- Slot duration in milliseconds.
-                                            -- System start time used to calculate slot time stamps.
-                                            -- Use 'sqltype' here to force timestamp without time zone.
     startTime           UTCTime             sqltype=timestamp
-    slotsPerEpoch       Word64              -- Number of slots per epoch.
     networkName         Text Maybe
     UniqueMeta          startTime
     deriving Show
+
+  --------------------------------------------------------------------------
+  -- Tables below should be preserved when migration occurs!
+  --------------------------------------------------------------------------
 
   -- A table containing a list of delisted pools.
   DelistedPool

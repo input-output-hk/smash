@@ -7,6 +7,7 @@ module Cardano.SMASH.DBSync.Db.Query
   ( DBFail (..)
   , querySchemaVersion
   , querySlotHash
+  , queryLatestSlotNo
   , queryAllPools
   , queryPoolByPoolId
   , queryPoolMetadata
@@ -70,6 +71,16 @@ querySlotHash slotNo = do
             where_ (blk ^. BlockSlotNo ==. just (val $ unSlotNo slotNo))
             pure (blk ^. BlockHash)
   pure $ (\vh -> (slotNo, unValue vh)) <$> listToMaybe res
+
+-- | Get the latest slot number
+queryLatestSlotNo :: MonadIO m => ReaderT SqlBackend m Word64
+queryLatestSlotNo = do
+  res <- select . from $ \ blk -> do
+            where_ (isJust $ blk ^. BlockSlotNo)
+            orderBy [desc (blk ^. BlockSlotNo)]
+            limit 1
+            pure $ blk ^. BlockSlotNo
+  pure $ fromMaybe 0 (listToMaybe $ mapMaybe unValue res)
 
 -- |Return all pools.
 queryAllPools :: MonadIO m => ReaderT SqlBackend m [Pool]
@@ -160,9 +171,10 @@ queryMeta = do
 queryLatestBlock :: MonadIO m => ReaderT SqlBackend m (Maybe Block)
 queryLatestBlock = do
   res <- select $ from $ \ blk -> do
+                where_ (isJust $ blk ^. BlockSlotNo)
                 orderBy [desc (blk ^. BlockSlotNo)]
                 limit 1
-                pure $ blk
+                pure blk
   pure $ fmap entityVal (listToMaybe res)
 
 -- | Get the 'BlockNo' of the latest block.

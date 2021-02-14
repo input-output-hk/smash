@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DerivingStrategies    #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Cardano.SMASH.Types
@@ -354,6 +355,10 @@ instance FromHttpApiData TimeStringFormat where
             --parsedTime :: UTCTime <- parseTimeM False defaultTimeLocale "%d.%m.%Y %T" "04.03.2010 16:05:21"
             parsedTime = parseTimeM False defaultTimeLocale timeFormat $ toS queryParam
         in  TimeStringFormat <$> parsedTime
+
+-- Required for the above, error with newer GHC versions
+instance MonadFail (Either Text) where
+    fail = Left . toS
 
 instance ToParamSchema TimeStringFormat
 

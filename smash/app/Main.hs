@@ -8,46 +8,52 @@
 
 module Main where
 
-import           Cardano.Prelude                        hiding (Meta)
+import           Cardano.Prelude                   hiding (Meta)
 
---import           Cardano.SMASH.DB
-import qualified Cardano.SMASH.DB                       as DB
-import           Cardano.SMASH.DBSync.Db.Database       (runDbStartup,
-                                                         runDbThread)
+import qualified Data.ByteString.Char8             as BS
 
-import           Cardano.SMASH.Offline                  (runOfflineFetchThread)
+import           Control.Monad.Trans.Except.Extra  (firstExceptT, left,
+                                                    newExceptT)
+
+import qualified Cardano.SMASH.DB                  as DB
+import           Cardano.SMASH.Offline             (runOfflineFetchThread)
 
 import           Cardano.SMASH.Lib
 import           Cardano.SMASH.Types
 
--- For reading configuration files.
-import           Cardano.DbSync.Config
-import           Cardano.Sync.SmashDbSync
+import           Cardano.Sync.Config
+import           Cardano.Sync.Config.Types
+import           Cardano.Sync.Error
 
-import           Control.Applicative                    (optional)
+import           Cardano.Sync                      (Block (..), ConfigFile (..),
+                                                    Meta (..), SocketPath (..),
+                                                    SyncDataLayer (..),
+                                                    runSyncNode)
+import           Cardano.Sync.Database             (runDbThread)
+
+import           Control.Applicative               (optional)
 import           Control.Monad.Trans.Maybe
 
-import           Data.Monoid                            ((<>))
+import           Data.Monoid                       ((<>))
 import           Database.Esqueleto
 
-import           Options.Applicative                    (Parser, ParserInfo,
-                                                         ParserPrefs)
-import qualified Options.Applicative                    as Opt
+import           Options.Applicative               (Parser, ParserInfo,
+                                                    ParserPrefs)
+import qualified Options.Applicative               as Opt
 
-import           System.FilePath                        ((</>))
-import qualified System.Metrics.Prometheus.Metric.Gauge as Gauge
+import           System.FilePath                   ((</>))
 
-import qualified Cardano.BM.Setup                       as Logging
-import           Cardano.BM.Trace                       (Trace, logInfo,
-                                                         modifyName)
-import           Cardano.Slotting.Slot                  (SlotNo (..))
-import           Cardano.SMASH.DBSync.Metrics           (Metrics (..),
-                                                         registerMetricsServer)
-import           Cardano.SMASH.DBSyncPlugin             (poolMetadataDbSyncNodePlugin)
-import           Cardano.Sync.SmashDbSync               (ConfigFile (..),
-                                                         MetricsLayer (..),
-                                                         SocketPath (..),
-                                                         runDbSyncNode)
+import qualified Cardano.BM.Setup                  as Logging
+import           Cardano.BM.Trace                  (Trace, logInfo, modifyName)
+import           Cardano.Slotting.Slot             (SlotNo (..))
+import           Cardano.SMASH.DBSyncPlugin        (poolMetadataDbSyncNodePlugin)
+
+import           Ouroboros.Consensus.Cardano.Block (StandardShelley)
+import           Ouroboros.Consensus.Shelley.Node  (ShelleyGenesis (..))
+import qualified Shelley.Spec.Ledger.Genesis       as Shelley
+
+import           Data.Time.Clock                   (UTCTime (..))
+import qualified Data.Time.Clock                   as Time
 
 
 main :: IO ()
@@ -75,11 +81,11 @@ data Command
 #ifdef TESTING_MODE
   | RunStubApplication
 #endif
-  | RunApplicationWithDbSync DbSyncNodeParams
+  | RunApplicationWithDbSync SyncNodeParams
 
 setupTraceFromConfig :: ConfigFile -> IO (Trace IO Text)
 setupTraceFromConfig configFile = do
-    enc <- readDbSyncNodeConfig configFile
+    enc <- readSyncNodeConfig configFile
     trce <- Logging.setupTrace (Right $ dncLoggingConfig enc) "smash-node"
     return trce
 
@@ -136,8 +142,22 @@ runCommand cmd =
 #endif
     RunApplicationWithDbSync dbSyncNodeParams -> runCardanoSyncWithSmash dbSyncNodeParams
 
+renderCardanoSyncError :: CardanoSyncError -> Text
+renderCardanoSyncError (CardanoSyncError cardanoSyncError') = cardanoSyncError'
+
+cardanoSyncError :: Monad m => Text -> ExceptT CardanoSyncError m a
+cardanoSyncError = left . CardanoSyncError
+
+-- @Word64@ is valid as well.
+newtype BlockId = BlockId Int
+    deriving (Eq, Show)
+
+-- @Word64@ is valid as well.
+newtype MetaId = MetaId Int
+    deriving (Eq, Show)
+
 -- Running SMASH with cardano-sync.
-runCardanoSyncWithSmash :: DbSyncNodeParams -> IO ()
+runCardanoSyncWithSmash :: SyncNodeParams -> IO ()
 runCardanoSyncWithSmash dbSyncNodeParams = do
 
     -- Setup trace
@@ -152,17 +172,7 @@ runCardanoSyncWithSmash dbSyncNodeParams = do
     logInfo tracer $ "Migrations complete."
 
     -- Run metrics server
-    (metrics, server) <- registerMetricsServer 8080
-
-    -- Metrics layer.
-    let metricsLayer =
-            MetricsLayer
-                { gmSetNodeHeight = \nodeHeight ->
-                    Gauge.set nodeHeight $ mNodeHeight metrics
-
-                , gmSetQueuePostWrite = \queuePostWrite ->
-                    Gauge.set queuePostWrite $ mQueuePostWrite metrics
-                }
+    --(metrics, server) <- registerMetricsServer 8080
 
     let dataLayer :: DB.DataLayer
         dataLayer = DB.postgresqlDataLayer (Just tracer)
@@ -170,59 +180,45 @@ runCardanoSyncWithSmash dbSyncNodeParams = do
     -- The plugin requires the @DataLayer@.
     let smashDbSyncNodePlugin = poolMetadataDbSyncNodePlugin dataLayer
 
-    let runDbStartupCall = runDbStartup smashDbSyncNodePlugin
+    let getLatestBlock =
+            runMaybeT $ do
+                block <- MaybeT $ DB.runDbIohkLogging tracer DB.queryLatestBlock
+                return $ convertFromDB block
 
     -- The base @DataLayer@.
-    let cardanoSyncDataLayer =
-            CardanoSyncDataLayer
-                { csdlGetBlockId = \genesisHash -> runExceptT $ do
-                    blockId <- ExceptT $ dbFailToCardanoSyncError <$> (DB.runDbIohkLogging tracer $ DB.queryBlockId genesisHash)
-                    return . BlockId . fromIntegral . fromSqlKey $ blockId
+    let syncDataLayer =
+            SyncDataLayer
+                { sdlGetSlotHash = \slotNo -> do
+                    slotHash <- DB.runDbIohkLogging tracer $ DB.querySlotHash slotNo
+                    case slotHash of
+                        Nothing -> return []
+                        Just slotHashPair -> return [slotHashPair]
 
-                , csdlGetMeta = runExceptT $ do
-                    meta <- ExceptT $ dbFailToCardanoSyncError <$> (DB.runDbIohkLogging tracer DB.queryMeta)
-                    return $ Meta
-                        { mProtocolConst = DB.metaProtocolConst meta
-                        , mSlotDuration = DB.metaSlotDuration meta
-                        , mStartTime = DB.metaStartTime meta
-                        , mSlotsPerEpoch = DB.metaSlotsPerEpoch meta
-                        , mNetworkName = DB.metaNetworkName meta
-                        }
+                , sdlGetLatestBlock = getLatestBlock
 
-                , csdlGetSlotHash = \slotNo ->
-                    DB.runDbIohkLogging tracer $ DB.querySlotHash slotNo
+                , sdlGetLatestSlotNo = SlotNo <$> DB.runDbNoLogging DB.queryLatestSlotNo
 
-                , csdlGetLatestBlock = runMaybeT $ do
-                    block <- MaybeT $ DB.runDbIohkLogging tracer DB.queryLatestBlock
-                    return $ convertFromDB block
-
-                -- This is how all the calls should work, implemented on the base @DataLayer@.
-                , csdlAddGenesisMetaBlock = \meta block -> runExceptT $ do
-                    let addGenesisMetaBlock = DB.dlAddGenesisMetaBlock dataLayer
-
-                    let metaDB = convertToDB meta
-                    let blockDB = convertToDB block
-
-                    (metaId, blockId) <- ExceptT $ dbFailToCardanoSyncError <$> addGenesisMetaBlock metaDB blockDB
-
-                    return (MetaId . fromIntegral . fromSqlKey $ metaId, BlockId . fromIntegral . fromSqlKey $ blockId)
                 }
 
     -- The actual DB Thread.
     let runDBThreadFunction =
-            \tracer' env plugin _metricsLayer actionQueue ledgerVar ->
+            \tracer' env plugin metrics' actionQueue ->
                 race_
-                    (runDbThread tracer' env plugin actionQueue ledgerVar)
+                    (runDbThread tracer' env plugin metrics' actionQueue)
                     (runOfflineFetchThread $ modifyName (const "fetch") tracer')
 
+    let runInsertValidateGenesisSmashFunction = insertValidateGenesisSmashFunction syncDataLayer
+
     race_
-        (runDbSyncNode cardanoSyncDataLayer metricsLayer runDbStartupCall smashDbSyncNodePlugin dbSyncNodeParams runDBThreadFunction)
+        (runSyncNode syncDataLayer tracer smashDbSyncNodePlugin dbSyncNodeParams runInsertValidateGenesisSmashFunction runDBThreadFunction)
         (runApp dataLayer defaultConfiguration)
 
-    -- Finish and close the metrics server
-    -- TODO(KS): Bracket!
-    cancel server
 
+data CardanoSyncError = CardanoSyncError Text
+    deriving (Eq, Show)
+
+cardanoSyncErrorToNodeError :: CardanoSyncError -> SyncNodeError
+cardanoSyncErrorToNodeError (CardanoSyncError err) = NEError err
 
 dbFailToCardanoSyncError :: Either DBFail a -> Either CardanoSyncError a
 dbFailToCardanoSyncError (Left dbFail)  = Left . CardanoSyncError . DB.renderLookupFail $ dbFail
@@ -257,28 +253,140 @@ instance DBConversion DB.Block Block where
 instance DBConversion DB.Meta Meta where
     convertFromDB meta =
         Meta
-            { mProtocolConst = DB.metaProtocolConst meta
-            , mSlotDuration = DB.metaSlotDuration meta
-            , mStartTime = DB.metaStartTime meta
-            , mSlotsPerEpoch = DB.metaSlotsPerEpoch meta
+            { mStartTime = DB.metaStartTime meta
             , mNetworkName = DB.metaNetworkName meta
             }
 
     convertToDB meta =
         DB.Meta
-            { DB.metaProtocolConst = mProtocolConst meta
-            , DB.metaSlotDuration = mSlotDuration meta
-            , DB.metaStartTime = mStartTime meta
-            , DB.metaSlotsPerEpoch = mSlotsPerEpoch meta
+            { DB.metaStartTime = mStartTime meta
             , DB.metaNetworkName = mNetworkName meta
             }
 
 -------------------------------------------------------------------------------
 
---pCommandLine :: Parser SmashDbSyncNodeParams
-pCommandLine :: Parser DbSyncNodeParams
+insertValidateGenesisSmashFunction
+    :: SyncDataLayer
+    -> Trace IO Text
+    -> NetworkName
+    -> GenesisConfig
+    -> ExceptT SyncNodeError IO ()
+insertValidateGenesisSmashFunction dataLayer tracer networkName genCfg =
+    firstExceptT cardanoSyncErrorToNodeError $ case genCfg of
+        GenesisCardano _ _bCfg sCfg ->
+            insertValidateGenesisDistSmash dataLayer tracer networkName (scConfig sCfg)
+
+-- | Idempotent insert the initial Genesis distribution transactions into the DB.
+-- If these transactions are already in the DB, they are validated.
+insertValidateGenesisDistSmash
+    :: SyncDataLayer
+    -> Trace IO Text
+    -> NetworkName
+    -> ShelleyGenesis StandardShelley
+    -> ExceptT CardanoSyncError IO ()
+insertValidateGenesisDistSmash _dataLayer tracer (NetworkName networkName) cfg = do
+    newExceptT $ insertAtomicAction
+  where
+    insertAtomicAction :: IO (Either CardanoSyncError ())
+    insertAtomicAction = do
+      let getBlockId = \genesisHash -> runExceptT $ do
+                    blockId <- ExceptT $ dbFailToCardanoSyncError <$> (DB.runDbIohkLogging tracer $ DB.queryBlockId genesisHash)
+                    return . BlockId . fromIntegral . fromSqlKey $ blockId
+      ebid <- getBlockId (configGenesisHash cfg)
+
+      case ebid of
+        -- TODO(KS): This needs to be moved into DataLayer.
+        Right _bid -> runExceptT $ do
+            let getMeta = runExceptT $ do
+                    meta <- ExceptT $ dbFailToCardanoSyncError <$> (DB.runDbIohkLogging tracer DB.queryMeta)
+                    return $ Meta
+                        { mStartTime = DB.metaStartTime meta
+                        , mNetworkName = DB.metaNetworkName meta
+                        }
+
+            meta <- newExceptT getMeta
+
+            newExceptT $ validateGenesisDistribution tracer meta networkName cfg
+
+        Left _ -> do
+            liftIO $ logInfo tracer "Inserting Genesis distribution"
+
+            let meta =  Meta
+                            { mStartTime = configStartTime cfg
+                            , mNetworkName = Just networkName
+                            }
+
+            let block = Block
+                            { bHash = configGenesisHash cfg
+                            , bEpochNo = Nothing
+                            , bSlotNo = Nothing
+                            , bBlockNo = Nothing
+                            }
+
+            let addGenesisMetaBlock = DB.dlAddGenesisMetaBlock (DB.postgresqlDataLayer $ Just tracer)
+            metaIdBlockIdE <- addGenesisMetaBlock (convertToDB meta) (convertToDB block)
+
+            case metaIdBlockIdE of
+                Right (_metaId, _blockId) -> pure $ Right ()
+                Left err                  -> pure . Left . CardanoSyncError $ show err
+
+-- | Validate that the initial Genesis distribution in the DB matches the Genesis data.
+validateGenesisDistribution
+    :: (MonadIO m)
+    => Trace IO Text
+    -> Meta
+    -> Text
+    -> ShelleyGenesis StandardShelley
+    -> m (Either CardanoSyncError ())
+validateGenesisDistribution tracer meta networkName cfg =
+  runExceptT $ do
+    liftIO $ logInfo tracer "Validating Genesis distribution"
+
+    -- Show configuration we are validating
+    print cfg
+
+    when (mStartTime meta /= configStartTime cfg) $
+      cardanoSyncError $ mconcat
+            [ "Shelley: Mismatch chain start time. Config value "
+            , textShow (configStartTime cfg)
+            , " does not match DB value of ", textShow (mStartTime meta)
+            ]
+
+    case mNetworkName meta of
+      Nothing ->
+        cardanoSyncError $ "Shelley.validateGenesisDistribution: Missing network name"
+      Just name ->
+        when (name /= networkName) $
+          cardanoSyncError $ mconcat
+              [ "Shelley.validateGenesisDistribution: Provided network name "
+              , networkName
+              , " does not match DB value "
+              , name
+              ]
+
+---------------------------------------------------------------------------------------------------
+
+textShow :: Show a => a -> Text
+textShow = show
+
+configStartTime :: ShelleyGenesis StandardShelley -> UTCTime
+configStartTime = roundToMillseconds . Shelley.sgSystemStart
+
+roundToMillseconds :: UTCTime -> UTCTime
+roundToMillseconds (UTCTime day picoSecs) =
+    UTCTime day (Time.picosecondsToDiffTime $ 1000000 * (picoSeconds `div` 1000000))
+  where
+    picoSeconds :: Integer
+    picoSeconds = Time.diffTimeToPicoseconds picoSecs
+
+configGenesisHash :: ShelleyGenesis StandardShelley -> ByteString
+configGenesisHash _ = BS.take 32 ("GenesisHash " <> BS.replicate 32 '\0')
+
+---------------------------------------------------------------------------------------------------
+
+pCommandLine :: Parser SyncNodeParams
 pCommandLine =
-  DbSyncNodeParams
+  SyncNodeParams
     <$> pConfigFile
     <*> pSocketPath
     <*> pLedgerStateDir
