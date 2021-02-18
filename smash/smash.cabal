@@ -33,16 +33,17 @@ library
 
   exposed-modules:
     Cardano.SMASH.DB
-    Cardano.SMASH.DBSync.Db.Database
     Cardano.SMASH.DBSync.Db.Delete
     Cardano.SMASH.DBSync.Db.Insert
+    Cardano.SMASH.DBSync.Db.Query
+    Cardano.SMASH.DBSync.Db.Schema
+
     Cardano.SMASH.DBSync.Db.Migration
     Cardano.SMASH.DBSync.Db.Migration.Haskell
     Cardano.SMASH.DBSync.Db.Migration.Version
     Cardano.SMASH.DBSync.Db.PGConfig
-    Cardano.SMASH.DBSync.Db.Query
     Cardano.SMASH.DBSync.Db.Run
-    Cardano.SMASH.DBSync.Db.Schema
+
     Cardano.SMASH.DBSync.Metrics
     Cardano.SMASH.DBSyncPlugin
     Cardano.SMASH.FetchQueue
@@ -57,10 +58,11 @@ library
     , base16-bytestring
     , bytestring
     , cardano-crypto-class
-    , cardano-db-sync
+    , cardano-sync
     , cardano-ledger
     , cardano-prelude
     , cardano-slotting
+    , cardano-db-sync
     , cborg
     , conduit-extra
     , containers
@@ -97,7 +99,6 @@ library
     , transformers
     , transformers-except
     , typed-protocols
-    , smash-sync
     , unix
     , wai
     , warp
@@ -117,23 +118,33 @@ executable smash-exe
     cpp-options: -DTESTING_MODE
 
   main-is:            Main.hs
-  other-modules:      Paths_smash
+  other-modules:
+    Paths_smash
   hs-source-dirs:     app
   ghc-options:        -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base                  >=4.7 && <5
     , cardano-prelude
-    , cardano-db-sync
+    , cardano-sync
     , cardano-slotting
     , optparse-applicative
     , iohk-monitoring
     , smash
     , smash-servant-types
-    , smash-sync
     , esqueleto
     , transformers
     , prometheus
     , filepath
+    , bytestring
+    , transformers-except
+    , cardano-api
+    , cardano-db
+    , time
+    , persistent-postgresql
+    , persistent
+    , ouroboros-consensus-cardano
+    , ouroboros-consensus-shelley
+    , shelley-spec-ledger
 
   default-language:   Haskell2010
   default-extensions:

@@ -5,3 +5,4 @@ TRUNCATE pool;
 TRUNCATE retired_pool;
 TRUNCATE pool_metadata_fetch_error CASCADE;
 TRUNCATE block;
+TRUNCATE meta;

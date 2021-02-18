@@ -10,8 +10,6 @@ import           Cardano.Prelude
 
 import           Data.Aeson (ToJSON (..), (.=), object, Value (..))
 
-import           Data.ByteString.Char8 (ByteString)
-
 import           Cardano.SMASH.DBSync.Db.Types
 
 

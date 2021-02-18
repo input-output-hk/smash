@@ -9,7 +9,8 @@ module Cardano.SMASH.DBSyncPlugin
 
 import           Cardano.Prelude
 
-import           Cardano.BM.Trace                   (Trace, logError, logInfo)
+import           Cardano.BM.Trace                   (Trace, logDebug, logError,
+                                                     logInfo)
 
 import           Control.Monad.Logger               (LoggingT)
 import           Control.Monad.Trans.Except.Extra   (firstExceptT, newExceptT,
@@ -23,7 +24,7 @@ import           Cardano.SMASH.Types                (PoolId (..),
                                                      PoolMetadataHash (..),
                                                      PoolUrl (..))
 
-import qualified Cardano.Chain.Block                as Byron
+import           Cardano.Chain.Block                (ABlockOrBoundary (..))
 
 import qualified Data.ByteString.Base16             as B16
 
@@ -32,20 +33,23 @@ import           Database.Persist.Sql               (IsolationLevel (..),
                                                      transactionSaveWithIsolation)
 
 import qualified Cardano.SMASH.DBSync.Db.Insert     as DB
+import qualified Cardano.SMASH.DBSync.Db.Run        as DB
 import qualified Cardano.SMASH.DBSync.Db.Schema     as DB
 
-import           Cardano.DbSync.Config.Types
-import           Cardano.DbSync.Error
-import           Cardano.DbSync.Types               as DbSync
 
-import           Cardano.DbSync.LedgerState
+import           Cardano.Sync.Error
+import           Cardano.Sync.Types                 as DbSync
 
-import           Cardano.DbSync                     (DbSyncNodePlugin (..))
-import           Cardano.DbSync.Util
+import           Cardano.Sync.LedgerState
+
+import           Cardano.Sync                       (SyncEnv (..),
+                                                     SyncNodePlugin (..))
+import           Cardano.Sync.Util
 
 
-import qualified Cardano.DbSync.Era.Byron.Util      as Byron
+import qualified Cardano.DbSync.Era.Shelley.Generic as Generic
 import qualified Cardano.DbSync.Era.Shelley.Generic as Shelley
+import qualified Cardano.Sync.Era.Byron.Util        as Byron
 
 import           Cardano.Slotting.Block             (BlockNo (..))
 import           Cardano.Slotting.Slot              (EpochNo (..),
@@ -59,16 +63,14 @@ import qualified Shelley.Spec.Ledger.TxBody         as Shelley
 import           Ouroboros.Consensus.Byron.Ledger   (ByronBlock (..))
 
 import           Ouroboros.Consensus.Cardano.Block  (HardForkBlock (..),
-                                                     StandardShelley)
-
-import qualified Cardano.DbSync.Era.Shelley.Generic as Generic
+                                                     StandardCrypto)
 
 -- |Pass in the @DataLayer@.
-poolMetadataDbSyncNodePlugin :: DataLayer -> DbSyncNodePlugin
+poolMetadataDbSyncNodePlugin :: DataLayer -> SyncNodePlugin
 poolMetadataDbSyncNodePlugin dataLayer =
-  DbSyncNodePlugin
+  SyncNodePlugin
     { plugOnStartup = []
-    , plugInsertBlock = [insertDefaultBlock dataLayer]
+    , plugInsertBlock = [insertDefaultBlocks dataLayer]
     , plugRollbackBlock = []
     }
 
@@ -79,19 +81,28 @@ data BlockName
     | Mary
     deriving (Eq, Show)
 
+insertDefaultBlocks
+    :: DataLayer
+    -> Trace IO Text
+    -> SyncEnv
+    -> [BlockDetails]
+    -> IO (Either SyncNodeError ())
+insertDefaultBlocks dataLayer tracer env blockDetails =
+    DB.runDbAction (Just tracer) $
+      traverseMEither (\blockDetail -> insertDefaultBlock dataLayer tracer env blockDetail)blockDetails
+
 -- |TODO(KS): We need to abstract over these blocks so we can test this functionality
 -- separatly from the actual blockchain, using tests only.
 insertDefaultBlock
     :: DataLayer
     -> Trace IO Text
-    -> DbSyncEnv
-    -> LedgerStateVar
+    -> SyncEnv
     -> BlockDetails
-    -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
-insertDefaultBlock dataLayer tracer env ledgerStateVar (BlockDetails cblk details) = do
+    -> ReaderT SqlBackend (LoggingT IO) (Either SyncNodeError ())
+insertDefaultBlock dataLayer tracer env (BlockDetails cblk details) = do
   -- Calculate the new ledger state to pass to the DB insert functions but do not yet
   -- update ledgerStateVar.
-  lStateSnap <- liftIO $ applyBlock env ledgerStateVar cblk
+  lStateSnap <- liftIO $ applyBlock (envLedger env) cblk
   res <- case cblk of
             BlockByron blk -> do
               insertByronBlock tracer blk details
@@ -103,8 +114,8 @@ insertDefaultBlock dataLayer tracer env ledgerStateVar (BlockDetails cblk detail
               insertShelleyBlock Mary dataLayer tracer env (Generic.fromMaryBlock blk) lStateSnap details
 
   -- Now we update it in ledgerStateVar and (possibly) store it to disk.
-  liftIO $ saveLedgerState (envLedgerStateDir env) ledgerStateVar
-                (lssState lStateSnap) (isSyncedWithinSeconds details 60)
+  liftIO $ saveLedgerStateMaybe (envLedger env)
+                lStateSnap (isSyncedWithinSeconds details 60)
 
   pure res
 
@@ -114,15 +125,30 @@ insertByronBlock
     :: Trace IO Text
     -> ByronBlock
     -> DbSync.SlotDetails
-    -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
+    -> ReaderT SqlBackend (LoggingT IO) (Either SyncNodeError ())
 insertByronBlock tracer blk _details = do
   case byronBlockRaw blk of
-    Byron.ABOBBlock byronBlock -> do
+    ABOBBlock byronBlock -> do
+        let blockHash = Byron.blockHash byronBlock
         let slotNum = Byron.slotNumber byronBlock
+        let blockNumber = Byron.blockNumber byronBlock
+
         -- Output in intervals, don't add too much noise to the output.
         when (slotNum `mod` 5000 == 0) $
             liftIO . logInfo tracer $ "Byron block, slot: " <> show slotNum
-    Byron.ABOBBoundary {} -> pure ()
+
+        -- TODO(KS): Move to DataLayer.
+        _blkId <- DB.insertBlock $
+                  DB.Block
+                    { DB.blockHash = blockHash
+                    , DB.blockEpochNo = Nothing
+                    , DB.blockSlotNo = Just $ slotNum
+                    , DB.blockBlockNo = Just $ blockNumber
+                    }
+
+        return ()
+
+    ABOBBoundary {} -> pure ()
 
   return $ Right ()
 
@@ -131,11 +157,11 @@ insertShelleyBlock
     :: BlockName
     -> DataLayer
     -> Trace IO Text
-    -> DbSyncEnv
+    -> SyncEnv
     -> Generic.Block
     -> LedgerStateSnapshot
     -> SlotDetails
-    -> ReaderT SqlBackend (LoggingT IO) (Either DbSyncNodeError ())
+    -> ReaderT SqlBackend (LoggingT IO) (Either SyncNodeError ())
 insertShelleyBlock blockName dataLayer tracer env blk _lStateSnap details = do
 
   runExceptT $ do
@@ -174,10 +200,10 @@ insertTx
     => DataLayer
     -> BlockNo
     -> Trace IO Text
-    -> DbSyncEnv
+    -> SyncEnv
     -> Word64
     -> Generic.Tx
-    -> ExceptT DbSyncNodeError m ()
+    -> ExceptT SyncNodeError m ()
 insertTx dataLayer blockNumber tracer env _blockIndex tx =
     mapM_ (insertCertificate dataLayer blockNumber tracer env) $ Generic.txCertificates tx
 
@@ -186,13 +212,15 @@ insertCertificate
     => DataLayer
     -> BlockNo
     -> Trace IO Text
-    -> DbSyncEnv
+    -> SyncEnv
     -> Generic.TxCertificate
-    -> ExceptT DbSyncNodeError m ()
+    -> ExceptT SyncNodeError m ()
 insertCertificate dataLayer blockNumber tracer _env (Generic.TxCertificate _idx cert) =
   case cert of
     Shelley.DCertDeleg _deleg ->
-        liftIO $ logInfo tracer "insertCertificate: DCertDeleg"
+        -- Since at some point we start to have a large number of delegation
+        -- certificates, this should be output just in debug mode.
+        liftIO $ logDebug tracer "insertCertificate: DCertDeleg"
     Shelley.DCertPool pool ->
         insertPoolCert dataLayer blockNumber tracer pool
     Shelley.DCertMir _mir ->
@@ -205,8 +233,8 @@ insertPoolCert
     => DataLayer
     -> BlockNo
     -> Trace IO Text
-    -> Shelley.PoolCert StandardShelley
-    -> ExceptT DbSyncNodeError m ()
+    -> Shelley.PoolCert StandardCrypto
+    -> ExceptT SyncNodeError m ()
 insertPoolCert dataLayer blockNumber tracer pCert =
   case pCert of
     Shelley.RegPool pParams -> do
@@ -264,8 +292,8 @@ insertPoolRegister
     :: forall m. (MonadIO m)
     => DataLayer
     -> Trace IO Text
-    -> Shelley.PoolParams StandardShelley
-    -> ExceptT DbSyncNodeError m ()
+    -> Shelley.PoolParams StandardCrypto
+    -> ExceptT SyncNodeError m ()
 insertPoolRegister dataLayer tracer params = do
   let poolIdHash = B16.encode . Generic.unKeyHashRaw $ Shelley._poolId params
   let poolId = PoolId . decodeUtf8 $ poolIdHash

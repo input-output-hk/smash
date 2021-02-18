@@ -1,8 +1,7 @@
-index-state: 2020-11-15T00:00:00Z
+index-state: 2021-01-08T00:00:00Z
 
 packages:
     ./smash
-    ./smash-sync
     ./smash-servant-types
 
 constraints:
@@ -11,10 +10,12 @@ constraints:
     -- systemd-2.3.0 requires at least network 3.1.1.0 but it doesn't declare
     -- that dependency
   , network >= 3.1.1.0
-  , prometheus >= 2.1.2
+  , persistent-postgresql >= 2.11.0.1
 
--- -----------------------------------------------------------------------------
--- Disable all tests by defauly and yhen enable specific tests in this repo
+package smash
+  ghc-options: -Wall -Werror -Wredundant-constraints -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wunused-imports
+
+------------------------------------------------------------------------------
 
 tests: False
 
@@ -24,44 +25,53 @@ package smash
 package smash-servant-types
   tests: True
 
+-- These are needed because Nix is doing something crazy.
+package cardano-api
+  tests: False
+
+package cardano-node
+  tests: False
+
+package ouroboros-consensus-cardano
+  tests: False
+
 test-show-details: direct
 
--- -----------------------------------------------------------------------------
+------------------------------------------------------------------------------
 
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-db-sync
-  tag: 3cf868ec8c06265e4b670ac737af640d716e5ef7
-  --sha256: 152yhay3riak41saz5s5zdhlkb5c5iqpy1gw1rvwjp6rwg1mc77n
+  tag: d5aa846e0751227aa6461084d6ea0567535f752e
+  --sha256: 0xhm53yycjp6zgqzx6l3hvmgl3046g276qq7vx2wbhljwwqvvk15
   subdir:
+    cardano-sync
     cardano-db
     cardano-db-sync
-    cardano-db-sync-extended
 
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-base
-  tag: 2574600da11065937c1f07e4b234ecb451016a2e
-  --sha256: 0nq8bpzsr3fd2i59a6s6qb6slpymjh47zv57wlifjfvhh0xlgmpx
+  tag: b364d925e0a72689ecba40dd1f4899f76170b894
+  --sha256: 0igb4gnzlwxy1h40vy5s1aysmaa04wypxn7sn67qy6din7ysmad3
   subdir:
     binary
     binary/test
     cardano-crypto-class
-    cardano-crypto-tests
     cardano-crypto-praos
     slotting
 
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-crypto
-  tag: 2547ad1e80aeabca2899951601079408becbc92c
-  --sha256: 1p2kg2w02q5w1cvqzhfhqmxviy4xrzada3mmb096j2n6hfr20kri
+  tag: f73079303f663e028288f9f4a9e08bcca39a923e
+  --sha256: 1n87i15x54s0cjkh3nsxs4r1x016cdw1fypwmr68936n3xxsjn6q
 
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-ledger-specs
-  tag: 581767d1329f3f702e332af08355e81a0f85333e
-  --sha256: 198p4v2bi36y6x512w35qycvjm7nds7jf8qh7r84pj1qsy43vf7w
+  tag: 097890495cbb0e8b62106bcd090a5721c3f4b36f
+  --sha256: 0i3y9n0rsyarvhfqzzzjccqnjgwb9fbmbs6b7vj40afjhimf5hcj
   subdir:
     byron/crypto
     byron/crypto/test
@@ -79,22 +89,19 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-node
-  tag: 400d18092ce604352cf36fe5f105b0d7c78be074
-  --sha256: 19r4mamm9bxc1hz32qgsrfnrfxwp4pgnb4d28fzai3izznil03vi
+  tag: 9a7331cce5e8bc0ea9c6bfa1c28773f4c5a7000f
+  --sha256: 1scffi7igv4kj93bpjf8yibcaq0sskfikmm00f7r6q031l53y50c
   subdir:
     cardano-api
-    cardano-api/test
-    cardano-cli
     cardano-config
     cardano-node
-    cardano-node-chairman
     hedgehog-extras
 
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-prelude
-  tag: 742e8525b96bf4b66fb61a00c8298d75d7931d5e
-  --sha256: 1132r58bjgdcf7yz3n77nlrkanqcmpn5b5km4nw151yar2dgifsv
+  tag: ee4e7b547a991876e6b05ba542f4e62909f4a571
+  --sha256: 0dg6ihgrn5mgqp95c4f11l6kh9k3y75lwfqf47hdp554w7wyvaw6
   subdir:
     cardano-prelude
     cardano-prelude-test
@@ -123,8 +130,8 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/ouroboros-network
-  tag: c2bd6814e231bfd48059f306ef486b830e524aa8
-  --sha256: 0sjp5i4szp5nf1dkwang5w8pydjx5p22by8wisihs1410rxgwd7n
+  tag: 6cb9052bde39472a0555d19ade8a42da63d3e904
+  --sha256: 0rz4acz15wda6yfc7nls6g94gcwg2an5zibv0irkxk297n76gkmg
   subdir:
     cardano-client
     io-sim
@@ -140,3 +147,4 @@ source-repository-package
     typed-protocols-examples
     network-mux
     Win32-network
+

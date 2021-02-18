@@ -75,7 +75,7 @@ fetchInsertNewPoolMetadata
     -> Trace IO Text
     -> DB.PoolMetadataReferenceId
     -> PoolId
-    -> Shelley.PoolMetaData
+    -> Shelley.PoolMetadata
     -> IO ()
 fetchInsertNewPoolMetadata dataLayer tracer refId poolId md  = do
     now <- Time.getPOSIXTime

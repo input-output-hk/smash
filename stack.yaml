@@ -1,10 +1,9 @@
-resolver: https://raw.githubusercontent.com/input-output-hk/cardano-haskell/5ed4af4df2a609361260f159cd0e47e1c4073e2c/snapshots/cardano-1.24.2.yaml
+resolver: https://raw.githubusercontent.com/input-output-hk/cardano-haskell/master/snapshots/cardano-1.25.1.yaml
 compiler: ghc-8.6.5
 
 #allow-newer: true
 
 packages:
-- smash-sync
 - smash
 - smash-servant-types
 
@@ -18,6 +17,10 @@ ghc-options:
   smash:                    -Wall -Werror -fno-warn-redundant-constraints
   #smash-servant-types:      -Wall -Werror -fno-warn-redundant-constraints
 
+# Generate files required by Weeder.
+# See https://github.com/ndmitchell/weeder/issues/53
+ghc-options: {"$locals": -ddump-to-file -ddump-hi}
+
 extra-deps:
   - persistent-2.11.0.1
   - persistent-postgresql-2.11.0.0
@@ -29,11 +32,11 @@ extra-deps:
   - prometheus-2.2.2
 
   - git: https://github.com/input-output-hk/cardano-db-sync
-    commit: 3cf868ec8c06265e4b670ac737af640d716e5ef7
+    commit: d5aa846e0751227aa6461084d6ea0567535f752e
     subdirs:
+      - cardano-sync
       - cardano-db
       - cardano-db-sync
-      - cardano-db-sync-extended
 
 nix:
   shell-file: nix/stack-shell.nix
