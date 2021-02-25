@@ -174,8 +174,7 @@ runCardanoSyncWithSmash dbSyncNodeParams = do
     -- Run metrics server
     --(metrics, server) <- registerMetricsServer 8080
 
-    let dataLayer :: DB.DataLayer
-        dataLayer = DB.postgresqlDataLayer (Just tracer)
+    dataLayer <- DB.createCachedDataLayer (Just tracer)
 
     -- The plugin requires the @DataLayer@.
     let smashDbSyncNodePlugin = poolMetadataDbSyncNodePlugin dataLayer

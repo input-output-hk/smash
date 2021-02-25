@@ -84,7 +84,7 @@ type BasicAuthURL = BasicAuth "smash" User
 type HealthStatusAPI = "api" :> APIVersion :> "status" :> ApiRes Get HealthStatus
 
 -- GET api/v1/metadata/{hash}
-type OfflineMetadataAPI = "api" :> APIVersion :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> Get '[JSON] (Headers '[Header "Cache" Text] (ApiResult DBFail PoolMetadataRaw))
+type OfflineMetadataAPI = "api" :> APIVersion :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> Get '[JSON] (Headers '[Header "Cache-Control" Text] (ApiResult DBFail PoolMetadataRaw))
 
 -- GET api/v1/delisted
 type DelistedPoolsAPI = "api" :> APIVersion :> "delisted" :> ApiRes Get [PoolId]

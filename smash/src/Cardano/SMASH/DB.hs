@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE LambdaCase          #-}
@@ -8,15 +9,12 @@
 module Cardano.SMASH.DB
     ( module X
     , DataLayer (..)
-    , stubbedDataLayer
-    , createStubbedDataLayer
+    , cachedDataLayer
+    , createCachedDataLayer
     , postgresqlDataLayer
     -- * Examples
-    , DelistedPoolsIORef (..)
-    , RetiredPoolsIORef (..)
-    , stubbedInitialDataMap
-    , stubbedDelistedPools
-    , stubbedRetiredPools
+    , InMemoryCacheIORef (..)
+    , InMemoryCache (..)
     ) where
 
 import           Cardano.Prelude
@@ -24,7 +22,8 @@ import           Cardano.Prelude
 import           Cardano.BM.Trace                          (Trace)
 import           Control.Monad.Trans.Except.Extra          (left, newExceptT)
 
-import           Data.IORef                                (IORef, modifyIORef,
+import           Data.IORef                                (IORef,
+                                                            atomicModifyIORef',
                                                             newIORef, readIORef)
 import qualified Data.Map                                  as Map
 import           Data.Time.Clock                           (UTCTime)
@@ -78,12 +77,14 @@ import           Cardano.SMASH.DBSync.Db.Types             (TickerName (..))
 -- but currently there is no complexity involved for that to be a sane choice.
 data DataLayer = DataLayer
     { dlGetPoolMetadata         :: PoolId -> PoolMetadataHash -> IO (Either DBFail (TickerName, PoolMetadataRaw))
+    , dlGetAllPoolMetadata      :: IO [PoolMetadata]
     , dlAddPoolMetadata         :: Maybe PoolMetadataReferenceId -> PoolId -> PoolMetadataHash -> PoolMetadataRaw -> PoolTicker -> IO (Either DBFail PoolMetadataRaw)
 
     , dlAddMetaDataReference    :: PoolId -> PoolUrl -> PoolMetadataHash -> IO (Either DBFail PoolMetadataReferenceId)
 
-    , dlAddReservedTicker       :: TickerName -> PoolMetadataHash -> IO (Either DBFail ReservedTickerId)
-    , dlCheckReservedTicker     :: TickerName -> IO (Maybe ReservedTicker)
+    , dlGetReservedTickers      :: IO [(TickerName, PoolMetadataHash)]
+    , dlAddReservedTicker       :: TickerName -> PoolMetadataHash -> IO (Either DBFail TickerName)
+    , dlCheckReservedTicker     :: TickerName -> PoolMetadataHash -> IO (Maybe TickerName)
 
     , dlGetDelistedPools        :: IO [PoolId]
     , dlCheckDelistedPool       :: PoolId -> IO Bool
@@ -92,7 +93,7 @@ data DataLayer = DataLayer
 
     , dlAddRetiredPool          :: PoolId -> Word64 -> IO (Either DBFail PoolId)
     , dlCheckRetiredPool        :: PoolId -> IO (Either DBFail (PoolId, Word64))
-    , dlGetRetiredPools         :: IO (Either DBFail [PoolId])
+    , dlGetRetiredPools         :: IO (Either DBFail [(PoolId, Word64)])
     , dlRemoveRetiredPool       :: PoolId -> IO (Either DBFail PoolId)
 
     , dlGetAdminUsers           :: IO (Either DBFail [AdminUser])
@@ -112,93 +113,292 @@ data DataLayer = DataLayer
 
     } deriving (Generic)
 
-newtype DelistedPoolsIORef = DelistedPoolsIORef (IORef [PoolId])
+-- | The in-memory cache that server as a front-end to the DB calls.
+data InMemoryCache = InMemoryCache
+    { imcDelistedPools :: [PoolId]
+    , imcRetiredPools :: [(PoolId, Word64)]
+    , imcReservedTickers :: [(TickerName, PoolMetadataHash)]
+    , imcMetadata :: Map (PoolId, PoolMetadataHash) (TickerName, PoolMetadataRaw)
+    } deriving (Eq, Show, Generic)
+
+newtype InMemoryCacheIORef = InMemoryCacheIORef (IORef InMemoryCache)
     deriving (Eq)
 
-newtype RetiredPoolsIORef = RetiredPoolsIORef (IORef [PoolId])
-    deriving (Eq)
-
--- | Simple stubbed @DataLayer@ for an example.
--- We do need state here. _This is thread safe._
--- __This is really our model here.__
-stubbedDataLayer
-    :: IORef (Map (PoolId, PoolMetadataHash) (TickerName, PoolMetadataRaw))
-    -> DelistedPoolsIORef
-    -> RetiredPoolsIORef
+-- | Caching @DataLayer@.
+-- We do need state here.
+-- _This is thread safe._
+--
+-- Why we use a single structure (atomicity and space leak):
+--
+-- Docs: Extending the atomicity to multiple IORefs is problematic,
+-- so it is recommended that if you need to do anything more complicated then
+-- using MVar instead is a good idea.
+--
+-- Docs: Be warned that modifyIORef does not apply the function strictly.
+-- This means if the program calls modifyIORef many times,
+-- but seldomly uses the value, thunks will pile up in memory resulting
+-- in a space leak. This is a common mistake made when using an IORef as a counter.
+--
+-- Before we even start serving this, we need to populate it with the DB data!
+--
+-- Maps make sure we do O(log n) when possible.
+-- We shouldn't use @HashMap@ because of collision (attack vectors).
+--
+-- Reads will be REALLY fast and writes will be a little slower.
+cachedDataLayer
+    :: DataLayer
+    -> InMemoryCacheIORef
     -> DataLayer
-stubbedDataLayer ioDataMap (DelistedPoolsIORef ioDelistedPool) (RetiredPoolsIORef ioRetiredPools) = DataLayer
-    { dlGetPoolMetadata     = \poolId poolmdHash -> do
-        ioDataMap' <- readIORef ioDataMap
-        case (Map.lookup (poolId, poolmdHash) ioDataMap') of
-            Just (poolTicker', poolOfflineMetadata') -> return . Right $ (poolTicker', poolOfflineMetadata')
-            Nothing -> return $ Left (DbLookupPoolMetadataHash poolId poolmdHash)
-    , dlAddPoolMetadata     = \ _ poolId poolmdHash poolMetadata poolTicker -> do
-        -- TODO(KS): What if the pool metadata already exists?
-        _ <- modifyIORef ioDataMap (Map.insert (poolId, poolmdHash) (TickerName $ getPoolTicker poolTicker, poolMetadata))
-        return . Right $ poolMetadata
+cachedDataLayer dbDataLayer (InMemoryCacheIORef inMemoryCacheIORef) =
+    DataLayer
+        -- Cache hit
+        { dlGetPoolMetadata     = \poolId poolMetadataHash' -> do
+            inMemoryCache <- readIORef inMemoryCacheIORef
 
-    , dlAddMetaDataReference = \_poolId _poolUrl _poolMetadataHash -> panic "!"
+            let metadataMap :: Map (PoolId, PoolMetadataHash) (TickerName, PoolMetadataRaw)
+                metadataMap = imcMetadata inMemoryCache
 
-    , dlAddReservedTicker = \_tickerName _poolMetadataHash -> panic "!"
-    , dlCheckReservedTicker = \_tickerName -> pure Nothing
+            let maybeMetadata = Map.lookup (poolId, poolMetadataHash') metadataMap
 
-    , dlGetDelistedPools = readIORef ioDelistedPool
-    , dlCheckDelistedPool = \poolId -> do
-        blacklistedPool' <- readIORef ioDelistedPool
-        return $ poolId `elem` blacklistedPool'
-    , dlAddDelistedPool  = \poolId -> do
-        _ <- modifyIORef ioDelistedPool (\pools -> [poolId] ++ pools)
-        return $ Right poolId
-    , dlRemoveDelistedPool = \poolId -> do
-        _ <- modifyIORef ioDelistedPool (\pools -> filter (/= poolId) pools)
-        return $ Right poolId
+            case maybeMetadata of
+                Nothing -> return $ Left (DbLookupPoolMetadataHash poolId poolMetadataHash')
+                Just tickerNamePoolMeta -> return $ Right tickerNamePoolMeta
 
-    , dlAddRetiredPool      = \poolId _ -> do
-        _ <- modifyIORef ioRetiredPools (\pools -> [poolId] ++ pools)
-        return . Right $ poolId
-    , dlCheckRetiredPool    = \_ -> panic "!"
-    , dlGetRetiredPools     = Right <$> readIORef ioRetiredPools
-    , dlRemoveRetiredPool   = \_ -> panic "!"
+        , dlGetAllPoolMetadata = dlGetAllPoolMetadata dbDataLayer
+        , dlAddPoolMetadata     = \mPoolMetadataRefId poolId poolMetadataHash' poolMetadata poolTicker -> runExceptT $ do
+            -- Modify database
+            let addPoolMetadata = dlAddPoolMetadata dbDataLayer
+            poolMetadataRaw <-  ExceptT $ addPoolMetadata
+                                    mPoolMetadataRefId
+                                    poolId
+                                    poolMetadataHash'
+                                    poolMetadata
+                                    poolTicker
 
-    , dlGetAdminUsers       = return $ Right []
-    , dlAddAdminUser        = \_ -> panic "!"
-    , dlRemoveAdminUser     = \_ -> panic "!"
+            -- TODO(KS): Horrible, I know. Will fix.
+            let tickerName = TickerName $ getPoolTicker poolTicker
 
-    , dlAddFetchError       = \_ -> panic "!"
-    , dlGetFetchErrors      = \_ -> panic "!"
+            -- Modify in-memory cache (thread-safe), if the DB operation is a success.
+            _ <- liftIO $ atomicModifyIORef' inMemoryCacheIORef $ \inMemoryCache ->
 
-    , dlGetPool             = \_ -> panic "!"
-    , dlAddPool             = \_ -> panic "!"
+                let metadataMap :: Map (PoolId, PoolMetadataHash) (TickerName, PoolMetadataRaw)
+                    metadataMap = imcMetadata inMemoryCache
 
-    , dlAddGenesisMetaBlock = \_ _ -> panic "!"
+                    newMetadataMap = Map.insert (poolId, poolMetadataHash') (tickerName, poolMetadata) metadataMap
 
-    , dlGetSlotHash         = \_ -> panic "!"
-    }
+                    newInMemoryCache :: InMemoryCache
+                    newInMemoryCache =
+                        inMemoryCache
+                            { imcMetadata = newMetadataMap }
 
--- The approximation for the table.
-stubbedInitialDataMap :: IO (IORef (Map (PoolId, PoolMetadataHash) (TickerName, PoolMetadataRaw)))
-stubbedInitialDataMap = newIORef $ Map.fromList
-    [ ((PoolId "AAAAC3NzaC1lZDI1NTE5AAAAIKFx4CnxqX9mCaUeqp/4EI1+Ly9SfL23/Uxd0Ieegspc", PoolMetadataHash "HASH"), (TickerName "Test", PoolMetadataRaw $ show examplePoolOfflineMetadata))
-    ]
+                in  (newInMemoryCache, ())
 
--- The approximation for the table.
-stubbedDelistedPools :: IO DelistedPoolsIORef
-stubbedDelistedPools = DelistedPoolsIORef <$> newIORef []
+            return poolMetadataRaw
 
--- The approximation for the table.
-stubbedRetiredPools :: IO RetiredPoolsIORef
-stubbedRetiredPools = RetiredPoolsIORef <$> newIORef []
+        , dlAddMetaDataReference = dlAddMetaDataReference dbDataLayer
 
--- Init the data layer with the in-memory stubs.
-createStubbedDataLayer :: IO DataLayer
-createStubbedDataLayer = do
+        -- TODO(KS): Cache hit?
+        , dlGetReservedTickers = dlGetReservedTickers dbDataLayer
+        , dlAddReservedTicker = \tickerName poolMetadataHash' -> runExceptT $ do
+            -- Modify database
+            let addReservedTicker = dlAddReservedTicker dbDataLayer
+            tickerName' <- ExceptT $ addReservedTicker tickerName poolMetadataHash'
 
-    ioDataMap        <- stubbedInitialDataMap
-    ioDelistedPools  <- stubbedDelistedPools
-    ioRetiredPools   <- stubbedRetiredPools
+            -- Modify in-memory cache (thread-safe), if the DB operation is a success.
+            _ <- liftIO $ atomicModifyIORef' inMemoryCacheIORef $ \inMemoryCache ->
+
+                let reservedTickers = imcReservedTickers inMemoryCache
+
+                    newReservedTickers = (tickerName', poolMetadataHash') : reservedTickers
+
+                    newInMemoryCache :: InMemoryCache
+                    newInMemoryCache =
+                        inMemoryCache
+                            { imcReservedTickers = newReservedTickers }
+
+                in  (newInMemoryCache, ())
+
+            return tickerName'
+
+        -- Cache hit
+        , dlCheckReservedTicker = \tickerName poolMetadataHash' -> do
+            inMemoryCache <- readIORef inMemoryCacheIORef
+            let reservedTickers = imcReservedTickers inMemoryCache
+            let isTickerReserved = (tickerName, poolMetadataHash') `elem` reservedTickers
+            if isTickerReserved
+                then return $ Just tickerName
+                else return Nothing
+
+        , dlGetDelistedPools = do
+            inMemoryCache <- readIORef inMemoryCacheIORef
+            let delistedPools = imcDelistedPools inMemoryCache
+            return delistedPools
+
+        -- Cache hit.
+        , dlCheckDelistedPool = \poolId -> do
+            inMemoryCache <- readIORef inMemoryCacheIORef
+            let delistedPools = imcDelistedPools inMemoryCache
+            return $ poolId `elem` delistedPools
+
+        , dlAddDelistedPool  = \poolId -> runExceptT $ do
+            -- Modify database
+            let addDelistedPool = dlAddDelistedPool dbDataLayer
+            poolId' <- ExceptT $ addDelistedPool poolId
+
+            -- Modify in-memory cache (thread-safe), if the DB operation is a success.
+            _ <- liftIO $ atomicModifyIORef' inMemoryCacheIORef $ \inMemoryCache ->
+
+                let delistedPools = imcDelistedPools inMemoryCache
+
+                    newDelistedPools = poolId' : delistedPools
+
+                    newInMemoryCache :: InMemoryCache
+                    newInMemoryCache =
+                        inMemoryCache
+                            { imcDelistedPools = newDelistedPools }
+
+                in  (newInMemoryCache, ())
+
+            return poolId'
+
+        , dlRemoveDelistedPool = \poolId -> runExceptT $ do
+            -- Modify database
+            let removeDelistedPool = dlRemoveDelistedPool dbDataLayer
+            poolId' <- ExceptT $ removeDelistedPool poolId
+
+            -- Modify in-memory cache (thread-safe), if the DB operation is a success.
+            _ <- liftIO $ atomicModifyIORef' inMemoryCacheIORef $ \inMemoryCache ->
+
+                let delistedPools = imcDelistedPools inMemoryCache
+
+                    newDelistedPools = filter (/= poolId') delistedPools
+
+                    newInMemoryCache :: InMemoryCache
+                    newInMemoryCache =
+                        inMemoryCache
+                            { imcDelistedPools = newDelistedPools }
+
+                in  (newInMemoryCache, ())
+
+
+            return poolId'
+
+        , dlAddRetiredPool      = \poolId blockNo -> runExceptT $ do
+             -- Modify database
+            let addRetiredPool = dlAddRetiredPool dbDataLayer
+            poolId' <- ExceptT $ addRetiredPool poolId blockNo
+
+            -- Modify in-memory cache (thread-safe), if the DB operation is a success.
+            _ <- liftIO $ atomicModifyIORef' inMemoryCacheIORef $ \inMemoryCache ->
+
+                let retiredPools = imcRetiredPools inMemoryCache
+
+                --let filteredRetiredPools = filter ((/= poolId') . fst) retiredPools
+                    newRetiredPools = (poolId, blockNo) : retiredPools
+
+                    newInMemoryCache :: InMemoryCache
+                    newInMemoryCache =
+                        inMemoryCache
+                            { imcRetiredPools = newRetiredPools }
+
+                in  (newInMemoryCache, ())
+
+            return poolId'
+
+        -- Cache hit
+        , dlCheckRetiredPool    = \poolId -> do
+            inMemoryCache <- readIORef inMemoryCacheIORef
+            let retiredPools = imcRetiredPools inMemoryCache
+            let foundRetiredPools = filter ((== poolId) . fst) $ retiredPools
+            case foundRetiredPools of
+                []               -> return $ Left RecordDoesNotExist
+                (retiredPool':_) -> return $ Right retiredPool'
+
+        , dlGetRetiredPools     = do
+            inMemoryCache <- readIORef inMemoryCacheIORef
+            let retiredPools = imcRetiredPools inMemoryCache
+            -- Just get @PoolId@
+            return $ Right retiredPools
+
+        , dlRemoveRetiredPool   = \poolId -> runExceptT $ do
+            -- Modify database
+            let removeRetiredPool = dlRemoveRetiredPool dbDataLayer
+            poolId' <- ExceptT $ removeRetiredPool poolId
+
+            -- Modify in-memory cache (thread-safe), if the DB operation is a success.
+            _ <- liftIO $ atomicModifyIORef' inMemoryCacheIORef $ \inMemoryCache ->
+
+                let retiredPools = imcRetiredPools inMemoryCache
+
+                    newRetiredPools = filter ((/= poolId') . fst) retiredPools
+
+                    newInMemoryCache :: InMemoryCache
+                    newInMemoryCache =
+                        inMemoryCache
+                            { imcRetiredPools = newRetiredPools }
+
+                in  (newInMemoryCache, ())
+
+            return poolId'
+
+        , dlGetAdminUsers       = dlGetAdminUsers dbDataLayer
+        , dlAddAdminUser        = dlAddAdminUser dbDataLayer
+        , dlRemoveAdminUser     = dlRemoveAdminUser dbDataLayer
+
+        , dlAddFetchError       = dlAddFetchError dbDataLayer
+        , dlGetFetchErrors      = dlGetFetchErrors dbDataLayer
+
+        , dlGetPool             = dlGetPool dbDataLayer
+        , dlAddPool             = dlAddPool dbDataLayer
+
+        , dlAddGenesisMetaBlock = dlAddGenesisMetaBlock dbDataLayer
+
+        , dlGetSlotHash         = dlGetSlotHash dbDataLayer
+        }
+
+-- Init the data layer with the in-memory cache.
+createCachedDataLayer :: Maybe (Trace IO Text) -> IO DataLayer
+createCachedDataLayer mTracer = do
+
+    let dbDataLayer = postgresqlDataLayer mTracer
+
+    let getDelistedPools = dlGetDelistedPools dbDataLayer
+    delistedPools <- getDelistedPools
+
+    let getRetiredPools = dlGetRetiredPools dbDataLayer
+    retiredPoolsE <- getRetiredPools
+
+    let retiredPools =
+            case retiredPoolsE of
+                Left _err -> panic $ "Cannot fetch retired pools. Cannot populate cache!"
+                Right retiredPools' -> retiredPools'
+
+    let getReservedTickers = dlGetReservedTickers dbDataLayer
+    reservedTickers <- getReservedTickers
+
+    let getAllPoolMetadata = dlGetAllPoolMetadata dbDataLayer
+    allPoolMetadata <- getAllPoolMetadata
+
+    -- Just re-order the structure.
+    let tupleMapMeta =
+            map (\(PoolMetadata poolId tickerName hash metadata _pmrId) ->
+                ((poolId, hash), (tickerName, metadata))) allPoolMetadata
+
+    let allMetadata = Map.fromList tupleMapMeta
+
+    -- The initial cache we need.
+    let inMemoryCache =
+            InMemoryCache
+                { imcDelistedPools = delistedPools
+                , imcRetiredPools = retiredPools
+                , imcReservedTickers = reservedTickers
+                , imcMetadata = allMetadata
+                }
+
+    inMemoryCacheIORef <- InMemoryCacheIORef <$> newIORef inMemoryCache
 
     let dataLayer :: DataLayer
-        dataLayer = stubbedDataLayer ioDataMap ioDelistedPools ioRetiredPools
+        dataLayer = cachedDataLayer dbDataLayer inMemoryCacheIORef
 
     return dataLayer
 
@@ -210,6 +410,9 @@ postgresqlDataLayer tracer = DataLayer
         let poolTickerName = poolMetadataTickerName <$> poolMetadata
         let poolMetadata' = poolMetadataMetadata <$> poolMetadata
         return $ (,) <$> poolTickerName <*> poolMetadata'
+    , dlGetAllPoolMetadata = do
+        allMetadata <- runDbAction tracer queryAllPoolMetadata
+        return allMetadata
     , dlAddPoolMetadata     = \mRefId poolId poolHash poolMetadata poolTicker -> do
         let poolTickerName = TickerName $ getPoolTicker poolTicker
         poolMetadataId <- runDbAction tracer $ insertPoolMetadata $ PoolMetadata poolId poolTickerName poolHash poolMetadata mRefId
@@ -227,10 +430,22 @@ postgresqlDataLayer tracer = DataLayer
                 }
         return poolMetadataRefId
 
-    , dlAddReservedTicker = \tickerName poolMetadataHash' ->
-        runDbAction tracer $ insertReservedTicker $ ReservedTicker tickerName poolMetadataHash'
-    , dlCheckReservedTicker = \tickerName ->
-        runDbAction tracer $ queryReservedTicker tickerName
+    , dlGetReservedTickers = do
+        reservedTickers <- runDbAction tracer queryAllReservedTickers
+        return $ map (\reservedTicker -> (reservedTickerName reservedTicker, reservedTickerPoolHash reservedTicker)) reservedTickers
+
+    , dlAddReservedTicker = \tickerName poolMetadataHash' -> do
+        reservedTickerId <- runDbAction tracer $ insertReservedTicker $ ReservedTicker tickerName poolMetadataHash'
+
+        case reservedTickerId of
+            Left err  -> return $ Left err
+            Right _id -> return $ Right tickerName
+    , dlCheckReservedTicker = \tickerName poolMetadataHash' -> do
+        mReservedTicker <- runDbAction tracer $ queryReservedTicker tickerName poolMetadataHash'
+
+        case mReservedTicker of
+            Nothing              -> return Nothing
+            Just _reservedTicker -> return $ Just tickerName
 
     , dlGetDelistedPools = do
         delistedPoolsDB <- runDbAction tracer queryAllDelistedPools
@@ -264,7 +479,7 @@ postgresqlDataLayer tracer = DataLayer
             Right retiredPool' -> return $ Right (retiredPoolPoolId retiredPool', retiredPoolBlockNo retiredPool')
     , dlGetRetiredPools = do
         retiredPools <- runDbAction tracer $ queryAllRetiredPools
-        return $ Right $ map retiredPoolPoolId retiredPools
+        return $ Right $ map (\retiredPool' -> (retiredPoolPoolId retiredPool', retiredPoolBlockNo retiredPool')) retiredPools
     , dlRemoveRetiredPool = \poolId -> do
         isDeleted <- runDbAction tracer $ deleteRetiredPool poolId
         if isDeleted

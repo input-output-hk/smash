@@ -19,8 +19,8 @@ module Cardano.SMASH.Lib
     ) where
 
 #ifdef TESTING_MODE
-import           Cardano.SMASH.Types         (PoolIdBlockNumber (..), TickerName,
-                                              pomTicker)
+import           Cardano.SMASH.Types         (PoolIdBlockNumber (..),
+                                              TickerName, pomTicker)
 import           Data.Aeson                  (eitherDecode')
 import qualified Data.ByteString.Lazy        as BL
 #endif
@@ -39,22 +39,20 @@ import           Data.Version                (showVersion)
 import           Network.Wai.Handler.Warp    (defaultSettings, runSettings,
                                               setBeforeMainLoop, setPort)
 
-import           Servant                     ((:<|>) (..))
 import           Servant                     (Application, BasicAuthCheck (..),
                                               BasicAuthData (..),
                                               BasicAuthResult (..),
                                               Context (..), Handler (..),
                                               Header, Headers, Server, err400,
                                               err403, err404, errBody,
-                                              serveWithContext)
+                                              serveWithContext, (:<|>) (..))
 import           Servant.API.ResponseHeaders (addHeader)
 import           Servant.Swagger             (toSwagger)
 
 import           Cardano.SMASH.API           (API, fullAPI, smashApi)
 import           Cardano.SMASH.DB            (AdminUser (..), DBFail (..),
                                               DataLayer (..),
-                                              createStubbedDataLayer,
-                                              reservedTickerPoolHash)
+                                              createCachedDataLayer)
 
 import           Cardano.SMASH.Types         (ApiResult (..),
                                               ApplicationUser (..),
@@ -71,6 +69,19 @@ import           Cardano.SMASH.Types         (ApiResult (..),
 
 import           Paths_smash                 (version)
 
+-- | Cache control header.
+data CacheControl
+    = NoCache
+    | CacheSeconds Int
+    | CacheOneHour
+    | CacheOneDay
+
+-- | Render the cache control header.
+cacheControlHeader :: CacheControl -> Text
+cacheControlHeader NoCache = "no-store"
+cacheControlHeader (CacheSeconds sec) = "max-age=" <> show sec
+cacheControlHeader CacheOneHour = cacheControlHeader $ CacheSeconds (60 * 60)
+cacheControlHeader CacheOneDay = cacheControlHeader $ CacheSeconds (24 * 60 * 60)
 
 -- | Swagger spec for Todo API.
 todoSwagger :: Swagger
@@ -123,7 +134,7 @@ runAppStubbed configuration = do
 mkAppStubbed :: Configuration -> IO Application
 mkAppStubbed configuration = do
 
-    dataLayer <- createStubbedDataLayer
+    dataLayer <- createCachedDataLayer Nothing
 
     return $ serveWithContext
         fullAPI
@@ -222,8 +233,8 @@ getPoolOfflineMetadata
     :: DataLayer
     -> PoolId
     -> PoolMetadataHash
-    -> Handler ((Headers '[Header "Cache" Text] (ApiResult DBFail PoolMetadataRaw)))
-getPoolOfflineMetadata dataLayer poolId poolHash = fmap (addHeader "always") . convertIOToHandler $ do
+    -> Handler ((Headers '[Header "Cache-Control" Text] (ApiResult DBFail PoolMetadataRaw)))
+getPoolOfflineMetadata dataLayer poolId poolHash = fmap (addHeader $ cacheControlHeader NoCache) . convertIOToHandler $ do
 
     let checkDelistedPool = dlCheckDelistedPool dataLayer
     isDelisted <- checkDelistedPool poolId
@@ -231,6 +242,13 @@ getPoolOfflineMetadata dataLayer poolId poolHash = fmap (addHeader "always") . c
     -- When it is delisted, return 403. We don't need any more info.
     when (isDelisted) $
         throwIO err403
+
+    let checkRetiredPool = dlCheckRetiredPool dataLayer
+    retiredPoolId <- checkRetiredPool poolId
+
+    -- When that pool id is retired, return 404.
+    when (isRight retiredPoolId) $
+        throwIO err404
 
     let dbGetPoolMetadata = dlGetPoolMetadata dataLayer
     poolRecord <- dbGetPoolMetadata poolId poolHash
@@ -243,13 +261,10 @@ getPoolOfflineMetadata dataLayer poolId poolHash = fmap (addHeader "always") . c
 
             -- We now check whether the reserved ticker name has been reserved for the specific
             -- pool hash.
-            reservedTicker <- checkReservedTicker tickerName
+            reservedTicker <- checkReservedTicker tickerName poolHash
             case reservedTicker of
                 Nothing -> return . ApiResult . Right $ poolMetadata
-                Just foundReservedTicker ->
-                    if (reservedTickerPoolHash foundReservedTicker) == poolHash
-                        then return . ApiResult . Right $ poolMetadata
-                        else throwIO err404
+                Just _foundReservedTicker -> throwIO err404
 
 -- |Simple health status, there are ideas for improvement.
 getHealthStatus :: Handler (ApiResult DBFail HealthStatus)
@@ -340,7 +355,7 @@ getRetiredPools dataLayer = convertIOToHandler $ do
     let getRetiredPools' = dlGetRetiredPools dataLayer
     retiredPools <- getRetiredPools'
 
-    return . ApiResult $ retiredPools
+    return . ApiResult $ map (fmap fst) retiredPools
 
 checkPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
 checkPool dataLayer poolId = convertIOToHandler $ do
