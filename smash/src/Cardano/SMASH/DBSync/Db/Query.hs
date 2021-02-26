@@ -10,6 +10,7 @@ module Cardano.SMASH.DBSync.Db.Query
   , queryLatestSlotNo
   , queryAllPools
   , queryPoolByPoolId
+  , queryAllPoolMetadata
   , queryPoolMetadata
   , queryBlockCount
   , queryBlockNo
@@ -20,6 +21,7 @@ module Cardano.SMASH.DBSync.Db.Query
   , queryCheckPoints
   , queryDelistedPool
   , queryAllDelistedPools
+  , queryAllReservedTickers
   , queryReservedTicker
   , queryAdminUsers
   , queryPoolMetadataFetchError
@@ -103,6 +105,12 @@ queryPoolByPoolId poolId = do
         subList_select . from $ \(retiredPool :: SqlExpr (Entity RetiredPool)) ->
         return $ retiredPool ^. RetiredPoolPoolId
 
+-- |Return all retired pools.
+queryAllPoolMetadata :: MonadIO m => ReaderT SqlBackend m [PoolMetadata]
+queryAllPoolMetadata = do
+  res <- selectList [] []
+  pure $ entityVal <$> res
+
 -- | Get the 'Block' associated with the given hash.
 -- We use the @Types.PoolId@ to get the nice error message out.
 queryPoolMetadata :: MonadIO m => Types.PoolId -> Types.PoolMetadataHash -> ReaderT SqlBackend m (Either DBFail PoolMetadata)
@@ -110,7 +118,7 @@ queryPoolMetadata poolId poolMetadataHash' = do
   res <- select . from $ \ poolMetadata -> do
             where_ (poolMetadata ^. PoolMetadataPoolId ==. val poolId
                 &&. poolMetadata ^. PoolMetadataHash ==. val poolMetadataHash'
-                &&. poolMetadata ^. PoolMetadataPoolId `notIn` retiredPoolsPoolId)
+                &&. poolMetadata ^. PoolMetadataPoolId `notIn` retiredPoolsPoolId) -- This is now optional
             pure poolMetadata
   pure $ maybeToEither (DbLookupPoolMetadataHash poolId poolMetadataHash') entityVal (listToMaybe res)
   where
@@ -231,11 +239,19 @@ queryAllDelistedPools = do
   res <- selectList [] []
   pure $ entityVal <$> res
 
+-- |Return all reserved tickers.
+queryAllReservedTickers :: MonadIO m => ReaderT SqlBackend m [ReservedTicker]
+queryAllReservedTickers = do
+  res <- selectList [] []
+  pure $ entityVal <$> res
+
 -- | Check if the ticker is in the table.
-queryReservedTicker :: MonadIO m => Types.TickerName -> ReaderT SqlBackend m (Maybe ReservedTicker)
-queryReservedTicker reservedTickerName' = do
+queryReservedTicker :: MonadIO m => Types.TickerName -> Types.PoolMetadataHash -> ReaderT SqlBackend m (Maybe ReservedTicker)
+queryReservedTicker reservedTickerName' poolMetadataHash' = do
   res <- select . from $ \(reservedTicker :: SqlExpr (Entity ReservedTicker)) -> do
-            where_ (reservedTicker ^. ReservedTickerName ==. val reservedTickerName')
+            where_ (reservedTicker ^. ReservedTickerName ==. val reservedTickerName'
+                &&. reservedTicker ^. ReservedTickerPoolHash ==. val poolMetadataHash')
+
             limit 1
             pure $ reservedTicker
   pure $ fmap entityVal (listToMaybe res)
