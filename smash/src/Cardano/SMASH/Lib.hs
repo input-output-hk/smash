@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE NumericUnderscores  #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 
@@ -19,15 +20,18 @@ module Cardano.SMASH.Lib
     ) where
 
 #ifdef TESTING_MODE
-import           Cardano.SMASH.Types         (PoolIdBlockNumber (..),
-                                              TickerName, pomTicker)
+import           Cardano.SMASH.Types         (PoolIdBlockNumber (..), pomTicker)
 import           Data.Aeson                  (eitherDecode')
 import qualified Data.ByteString.Lazy        as BL
 #endif
 
 import           Cardano.Prelude             hiding (Handler)
 
-import           Data.Aeson                  (encode)
+import           Data.HashMap.Strict         (elems)
+
+import           Data.Aeson                  (FromJSON, Value, decode, encode,
+                                              parseJSON, withObject, (.:))
+import           Data.Aeson.Types            (Parser, parseEither)
 
 import           Data.Swagger                (Contact (..), Info (..),
                                               License (..), Swagger (..),
@@ -36,6 +40,9 @@ import           Data.Time                   (UTCTime, addUTCTime,
                                               getCurrentTime, nominalDay)
 import           Data.Version                (showVersion)
 
+import           Network.HTTP.Simple         (Request, getResponseBody,
+                                              getResponseStatusCode,
+                                              httpJSONEither, parseRequestThrow)
 import           Network.Wai.Handler.Warp    (defaultSettings, runSettings,
                                               setBeforeMainLoop, setPort)
 
@@ -49,7 +56,8 @@ import           Servant                     (Application, BasicAuthCheck (..),
 import           Servant.API.ResponseHeaders (addHeader)
 import           Servant.Swagger             (toSwagger)
 
-import           Cardano.SMASH.API           (API, fullAPI, smashApi)
+import           Cardano.SMASH.API           (API, DelistedPoolsAPI, fullAPI,
+                                              smashApi)
 import           Cardano.SMASH.DB            (AdminUser (..), DBFail (..),
                                               DataLayer (..),
                                               createCachedDataLayer)
@@ -58,10 +66,13 @@ import           Cardano.SMASH.Types         (ApiResult (..),
                                               ApplicationUser (..),
                                               ApplicationUsers (..),
                                               Configuration (..),
-                                              HealthStatus (..), PoolFetchError,
+                                              HealthStatus (..),
+                                              PolicyResult (..), PoolFetchError,
                                               PoolId (..), PoolMetadataHash,
                                               PoolMetadataRaw (..),
-                                              TimeStringFormat (..), User,
+                                              SmashURL (..), TickerName,
+                                              TimeStringFormat (..),
+                                              UniqueTicker (..), User,
                                               UserValidity (..),
                                               checkIfUserValid,
                                               defaultConfiguration,
@@ -213,16 +224,18 @@ server _configuration dataLayer
     =       return todoSwagger
     :<|>    getPoolOfflineMetadata dataLayer
     :<|>    getHealthStatus
+    :<|>    getReservedTickers dataLayer
     :<|>    getDelistedPools dataLayer
     :<|>    delistPool dataLayer
     :<|>    enlistPool dataLayer
     :<|>    getPoolErrorAPI dataLayer
     :<|>    getRetiredPools dataLayer
     :<|>    checkPool dataLayer
+    :<|>    addTicker dataLayer
+    :<|>    fetchPolicies dataLayer
 #ifdef TESTING_MODE
     :<|>    retirePool dataLayer
     :<|>    addPool dataLayer
-    :<|>    addTicker dataLayer
 #endif
 
 
@@ -273,6 +286,17 @@ getHealthStatus = return . ApiResult . Right $
         { hsStatus = "OK"
         , hsVersion = toS $ showVersion version
         }
+
+-- |Get all reserved tickers.
+getReservedTickers :: DataLayer -> Handler (ApiResult DBFail [UniqueTicker])
+getReservedTickers dataLayer = convertIOToHandler $ do
+
+    let getReservedTickers = dlGetReservedTickers dataLayer
+    reservedTickers <- getReservedTickers
+
+    let uniqueTickers = map UniqueTicker reservedTickers
+
+    return . ApiResult . Right $ uniqueTickers
 
 -- |Get all delisted pools
 getDelistedPools :: DataLayer -> Handler (ApiResult DBFail [PoolId])
@@ -365,6 +389,97 @@ checkPool dataLayer poolId = convertIOToHandler $ do
 
     return . ApiResult $ existingPoolId
 
+addTicker :: DataLayer -> TickerName -> PoolMetadataHash -> Handler (ApiResult DBFail TickerName)
+addTicker dataLayer tickerName poolMetadataHash = convertIOToHandler $ do
+
+    let addReservedTicker = dlAddReservedTicker dataLayer
+    reservedTickerE <- addReservedTicker tickerName poolMetadataHash
+
+    case reservedTickerE of
+        Left dbFail           -> throwDBFailException dbFail
+        Right _reservedTicker -> return . ApiResult . Right $ tickerName
+
+-- TODO(KS): Fix this parser story.
+httpApiCall :: forall a. (FromJSON a) => (Value -> Parser a) -> Request -> IO a
+httpApiCall parser request = do
+    httpResult <- httpJSONEither request
+    let httpResponseBody = getResponseBody httpResult
+
+    httpResponse <- either (\_ -> panic "Invalid response body!") pure httpResponseBody
+
+    let httpStatusCode  = getResponseStatusCode httpResult
+
+    when (httpStatusCode /= 200) $
+        panic "Server not responded with 200."
+
+    case parseEither parser httpResponse of
+        Left reason -> panic "Cannot parse JSON!"
+        Right value -> pure value
+
+#ifdef DISABLE_BASIC_AUTH
+fetchPolicies :: DataLayer -> SmashURL -> Handler (ApiResult DBFail PolicyResult)
+fetchPolicies dataLayer smashURL = convertIOToHandler $ do
+
+    let request = Request $ getSmashURL $ smashURL
+
+    let getPool = dlGetPool dataLayer
+    existingPoolId <- getPool poolId
+
+    return . ApiResult $ existingPoolId
+#else
+fetchPolicies :: DataLayer -> User -> SmashURL -> Handler (ApiResult DBFail PolicyResult)
+fetchPolicies dataLayer _user smashURL = convertIOToHandler $ do
+
+    -- https://smash.cardano-mainnet.iohk.io
+    let baseSmashURL = show $ getSmashURL smashURL
+
+    -- TODO(KS): This would be nice.
+    --let delistedEndpoint = symbolVal (Proxy :: Proxy DelistedPoolsAPI)
+    --let smashDelistedEndpoint = baseSmashURL <> delistedEndpoint
+
+    let statusEndpoint = baseSmashURL <> "/api/v1/status"
+    let delistedEndpoint = baseSmashURL <> "/api/v1/delisted"
+    let reservedTickersEndpoint = baseSmashURL <> "/api/v1/tickers"
+
+    statusRequest <-
+        parseRequestThrow statusEndpoint `onException`
+            (return $ Left $ UnknownError "Error parsing status HTTP request!")
+
+    delistedRequest <-
+        parseRequestThrow delistedEndpoint `onException`
+            (return $ Left $ UnknownError "Error parsing delisted HTTP request!")
+
+    _reservedTickersRequest <-
+        parseRequestThrow reservedTickersEndpoint `onException`
+            (return $ Left $ UnknownError "Error parsing reserved tickers HTTP request!")
+
+    healthStatus :: HealthStatus <- httpApiCall parseJSON statusRequest
+    delistedPools :: [PoolId] <- httpApiCall parseJSON delistedRequest
+
+    -- TODO(KS): Current version doesn't have exposed the tickers endpoint and would fail!
+    -- uniqueTickers :: [UniqueTicker] <- httpApiCall parseJSON reservedTickersRequest
+    uniqueTickers <- pure []
+
+    -- Clear the database
+    let getDelistedPools = dlGetDelistedPools dataLayer
+    existingDelistedPools <- getDelistedPools
+
+    let removeDelistedPool = dlRemoveDelistedPool dataLayer
+    _ <- mapM removeDelistedPool existingDelistedPools
+
+    let addDelistedPool = dlAddDelistedPool dataLayer
+    _newDelistedPools <- mapM addDelistedPool delistedPools
+
+    let policyResult =
+            PolicyResult
+                { prSmashURL = smashURL
+                , prHealthStatus = healthStatus
+                , prDelistedPools = delistedPools
+                , prUniqueTickers = uniqueTickers
+                }
+
+    return . ApiResult . Right $ policyResult
+#endif
 
 #ifdef TESTING_MODE
 retirePool :: DataLayer -> PoolIdBlockNumber -> Handler (ApiResult DBFail PoolId)
@@ -383,16 +498,6 @@ addPool dataLayer poolId poolHash poolMetadataRaw = convertIOToHandler $ do
     case poolMetadataE of
         Left dbFail         -> throwDBFailException dbFail
         Right _poolMetadata -> return . ApiResult . Right $ poolId
-
-addTicker :: DataLayer -> TickerName -> PoolMetadataHash -> Handler (ApiResult DBFail TickerName)
-addTicker dataLayer tickerName poolMetadataHash = convertIOToHandler $ do
-
-    let addReservedTicker = dlAddReservedTicker dataLayer
-    reservedTickerE <- addReservedTicker tickerName poolMetadataHash
-
-    case reservedTickerE of
-        Left dbFail           -> throwDBFailException dbFail
-        Right _reservedTicker -> return . ApiResult . Right $ tickerName
 
 runPoolInsertion :: DataLayer -> PoolMetadataRaw -> PoolId -> PoolMetadataHash -> IO (Either DBFail PoolMetadataRaw)
 runPoolInsertion dataLayer poolMetadataRaw poolId poolHash = do

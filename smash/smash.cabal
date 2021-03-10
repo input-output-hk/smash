@@ -75,6 +75,8 @@ library
     , http-client
     , http-client-tls
     , http-types
+    , http-conduit
+    , unordered-containers
     , io-sim-classes
     , iohk-monitoring
     , monad-logger

@@ -46,6 +46,7 @@ library
     , cardano-api
     , base16-bytestring
     , persistent
+    , network-uri
     , servant
     , servant-server
     , servant-swagger
