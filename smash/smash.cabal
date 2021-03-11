@@ -49,6 +49,7 @@ library
     Cardano.SMASH.FetchQueue
     Cardano.SMASH.Lib
     Cardano.SMASH.Offline
+    Cardano.SMASH.HttpClient
 
   other-modules:      Paths_smash
   hs-source-dirs:     src
@@ -76,7 +77,6 @@ library
     , http-client-tls
     , http-types
     , http-conduit
-    , unordered-containers
     , io-sim-classes
     , iohk-monitoring
     , monad-logger
@@ -96,6 +96,7 @@ library
     , smash-servant-types
     , swagger2
     , template-haskell
+    , safe-exceptions
     , text
     , time
     , transformers

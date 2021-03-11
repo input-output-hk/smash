@@ -27,11 +27,7 @@ import qualified Data.ByteString.Lazy        as BL
 
 import           Cardano.Prelude             hiding (Handler)
 
-import           Data.HashMap.Strict         (elems)
-
-import           Data.Aeson                  (FromJSON, Value, decode, encode,
-                                              parseJSON, withObject, (.:))
-import           Data.Aeson.Types            (Parser, parseEither)
+import           Data.Aeson                  (encode)
 
 import           Data.Swagger                (Contact (..), Info (..),
                                               License (..), Swagger (..),
@@ -40,9 +36,6 @@ import           Data.Time                   (UTCTime, addUTCTime,
                                               getCurrentTime, nominalDay)
 import           Data.Version                (showVersion)
 
-import           Network.HTTP.Simple         (Request, getResponseBody,
-                                              getResponseStatusCode,
-                                              httpJSONEither, parseRequestThrow)
 import           Network.Wai.Handler.Warp    (defaultSettings, runSettings,
                                               setBeforeMainLoop, setPort)
 
@@ -56,11 +49,12 @@ import           Servant                     (Application, BasicAuthCheck (..),
 import           Servant.API.ResponseHeaders (addHeader)
 import           Servant.Swagger             (toSwagger)
 
-import           Cardano.SMASH.API           (API, DelistedPoolsAPI, fullAPI,
-                                              smashApi)
+import           Cardano.SMASH.API           (API, fullAPI, smashApi)
 import           Cardano.SMASH.DB            (AdminUser (..), DBFail (..),
                                               DataLayer (..),
                                               createCachedDataLayer)
+import           Cardano.SMASH.HttpClient    (httpClientFetchPolicies,
+                                              renderHttpClientError)
 
 import           Cardano.SMASH.Types         (ApiResult (..),
                                               ApplicationUser (..),
@@ -291,8 +285,8 @@ getHealthStatus = return . ApiResult . Right $
 getReservedTickers :: DataLayer -> Handler (ApiResult DBFail [UniqueTicker])
 getReservedTickers dataLayer = convertIOToHandler $ do
 
-    let getReservedTickers = dlGetReservedTickers dataLayer
-    reservedTickers <- getReservedTickers
+    let getReservedTickers' = dlGetReservedTickers dataLayer
+    reservedTickers <- getReservedTickers'
 
     let uniqueTickers = map UniqueTicker reservedTickers
 
@@ -307,20 +301,17 @@ getDelistedPools dataLayer = convertIOToHandler $ do
 
     return . ApiResult . Right $ allDelistedPools
 
-
 #ifdef DISABLE_BASIC_AUTH
 delistPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
-delistPool dataLayer poolId = convertIOToHandler $ do
-
-    let addDelistedPool = dlAddDelistedPool dataLayer
-    delistedPoolE <- addDelistedPool poolId
-
-    case delistedPoolE of
-        Left dbFail   -> throwDBFailException dbFail
-        Right poolId' -> return . ApiResult . Right $ poolId'
+delistPool dataLayer poolId = delistPool' dataLayer poolId
 #else
 delistPool :: DataLayer -> User -> PoolId -> Handler (ApiResult DBFail PoolId)
-delistPool dataLayer _user poolId = convertIOToHandler $ do
+delistPool dataLayer _user poolId = delistPool' dataLayer poolId
+#endif
+
+-- |General delist pool.
+delistPool' :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
+delistPool' dataLayer poolId = convertIOToHandler $ do
 
     let addDelistedPool = dlAddDelistedPool dataLayer
     delistedPoolE <- addDelistedPool poolId
@@ -328,21 +319,18 @@ delistPool dataLayer _user poolId = convertIOToHandler $ do
     case delistedPoolE of
         Left dbFail   -> throwDBFailException dbFail
         Right poolId' -> return . ApiResult . Right $ poolId'
-#endif
 
 #ifdef DISABLE_BASIC_AUTH
 enlistPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
-enlistPool dataLayer poolId = convertIOToHandler $ do
-
-    let removeDelistedPool = dlRemoveDelistedPool dataLayer
-    delistedPool' <- removeDelistedPool poolId
-
-    case delistedPool' of
-        Left _err     -> throwIO err404
-        Right poolId' -> return . ApiResult . Right $ poolId
+enlistPool dataLayer poolId = enlistPool' dataLayer poolId
 #else
 enlistPool :: DataLayer -> User -> PoolId -> Handler (ApiResult DBFail PoolId)
-enlistPool dataLayer _user poolId = convertIOToHandler $ do
+enlistPool dataLayer _user poolId = enlistPool' dataLayer poolId
+#endif
+
+-- |General enlist pool function.
+enlistPool' :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
+enlistPool' dataLayer poolId = convertIOToHandler $ do
 
     let removeDelistedPool = dlRemoveDelistedPool dataLayer
     delistedPool' <- removeDelistedPool poolId
@@ -350,7 +338,6 @@ enlistPool dataLayer _user poolId = convertIOToHandler $ do
     case delistedPool' of
         Left _err     -> throwIO err404
         Right poolId' -> return . ApiResult . Right $ poolId'
-#endif
 
 getPoolErrorAPI :: DataLayer -> PoolId -> Maybe TimeStringFormat -> Handler (ApiResult DBFail [PoolFetchError])
 getPoolErrorAPI dataLayer poolId mTimeInt = convertIOToHandler $ do
@@ -399,70 +386,29 @@ addTicker dataLayer tickerName poolMetadataHash = convertIOToHandler $ do
         Left dbFail           -> throwDBFailException dbFail
         Right _reservedTicker -> return . ApiResult . Right $ tickerName
 
--- TODO(KS): Fix this parser story.
-httpApiCall :: forall a. (FromJSON a) => (Value -> Parser a) -> Request -> IO a
-httpApiCall parser request = do
-    httpResult <- httpJSONEither request
-    let httpResponseBody = getResponseBody httpResult
-
-    httpResponse <- either (\_ -> panic "Invalid response body!") pure httpResponseBody
-
-    let httpStatusCode  = getResponseStatusCode httpResult
-
-    when (httpStatusCode /= 200) $
-        panic "Server not responded with 200."
-
-    case parseEither parser httpResponse of
-        Left reason -> panic "Cannot parse JSON!"
-        Right value -> pure value
-
 #ifdef DISABLE_BASIC_AUTH
 fetchPolicies :: DataLayer -> SmashURL -> Handler (ApiResult DBFail PolicyResult)
-fetchPolicies dataLayer smashURL = convertIOToHandler $ do
-
-    let request = Request $ getSmashURL $ smashURL
-
-    let getPool = dlGetPool dataLayer
-    existingPoolId <- getPool poolId
-
-    return . ApiResult $ existingPoolId
+fetchPolicies dataLayer smashURL = fetchPolicies' dataLayer smashURL
 #else
 fetchPolicies :: DataLayer -> User -> SmashURL -> Handler (ApiResult DBFail PolicyResult)
-fetchPolicies dataLayer _user smashURL = convertIOToHandler $ do
+fetchPolicies dataLayer _user smashURL = fetchPolicies' dataLayer smashURL
+#endif
 
-    -- https://smash.cardano-mainnet.iohk.io
-    let baseSmashURL = show $ getSmashURL smashURL
+-- |General fetch policies function.
+fetchPolicies' :: DataLayer -> SmashURL -> Handler (ApiResult DBFail PolicyResult)
+fetchPolicies' dataLayer smashURL = convertIOToHandler $ do
 
-    -- TODO(KS): This would be nice.
-    --let delistedEndpoint = symbolVal (Proxy :: Proxy DelistedPoolsAPI)
-    --let smashDelistedEndpoint = baseSmashURL <> delistedEndpoint
+    -- Fetch from the remote SMASH server.
+    policyResult <- httpClientFetchPolicies smashURL
 
-    let statusEndpoint = baseSmashURL <> "/api/v1/status"
-    let delistedEndpoint = baseSmashURL <> "/api/v1/delisted"
-    let reservedTickersEndpoint = baseSmashURL <> "/api/v1/tickers"
-
-    statusRequest <-
-        parseRequestThrow statusEndpoint `onException`
-            (return $ Left $ UnknownError "Error parsing status HTTP request!")
-
-    delistedRequest <-
-        parseRequestThrow delistedEndpoint `onException`
-            (return $ Left $ UnknownError "Error parsing delisted HTTP request!")
-
-    _reservedTickersRequest <-
-        parseRequestThrow reservedTickersEndpoint `onException`
-            (return $ Left $ UnknownError "Error parsing reserved tickers HTTP request!")
-
-    healthStatus :: HealthStatus <- httpApiCall parseJSON statusRequest
-    delistedPools :: [PoolId] <- httpApiCall parseJSON delistedRequest
-
-    -- TODO(KS): Current version doesn't have exposed the tickers endpoint and would fail!
-    -- uniqueTickers :: [UniqueTicker] <- httpApiCall parseJSON reservedTickersRequest
-    uniqueTickers <- pure []
+    let delistedPools =
+            case policyResult of
+                Left httpClientErr -> panic $ renderHttpClientError httpClientErr
+                Right policyResult' -> prDelistedPools policyResult'
 
     -- Clear the database
-    let getDelistedPools = dlGetDelistedPools dataLayer
-    existingDelistedPools <- getDelistedPools
+    let getDelistedPools' = dlGetDelistedPools dataLayer
+    existingDelistedPools <- getDelistedPools'
 
     let removeDelistedPool = dlRemoveDelistedPool dataLayer
     _ <- mapM removeDelistedPool existingDelistedPools
@@ -470,16 +416,10 @@ fetchPolicies dataLayer _user smashURL = convertIOToHandler $ do
     let addDelistedPool = dlAddDelistedPool dataLayer
     _newDelistedPools <- mapM addDelistedPool delistedPools
 
-    let policyResult =
-            PolicyResult
-                { prSmashURL = smashURL
-                , prHealthStatus = healthStatus
-                , prDelistedPools = delistedPools
-                , prUniqueTickers = uniqueTickers
-                }
-
-    return . ApiResult . Right $ policyResult
-#endif
+    -- Horrible.
+    case policyResult of
+        Left httpClientErr -> return . ApiResult . Left . UnknownError $ renderHttpClientError httpClientErr
+        Right policyResult' -> return . ApiResult . Right $ policyResult'
 
 #ifdef TESTING_MODE
 retirePool :: DataLayer -> PoolIdBlockNumber -> Handler (ApiResult DBFail PoolId)
