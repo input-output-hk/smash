@@ -10,6 +10,7 @@
 
 module Cardano.SMASH.API
     ( API
+    , DelistedPoolsAPI
     , fullAPI
     , smashApi
     ) where
@@ -23,11 +24,11 @@ import           Data.Aeson                    (FromJSON, ToJSON (..),
 import           Data.Swagger                  (Swagger (..))
 
 import           Network.Wai                   (Request, lazyRequestBody)
-import           Servant                       ((:<|>) (..), (:>), BasicAuth,
-                                                Capture, Get, HasServer (..),
-                                                Header, Headers, JSON,
-                                                OctetStream, Patch, Post,
-                                                QueryParam, ReqBody)
+import           Servant                       (BasicAuth, Capture, Get,
+                                                HasServer (..), Header, Headers,
+                                                JSON, OctetStream, Patch, Post,
+                                                QueryParam, ReqBody,
+                                                (:<|>) (..), (:>))
 import           Servant.Server                (err400)
 import           Servant.Server.Internal       (DelayedIO, addBodyCheck,
                                                 delayedFailFatal, errBody,
@@ -37,11 +38,13 @@ import           Servant.Swagger               (HasSwagger (..))
 
 import           Cardano.SMASH.DBSync.Db.Error (DBFail (..))
 import           Cardano.SMASH.Types           (ApiResult, HealthStatus,
-                                                PoolFetchError, PoolId (..),
-                                                PoolId, PoolIdBlockNumber (..),
+                                                PolicyResult, PoolFetchError,
+                                                PoolId (..),
+                                                PoolIdBlockNumber (..),
                                                 PoolMetadataHash,
-                                                PoolMetadataRaw, TickerName,
-                                                TimeStringFormat, User)
+                                                PoolMetadataRaw, SmashURL,
+                                                TickerName, TimeStringFormat,
+                                                UniqueTicker, User)
 
 
 -- Showing errors as JSON. To be reused when we need more general error handling.
@@ -80,11 +83,14 @@ type ApiRes verb a = verb '[JSON] (ApiResult DBFail a)
 -- The basic auth.
 type BasicAuthURL = BasicAuth "smash" User
 
+-- GET api/v1/metadata/{hash}
+type OfflineMetadataAPI = "api" :> APIVersion :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> Get '[JSON] (Headers '[Header "Cache-Control" Text] (ApiResult DBFail PoolMetadataRaw))
+
 -- GET api/v1/status
 type HealthStatusAPI = "api" :> APIVersion :> "status" :> ApiRes Get HealthStatus
 
--- GET api/v1/metadata/{hash}
-type OfflineMetadataAPI = "api" :> APIVersion :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> Get '[JSON] (Headers '[Header "Cache-Control" Text] (ApiResult DBFail PoolMetadataRaw))
+-- GET api/v1/tickers
+type ReservedTickersAPI = "api" :> APIVersion :> "tickers" :> ApiRes Get [UniqueTicker]
 
 -- GET api/v1/delisted
 type DelistedPoolsAPI = "api" :> APIVersion :> "delisted" :> ApiRes Get [PoolId]
@@ -97,10 +103,20 @@ type FetchPoolErrorAPI = "api" :> APIVersion :> "errors" :> Capture "poolId" Poo
 type DelistPoolAPI = "api" :> APIVersion :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 
 type EnlistPoolAPI = "api" :> APIVersion :> "enlist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+
+type AddTickerAPI = "api" :> APIVersion :> "tickers" :> Capture "name" TickerName :> ReqBody '[JSON] PoolMetadataHash :> ApiRes Post TickerName
+
+-- Enabling the SMASH server to fetch the policies from remote SMASH server. Policies like delisting or unique ticker names.
+type FetchPoliciesAPI = "api" :> APIVersion :> "policies" :> ReqBody '[JSON] SmashURL :> ApiRes Post PolicyResult
 #else
 type DelistPoolAPI = BasicAuthURL :> "api" :> APIVersion :> "delist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
 
 type EnlistPoolAPI = BasicAuthURL :> "api" :> APIVersion :> "enlist" :> ReqBody '[JSON] PoolId :> ApiRes Patch PoolId
+
+type AddTickerAPI = "api" :> APIVersion :> "tickers" :> Capture "name" TickerName :> ReqBody '[JSON] PoolMetadataHash :> ApiRes Post TickerName
+
+-- Enabling the SMASH server to fetch the policies from remote SMASH server. Policies like delisting or unique ticker names.
+type FetchPoliciesAPI = BasicAuthURL :> "api" :> APIVersion :> "policies" :> ReqBody '[JSON] SmashURL :> ApiRes Post PolicyResult
 #endif
 
 type RetiredPoolsAPI = "api" :> APIVersion :> "retired" :> ApiRes Get [PoolId]
@@ -110,20 +126,21 @@ type CheckPoolAPI = "api" :> APIVersion :> "exists" :> Capture "poolId" PoolId :
 -- The full API.
 type SmashAPI =  OfflineMetadataAPI
             :<|> HealthStatusAPI
+            :<|> ReservedTickersAPI
             :<|> DelistedPoolsAPI
             :<|> DelistPoolAPI
             :<|> EnlistPoolAPI
             :<|> FetchPoolErrorAPI
             :<|> RetiredPoolsAPI
             :<|> CheckPoolAPI
+            :<|> AddTickerAPI
+            :<|> FetchPoliciesAPI
 #ifdef TESTING_MODE
             :<|> RetirePoolAPI
             :<|> AddPoolAPI
-            :<|> AddTickerAPI
 
 type RetirePoolAPI = "api" :> APIVersion :> "retired" :> ReqBody '[JSON] PoolIdBlockNumber :> ApiRes Patch PoolId
 type AddPoolAPI = "api" :> APIVersion :> "metadata" :> Capture "id" PoolId :> Capture "hash" PoolMetadataHash :> ReqBody '[OctetStream] PoolMetadataRaw :> ApiRes Post PoolId
-type AddTickerAPI = "api" :> APIVersion :> "tickers" :> Capture "name" TickerName :> ReqBody '[JSON] PoolMetadataHash :> ApiRes Post TickerName
 
 #endif
 

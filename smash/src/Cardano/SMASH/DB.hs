@@ -198,7 +198,9 @@ cachedDataLayer dbDataLayer (InMemoryCacheIORef inMemoryCacheIORef) =
         , dlAddMetaDataReference = dlAddMetaDataReference dbDataLayer
 
         -- TODO(KS): Cache hit?
-        , dlGetReservedTickers = dlGetReservedTickers dbDataLayer
+        , dlGetReservedTickers = do
+            inMemoryCache <- readIORef inMemoryCacheIORef
+            return $ imcReservedTickers inMemoryCache
         , dlAddReservedTicker = \tickerName poolMetadataHash' -> runExceptT $ do
             -- Modify database
             let addReservedTicker = dlAddReservedTicker dbDataLayer

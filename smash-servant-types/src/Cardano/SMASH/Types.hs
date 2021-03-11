@@ -18,6 +18,8 @@ module Cardano.SMASH.Types
     , bytestringToPoolMetaHash
     , PoolMetadataRaw (..)
     , TickerName (..)
+    , UniqueTicker (..)
+    , PolicyResult (..)
     -- * Wrapper
     , PoolName (..)
     , PoolDescription (..)
@@ -33,6 +35,7 @@ module Cardano.SMASH.Types
     -- * API
     , ApiResult (..)
     -- * HTTP
+    , SmashURL (..)
     , FetchError (..)
     , PoolFetchError (..)
     , TimeStringFormat (..)
@@ -60,6 +63,7 @@ import           Data.Swagger                  (NamedSchema (..),
                                                 ToSchema (..))
 import           Data.Text.Encoding            (encodeUtf8Builder)
 
+import           Network.URI                   (URI, parseURI)
 import           Servant                       (FromHttpApiData (..),
                                                 MimeUnrender (..), OctetStream)
 
@@ -68,6 +72,30 @@ import           Cardano.SMASH.DBSync.Db.Types
 
 import qualified Data.ByteString.Lazy          as BL
 import qualified Data.Text.Encoding            as E
+
+-- | The Smash @URI@ containing remote filtering data.
+newtype SmashURL = SmashURL { getSmashURL :: URI }
+    deriving (Eq, Show, Generic)
+
+instance ToJSON SmashURL where
+    toJSON (SmashURL uri) =
+        object
+            [ "smashURL" .= (show uri :: Text)
+            ]
+
+instance FromJSON SmashURL where
+    parseJSON = withObject "SmashURL" $ \o -> do
+        uri <- o .: "smashURL"
+
+        let parsedURI = parseURI uri
+
+        case parsedURI of
+            Nothing -> fail "Not a valid URI for SMASH server."
+            Just uri' -> return $ SmashURL uri'
+
+instance ToSchema SmashURL where
+  declareNamedSchema _ =
+    return $ NamedSchema (Just "SmashURL") $ mempty
 
 -- | The basic @Configuration@.
 data Configuration = Configuration
@@ -88,6 +116,43 @@ examplePoolOfflineMetadata =
         (PoolDescription "This is a pool for testing")
         (PoolTicker "testp")
         (PoolHomepage "https://iohk.io")
+
+data PolicyResult = PolicyResult
+    { prSmashURL :: !SmashURL
+    , prHealthStatus :: !HealthStatus
+    , prDelistedPools :: ![PoolId]
+    , prUniqueTickers :: ![UniqueTicker]
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON PolicyResult where
+    toJSON (PolicyResult smashURL healthStatus delistedPools uniqueTickers) =
+        object
+            [ "smashURL" .= toJSON smashURL
+            , "healthStatus" .= toJSON healthStatus
+            , "delistedPools" .= toJSON delistedPools
+            , "uniqueTickers" .= toJSON uniqueTickers
+            ]
+
+instance ToSchema PolicyResult
+
+newtype UniqueTicker = UniqueTicker { getUniqueTicker :: (TickerName, PoolMetadataHash) }
+    deriving (Eq, Show, Generic)
+
+instance ToJSON UniqueTicker where
+    toJSON (UniqueTicker (tickerName, poolMetadataHash)) =
+        object
+            [ "tickerName" .= getTickerName tickerName
+            , "poolMetadataHash" .= getPoolMetadataHash poolMetadataHash
+            ]
+
+instance FromJSON UniqueTicker where
+    parseJSON = withObject "UniqueTicker" $ \o -> do
+        tickerName <- o .: "tickerName"
+        poolMetadataHash <- o .: "poolMetadataHash"
+
+        return . UniqueTicker $ (tickerName, poolMetadataHash)
+
+instance ToSchema UniqueTicker
 
 instance ToParamSchema TickerName
 

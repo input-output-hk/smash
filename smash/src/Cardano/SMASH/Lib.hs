@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE NumericUnderscores  #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 
@@ -19,8 +20,7 @@ module Cardano.SMASH.Lib
     ) where
 
 #ifdef TESTING_MODE
-import           Cardano.SMASH.Types         (PoolIdBlockNumber (..),
-                                              TickerName, pomTicker)
+import           Cardano.SMASH.Types         (PoolIdBlockNumber (..), pomTicker)
 import           Data.Aeson                  (eitherDecode')
 import qualified Data.ByteString.Lazy        as BL
 #endif
@@ -53,15 +53,20 @@ import           Cardano.SMASH.API           (API, fullAPI, smashApi)
 import           Cardano.SMASH.DB            (AdminUser (..), DBFail (..),
                                               DataLayer (..),
                                               createCachedDataLayer)
+import           Cardano.SMASH.HttpClient    (httpClientFetchPolicies,
+                                              renderHttpClientError)
 
 import           Cardano.SMASH.Types         (ApiResult (..),
                                               ApplicationUser (..),
                                               ApplicationUsers (..),
                                               Configuration (..),
-                                              HealthStatus (..), PoolFetchError,
+                                              HealthStatus (..),
+                                              PolicyResult (..), PoolFetchError,
                                               PoolId (..), PoolMetadataHash,
                                               PoolMetadataRaw (..),
-                                              TimeStringFormat (..), User,
+                                              SmashURL (..), TickerName,
+                                              TimeStringFormat (..),
+                                              UniqueTicker (..), User,
                                               UserValidity (..),
                                               checkIfUserValid,
                                               defaultConfiguration,
@@ -213,16 +218,18 @@ server _configuration dataLayer
     =       return todoSwagger
     :<|>    getPoolOfflineMetadata dataLayer
     :<|>    getHealthStatus
+    :<|>    getReservedTickers dataLayer
     :<|>    getDelistedPools dataLayer
     :<|>    delistPool dataLayer
     :<|>    enlistPool dataLayer
     :<|>    getPoolErrorAPI dataLayer
     :<|>    getRetiredPools dataLayer
     :<|>    checkPool dataLayer
+    :<|>    addTicker dataLayer
+    :<|>    fetchPolicies dataLayer
 #ifdef TESTING_MODE
     :<|>    retirePool dataLayer
     :<|>    addPool dataLayer
-    :<|>    addTicker dataLayer
 #endif
 
 
@@ -274,6 +281,17 @@ getHealthStatus = return . ApiResult . Right $
         , hsVersion = toS $ showVersion version
         }
 
+-- |Get all reserved tickers.
+getReservedTickers :: DataLayer -> Handler (ApiResult DBFail [UniqueTicker])
+getReservedTickers dataLayer = convertIOToHandler $ do
+
+    let getReservedTickers' = dlGetReservedTickers dataLayer
+    reservedTickers <- getReservedTickers'
+
+    let uniqueTickers = map UniqueTicker reservedTickers
+
+    return . ApiResult . Right $ uniqueTickers
+
 -- |Get all delisted pools
 getDelistedPools :: DataLayer -> Handler (ApiResult DBFail [PoolId])
 getDelistedPools dataLayer = convertIOToHandler $ do
@@ -283,20 +301,17 @@ getDelistedPools dataLayer = convertIOToHandler $ do
 
     return . ApiResult . Right $ allDelistedPools
 
-
 #ifdef DISABLE_BASIC_AUTH
 delistPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
-delistPool dataLayer poolId = convertIOToHandler $ do
-
-    let addDelistedPool = dlAddDelistedPool dataLayer
-    delistedPoolE <- addDelistedPool poolId
-
-    case delistedPoolE of
-        Left dbFail   -> throwDBFailException dbFail
-        Right poolId' -> return . ApiResult . Right $ poolId'
+delistPool dataLayer poolId = delistPool' dataLayer poolId
 #else
 delistPool :: DataLayer -> User -> PoolId -> Handler (ApiResult DBFail PoolId)
-delistPool dataLayer _user poolId = convertIOToHandler $ do
+delistPool dataLayer _user poolId = delistPool' dataLayer poolId
+#endif
+
+-- |General delist pool.
+delistPool' :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
+delistPool' dataLayer poolId = convertIOToHandler $ do
 
     let addDelistedPool = dlAddDelistedPool dataLayer
     delistedPoolE <- addDelistedPool poolId
@@ -304,21 +319,18 @@ delistPool dataLayer _user poolId = convertIOToHandler $ do
     case delistedPoolE of
         Left dbFail   -> throwDBFailException dbFail
         Right poolId' -> return . ApiResult . Right $ poolId'
-#endif
 
 #ifdef DISABLE_BASIC_AUTH
 enlistPool :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
-enlistPool dataLayer poolId = convertIOToHandler $ do
-
-    let removeDelistedPool = dlRemoveDelistedPool dataLayer
-    delistedPool' <- removeDelistedPool poolId
-
-    case delistedPool' of
-        Left _err     -> throwIO err404
-        Right poolId' -> return . ApiResult . Right $ poolId
+enlistPool dataLayer poolId = enlistPool' dataLayer poolId
 #else
 enlistPool :: DataLayer -> User -> PoolId -> Handler (ApiResult DBFail PoolId)
-enlistPool dataLayer _user poolId = convertIOToHandler $ do
+enlistPool dataLayer _user poolId = enlistPool' dataLayer poolId
+#endif
+
+-- |General enlist pool function.
+enlistPool' :: DataLayer -> PoolId -> Handler (ApiResult DBFail PoolId)
+enlistPool' dataLayer poolId = convertIOToHandler $ do
 
     let removeDelistedPool = dlRemoveDelistedPool dataLayer
     delistedPool' <- removeDelistedPool poolId
@@ -326,7 +338,6 @@ enlistPool dataLayer _user poolId = convertIOToHandler $ do
     case delistedPool' of
         Left _err     -> throwIO err404
         Right poolId' -> return . ApiResult . Right $ poolId'
-#endif
 
 getPoolErrorAPI :: DataLayer -> PoolId -> Maybe TimeStringFormat -> Handler (ApiResult DBFail [PoolFetchError])
 getPoolErrorAPI dataLayer poolId mTimeInt = convertIOToHandler $ do
@@ -365,6 +376,50 @@ checkPool dataLayer poolId = convertIOToHandler $ do
 
     return . ApiResult $ existingPoolId
 
+addTicker :: DataLayer -> TickerName -> PoolMetadataHash -> Handler (ApiResult DBFail TickerName)
+addTicker dataLayer tickerName poolMetadataHash = convertIOToHandler $ do
+
+    let addReservedTicker = dlAddReservedTicker dataLayer
+    reservedTickerE <- addReservedTicker tickerName poolMetadataHash
+
+    case reservedTickerE of
+        Left dbFail           -> throwDBFailException dbFail
+        Right _reservedTicker -> return . ApiResult . Right $ tickerName
+
+#ifdef DISABLE_BASIC_AUTH
+fetchPolicies :: DataLayer -> SmashURL -> Handler (ApiResult DBFail PolicyResult)
+fetchPolicies dataLayer smashURL = fetchPolicies' dataLayer smashURL
+#else
+fetchPolicies :: DataLayer -> User -> SmashURL -> Handler (ApiResult DBFail PolicyResult)
+fetchPolicies dataLayer _user smashURL = fetchPolicies' dataLayer smashURL
+#endif
+
+-- |General fetch policies function.
+fetchPolicies' :: DataLayer -> SmashURL -> Handler (ApiResult DBFail PolicyResult)
+fetchPolicies' dataLayer smashURL = convertIOToHandler $ do
+
+    -- Fetch from the remote SMASH server.
+    policyResult <- httpClientFetchPolicies smashURL
+
+    let delistedPools =
+            case policyResult of
+                Left httpClientErr -> panic $ renderHttpClientError httpClientErr
+                Right policyResult' -> prDelistedPools policyResult'
+
+    -- Clear the database
+    let getDelistedPools' = dlGetDelistedPools dataLayer
+    existingDelistedPools <- getDelistedPools'
+
+    let removeDelistedPool = dlRemoveDelistedPool dataLayer
+    _ <- mapM removeDelistedPool existingDelistedPools
+
+    let addDelistedPool = dlAddDelistedPool dataLayer
+    _newDelistedPools <- mapM addDelistedPool delistedPools
+
+    -- Horrible.
+    case policyResult of
+        Left httpClientErr -> return . ApiResult . Left . UnknownError $ renderHttpClientError httpClientErr
+        Right policyResult' -> return . ApiResult . Right $ policyResult'
 
 #ifdef TESTING_MODE
 retirePool :: DataLayer -> PoolIdBlockNumber -> Handler (ApiResult DBFail PoolId)
@@ -383,16 +438,6 @@ addPool dataLayer poolId poolHash poolMetadataRaw = convertIOToHandler $ do
     case poolMetadataE of
         Left dbFail         -> throwDBFailException dbFail
         Right _poolMetadata -> return . ApiResult . Right $ poolId
-
-addTicker :: DataLayer -> TickerName -> PoolMetadataHash -> Handler (ApiResult DBFail TickerName)
-addTicker dataLayer tickerName poolMetadataHash = convertIOToHandler $ do
-
-    let addReservedTicker = dlAddReservedTicker dataLayer
-    reservedTickerE <- addReservedTicker tickerName poolMetadataHash
-
-    case reservedTickerE of
-        Left dbFail           -> throwDBFailException dbFail
-        Right _reservedTicker -> return . ApiResult . Right $ tickerName
 
 runPoolInsertion :: DataLayer -> PoolMetadataRaw -> PoolId -> PoolMetadataHash -> IO (Either DBFail PoolMetadataRaw)
 runPoolInsertion dataLayer poolMetadataRaw poolId poolHash = do
