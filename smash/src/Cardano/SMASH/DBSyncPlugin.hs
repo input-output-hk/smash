@@ -13,9 +13,7 @@ import           Cardano.BM.Trace                   (Trace, logDebug, logError,
                                                      logInfo)
 
 import           Control.Monad.Logger               (LoggingT)
-import           Control.Monad.Trans.Except.Extra   (firstExceptT, newExceptT,
-                                                     runExceptT)
-import           Control.Monad.Trans.Reader         (ReaderT)
+import           Control.Monad.Trans.Except.Extra   (firstExceptT, newExceptT)
 
 import           Cardano.SMASH.DB                   (DBFail (..),
                                                      DataLayer (..))

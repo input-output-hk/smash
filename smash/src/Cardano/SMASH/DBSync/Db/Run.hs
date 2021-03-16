@@ -23,17 +23,14 @@ import           Control.Tracer                       (traceWith)
 
 import           Cardano.Prelude
 
-import           Control.Monad.IO.Class               (liftIO)
 import           Control.Monad.Logger                 (LogLevel (..), LogSource,
                                                        LoggingT, NoLoggingT,
                                                        defaultLogStr,
                                                        runLoggingT,
                                                        runNoLoggingT,
                                                        runStdoutLoggingT)
-import           Control.Monad.Trans.Reader           (ReaderT)
 
 import qualified Data.ByteString.Char8                as BS
-import           Data.Text                            (Text)
 import qualified Data.Text.Encoding                   as T
 import qualified Data.Text.Lazy.Builder               as LT
 import qualified Data.Text.Lazy.IO                    as LT
@@ -41,7 +38,6 @@ import qualified Data.Text.Lazy.IO                    as LT
 import           Database.Persist.Postgresql          (openSimpleConn,
                                                        withPostgresqlConn)
 import           Database.Persist.Sql                 (IsolationLevel (..),
-                                                       SqlBackend,
                                                        runSqlConnWithIsolation)
 import           Database.PostgreSQL.Simple           (connectPostgreSQL)
 
@@ -54,7 +50,6 @@ import           Cardano.SMASH.DBSync.Db.PGConfig
 
 import           Language.Haskell.TH.Syntax           (Loc)
 
-import           System.IO                            (Handle, stdout)
 import           System.Log.FastLogger                (LogStr, fromLogStr)
 
 -- | Run a DB action logging via the provided Handle.

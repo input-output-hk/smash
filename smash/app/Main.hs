@@ -21,20 +21,19 @@ import           Cardano.SMASH.Offline             (runOfflineFetchThread)
 import           Cardano.SMASH.Lib
 import           Cardano.SMASH.Types
 
+import           Cardano.SMASH.DBSync.Metrics      (withMetricSetters)
+
 import           Cardano.Sync.Config
 import           Cardano.Sync.Config.Types
 import           Cardano.Sync.Error
 
-import           Cardano.Sync                      (Block (..), ConfigFile (..),
-                                                    Meta (..), SocketPath (..),
+import           Cardano.Sync                      (Block (..), MetricSetters,
                                                     SyncDataLayer (..),
                                                     runSyncNode)
 import           Cardano.Sync.Database             (runDbThread)
 
-import           Control.Applicative               (optional)
 import           Control.Monad.Trans.Maybe
 
-import           Data.Monoid                       ((<>))
 import           Database.Esqueleto
 
 import           Options.Applicative               (Parser, ParserInfo,
@@ -45,9 +44,10 @@ import           System.FilePath                   ((</>))
 
 import qualified Cardano.BM.Setup                  as Logging
 import           Cardano.BM.Trace                  (Trace, logInfo, modifyName)
-import           Cardano.Slotting.Slot             (SlotNo (..))
 import           Cardano.SMASH.DBSyncPlugin        (poolMetadataDbSyncNodePlugin)
+import           Cardano.Slotting.Slot             (SlotNo (..), EpochNo (..))
 
+import           Ouroboros.Network.Block (BlockNo (..))
 import           Ouroboros.Consensus.Cardano.Block (StandardShelley)
 import           Ouroboros.Consensus.Shelley.Node  (ShelleyGenesis (..))
 import qualified Shelley.Spec.Ledger.Genesis       as Shelley
@@ -140,7 +140,12 @@ runCommand cmd =
 #ifdef TESTING_MODE
     RunStubApplication -> runAppStubbed defaultConfiguration
 #endif
-    RunApplicationWithDbSync dbSyncNodeParams -> runCardanoSyncWithSmash dbSyncNodeParams
+    RunApplicationWithDbSync dbSyncNodeParams -> do
+        prometheusPort <- dncPrometheusPort <$> readSyncNodeConfig (enpConfigFile dbSyncNodeParams)
+
+        -- Switch the port so we don't have conflicts?
+        withMetricSetters (prometheusPort + 1) $ \metricsSetters ->
+            runCardanoSyncWithSmash metricsSetters dbSyncNodeParams
 
 renderCardanoSyncError :: CardanoSyncError -> Text
 renderCardanoSyncError (CardanoSyncError cardanoSyncError') = cardanoSyncError'
@@ -157,8 +162,8 @@ newtype MetaId = MetaId Int
     deriving (Eq, Show)
 
 -- Running SMASH with cardano-sync.
-runCardanoSyncWithSmash :: SyncNodeParams -> IO ()
-runCardanoSyncWithSmash dbSyncNodeParams = do
+runCardanoSyncWithSmash :: MetricSetters -> SyncNodeParams -> IO ()
+runCardanoSyncWithSmash metricsSetters dbSyncNodeParams = do
 
     -- Setup trace
     let configFile = enpConfigFile dbSyncNodeParams
@@ -170,9 +175,6 @@ runCardanoSyncWithSmash dbSyncNodeParams = do
     logInfo tracer $ "Running migrations."
     DB.runMigrations tracer (\x -> x) (DB.SmashMigrationDir migrationDir') (Just $ DB.SmashLogFileDir "/tmp")
     logInfo tracer $ "Migrations complete."
-
-    -- Run metrics server
-    --(metrics, server) <- registerMetricsServer 8080
 
     dataLayer <- DB.createCachedDataLayer (Just tracer)
 
@@ -190,7 +192,7 @@ runCardanoSyncWithSmash dbSyncNodeParams = do
                 { sdlGetSlotHash = \slotNo -> do
                     slotHash <- DB.runDbIohkLogging tracer $ DB.querySlotHash slotNo
                     case slotHash of
-                        Nothing -> return []
+                        Nothing           -> return []
                         Just slotHashPair -> return [slotHashPair]
 
                 , sdlGetLatestBlock = getLatestBlock
@@ -208,8 +210,18 @@ runCardanoSyncWithSmash dbSyncNodeParams = do
 
     let runInsertValidateGenesisSmashFunction = insertValidateGenesisSmashFunction syncDataLayer
 
+    let runSmashSyncNode =
+            runSyncNode
+                syncDataLayer
+                metricsSetters
+                tracer
+                smashDbSyncNodePlugin
+                dbSyncNodeParams
+                runInsertValidateGenesisSmashFunction
+                runDBThreadFunction
+
     race_
-        (runSyncNode syncDataLayer tracer smashDbSyncNodePlugin dbSyncNodeParams runInsertValidateGenesisSmashFunction runDBThreadFunction)
+        runSmashSyncNode
         (runApp dataLayer defaultConfiguration)
 
 
@@ -232,21 +244,27 @@ doCreateMigration (MigrationDir mdir) = do
 
 -------------------------------------------------------------------------------
 
+-- Util data structure.
+data Meta = Meta
+    { mStartTime   :: !UTCTime
+    , mNetworkName :: !(Maybe Text)
+    } deriving (Eq, Show)
+
 instance DBConversion DB.Block Block where
     convertFromDB block =
         Block
             { bHash = DB.blockHash block
-            , bEpochNo = DB.blockEpochNo block
-            , bSlotNo = DB.blockSlotNo block
-            , bBlockNo = DB.blockBlockNo block
+            , bEpochNo = EpochNo . fromMaybe 0 $ DB.blockEpochNo block
+            , bSlotNo = SlotNo . fromMaybe 0 $ DB.blockSlotNo block
+            , bBlockNo = BlockNo . fromMaybe 0 $ DB.blockBlockNo block
             }
 
     convertToDB block =
         DB.Block
             { DB.blockHash = bHash block
-            , DB.blockEpochNo = bEpochNo block
-            , DB.blockSlotNo = bSlotNo block
-            , DB.blockBlockNo = bBlockNo block
+            , DB.blockEpochNo = Just . unEpochNo $ bEpochNo block
+            , DB.blockSlotNo = Just . unSlotNo $ bSlotNo block
+            , DB.blockBlockNo = Just . unBlockNo $ bBlockNo block
             }
 
 instance DBConversion DB.Meta Meta where
@@ -317,9 +335,9 @@ insertValidateGenesisDistSmash _dataLayer tracer (NetworkName networkName) cfg =
 
             let block = Block
                             { bHash = configGenesisHash cfg
-                            , bEpochNo = Nothing
-                            , bSlotNo = Nothing
-                            , bBlockNo = Nothing
+                            , bEpochNo = 0
+                            , bSlotNo = 0
+                            , bBlockNo = 0
                             }
 
             let addGenesisMetaBlock = DB.dlAddGenesisMetaBlock (DB.postgresqlDataLayer $ Just tracer)

@@ -11,22 +11,16 @@ module Cardano.SMASH.DBSync.Db.Migration
 
 import           Cardano.Prelude
 
-import           Control.Exception                         (SomeException,
-                                                            bracket, handle)
-import           Control.Monad                             (forM_)
-import           Control.Monad.IO.Class                    (liftIO)
 import           Control.Monad.Logger                      (NoLoggingT)
-import           Control.Monad.Trans.Reader                (ReaderT)
 import           Control.Monad.Trans.Resource              (runResourceT)
 
 import           Cardano.BM.Trace                          (Trace, logInfo)
 
 import qualified Data.ByteString.Char8                     as BS
 import           Data.Conduit.Binary                       (sinkHandle)
-import           Data.Conduit.Process                      (sourceCmdWithConsumer, system)
-import           Data.Either                               (partitionEithers)
+import           Data.Conduit.Process                      (sourceCmdWithConsumer,
+                                                            system)
 import qualified Data.List                                 as List
-import           Data.Text                                 (Text)
 import qualified Data.Text                                 as Text
 import qualified Data.Text.IO                              as Text
 import           Data.Time.Clock                           (getCurrentTime)
@@ -47,14 +41,9 @@ import           Cardano.SMASH.DBSync.Db.Run
 import           Cardano.SMASH.DBSync.Db.Schema
 
 import           System.Directory                          (listDirectory)
-import           System.Exit                               (ExitCode (..),
-                                                            exitFailure)
 import           System.FilePath                           (takeFileName, (</>))
-import           System.IO                                 (Handle,
-                                                            IOMode (AppendMode),
-                                                            hClose, hFlush,
-                                                            hPrint, openFile,
-                                                            stdout)
+import           System.IO                                 (hClose, hFlush,
+                                                            hPrint)
 
 
 

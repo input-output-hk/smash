@@ -7,11 +7,8 @@ module Cardano.SMASH.DBSync.Db.Migration.Haskell
 
 import           Cardano.Prelude
 
-import           Control.Exception (SomeException, handle)
 import           Control.Monad.Logger (MonadLogger)
-import           Control.Monad.Trans.Reader (ReaderT)
 
-import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
 import           Database.Persist.Sql (SqlBackend)
@@ -19,8 +16,7 @@ import           Database.Persist.Sql (SqlBackend)
 import           Cardano.SMASH.DBSync.Db.Migration.Version
 import           Cardano.SMASH.DBSync.Db.Run
 
-import           System.Exit (exitFailure)
-import           System.IO (Handle, hClose, hFlush, stdout)
+import           System.IO (hClose, hFlush)
 
 -- | Run a migration written in Haskell (eg one that cannot easily be done in SQL).
 -- The Haskell migration is paired with an SQL migration and uses the same MigrationVersion

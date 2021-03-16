@@ -44,8 +44,6 @@ import           Cardano.SMASH.DBSync.Db.Insert            (insertAdminUser,
                                                             insertPoolMetadataReference,
                                                             insertReservedTicker,
                                                             insertRetiredPool)
-import           Cardano.SMASH.DBSync.Db.Query             (DBFail (..),
-                                                            queryPoolMetadata)
 import           Cardano.SMASH.Types
 
 import           Cardano.SMASH.DBSync.Db.Error             as X
@@ -70,7 +68,6 @@ import           Cardano.SMASH.DBSync.Db.Schema            as X (AdminUser (..),
                                                                  ReservedTickerId,
                                                                  RetiredPool (..),
                                                                  poolMetadataMetadata)
-import           Cardano.SMASH.DBSync.Db.Types             (TickerName (..))
 
 -- | This is the data layer for the DB.
 -- The resulting operation has to be @IO@, it can be made more granular,

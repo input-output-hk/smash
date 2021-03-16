@@ -7,28 +7,22 @@ module MigrationSpec
 
 import           Cardano.Prelude
 
-import           Control.Monad.Trans.Except.Extra  (left)
-import           Data.Time.Clock.POSIX             (getPOSIXTime)
+import           Control.Monad.Trans.Except.Extra (left)
+import           Data.Time.Clock.POSIX            (getPOSIXTime)
 
-import           Test.Hspec                        (Spec, describe)
-import           Test.Hspec.QuickCheck             (modifyMaxSuccess, prop)
-import           Test.QuickCheck.Monadic           (assert, monadicIO, run)
+import           Test.Hspec                       (Spec, describe)
+import           Test.Hspec.QuickCheck            (modifyMaxSuccess, prop)
+import           Test.QuickCheck.Monadic          (assert, monadicIO, run)
 
-import qualified Cardano.BM.Trace                  as Logging
+import qualified Cardano.BM.Trace                 as Logging
 
 import           Cardano.SMASH.FetchQueue
 import           Cardano.SMASH.Offline
 import           Cardano.SMASH.Types
 
 import           Cardano.SMASH.DB
-import           Cardano.SMASH.DBSync.Db.Insert    (insertPoolMetadataReference)
-import           Cardano.SMASH.DBSync.Db.Migration (SmashLogFileDir (..),
-                                                    SmashMigrationDir (..),
-                                                    runMigrations)
-import           Cardano.SMASH.DBSync.Db.Query     (querySchemaVersion)
-import           Cardano.SMASH.DBSync.Db.Run       (runDbNoLogging)
-import           Cardano.SMASH.DBSync.Db.Schema    (PoolMetadataReference (..),
-                                                    SchemaVersion (..))
+import           Cardano.SMASH.DBSync.Db.Insert   (insertPoolMetadataReference)
+import           Cardano.SMASH.DBSync.Db.Schema   (SchemaVersion (..))
 
 -- | Test spec for smash
 -- SMASHPGPASSFILE=config/pgpass-test ./scripts/postgresql-setup.sh --createdb
