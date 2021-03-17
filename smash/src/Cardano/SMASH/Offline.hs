@@ -14,7 +14,6 @@ import           Cardano.Prelude                  hiding (from, groupBy, on,
 
 import           Cardano.BM.Trace                 (Trace, logInfo, logWarning)
 
-import           Control.Concurrent               (threadDelay)
 import           Control.Monad.Logger             (LoggingT)
 import           Control.Monad.Trans.Except.Extra (handleExceptT, hoistEither,
                                                    left)

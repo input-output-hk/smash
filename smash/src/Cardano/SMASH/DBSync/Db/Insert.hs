@@ -19,10 +19,9 @@ module Cardano.SMASH.DBSync.Db.Insert
 
 import           Cardano.Prelude                hiding (Meta, replace)
 
-import           Control.Monad.IO.Class         (MonadIO)
-import           Control.Monad.Trans.Reader     (ReaderT, mapReaderT)
+import           Control.Monad.Trans.Reader     (mapReaderT)
 
-import           Database.Persist.Class         (AtLeastOneUniqueKey, Key,
+import           Database.Persist.Class         (AtLeastOneUniqueKey,
                                                  PersistEntityBackend,
                                                  checkUnique, getByValue,
                                                  insert)

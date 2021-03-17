@@ -33,14 +33,9 @@ module Cardano.SMASH.DBSync.Db.Query
 import           Cardano.Prelude                hiding (Meta, from, isJust,
                                                  isNothing, maybeToEither)
 
-import           Control.Monad                  (join)
 import           Control.Monad.Extra            (mapMaybeM)
-import           Control.Monad.Trans.Reader     (ReaderT)
 
-import           Data.ByteString.Char8          (ByteString)
-import           Data.Maybe                     (catMaybes, listToMaybe)
 import           Data.Time.Clock                (UTCTime)
-import           Data.Word                      (Word64)
 
 import           Database.Esqueleto             (Entity, PersistField, SqlExpr,
                                                  Value, ValueList, countRows,

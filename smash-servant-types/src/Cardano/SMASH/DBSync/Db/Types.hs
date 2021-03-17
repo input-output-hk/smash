@@ -1,8 +1,8 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE DerivingVia                #-}
 {-# LANGUAGE GeneralisedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE DerivingVia                #-}
 
 module Cardano.SMASH.DBSync.Db.Types where
 
@@ -14,7 +14,11 @@ import           Data.Aeson             (FromJSON (..), ToJSON (..), object,
                                          withObject, (.:), (.=))
 import           Database.Persist.Class
 
-import           Cardano.Api.Typed      hiding (PoolId)
+import           Cardano.Api            (AsType (..), Hash,
+                                         deserialiseFromBech32,
+                                         deserialiseFromRawBytesHex,
+                                         serialiseToRawBytes)
+import           Cardano.Api.Shelley    (StakePoolKey)
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Char8  as BSC
 
@@ -129,7 +133,7 @@ instance FromJSON TickerName where
 
 -- |Util.
 eitherToMonadFail :: MonadFail m => Either Text a -> m a
-eitherToMonadFail (Left err) = fail $ toS err
+eitherToMonadFail (Left err)  = fail $ toS err
 eitherToMonadFail (Right val) = return val
 
 -- |The validation for the ticker name we can reuse.

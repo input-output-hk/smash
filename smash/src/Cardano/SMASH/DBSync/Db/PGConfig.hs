@@ -12,10 +12,8 @@ module Cardano.SMASH.DBSync.Db.PGConfig
 
 import           Cardano.Prelude
 
-import           Control.Exception (IOException)
 import qualified Control.Exception as Exception
 
-import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as BS
 
 import           Database.Persist.Postgresql (ConnectionString)

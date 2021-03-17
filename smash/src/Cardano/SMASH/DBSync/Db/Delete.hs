@@ -9,9 +9,6 @@ module Cardano.SMASH.DBSync.Db.Delete
 
 import           Cardano.Prelude                hiding (Meta)
 
-import           Control.Monad.IO.Class         (MonadIO)
-import           Control.Monad.Trans.Reader     (ReaderT)
-
 import           Database.Persist.Sql           (SqlBackend, deleteCascade,
                                                  selectKeysList, (==.))
 
