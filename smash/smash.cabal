@@ -46,6 +46,7 @@ library
 
     Cardano.SMASH.DBSync.Metrics
     Cardano.SMASH.DBSyncPlugin
+    Cardano.SMASH.DBSyncRun
     Cardano.SMASH.FetchQueue
     Cardano.SMASH.Lib
     Cardano.SMASH.Offline
@@ -81,6 +82,7 @@ library
     , iohk-monitoring
     , monad-logger
     , ouroboros-consensus-byron
+    , ouroboros-consensus-shelley
     , ouroboros-consensus-cardano
     , ouroboros-network
     , persistent
@@ -142,7 +144,6 @@ executable smash-exe
     , bytestring
     , transformers-except
     , cardano-api
-    , cardano-db
     , time
     , persistent-postgresql
     , persistent

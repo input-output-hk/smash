@@ -87,7 +87,7 @@ insertDefaultBlocks
     -> IO (Either SyncNodeError ())
 insertDefaultBlocks dataLayer tracer env blockDetails =
     DB.runDbAction (Just tracer) $
-      traverseMEither (\blockDetail -> insertDefaultBlock dataLayer tracer env blockDetail)blockDetails
+      traverseMEither (\blockDetail -> insertDefaultBlock dataLayer tracer env blockDetail) blockDetails
 
 -- |TODO(KS): We need to abstract over these blocks so we can test this functionality
 -- separatly from the actual blockchain, using tests only.
@@ -98,22 +98,16 @@ insertDefaultBlock
     -> BlockDetails
     -> ReaderT SqlBackend (LoggingT IO) (Either SyncNodeError ())
 insertDefaultBlock dataLayer tracer env (BlockDetails cblk details) = do
-  -- Calculate the new ledger state to pass to the DB insert functions but do not yet
-  -- update ledgerStateVar.
-  lStateSnap <- liftIO $ applyBlock (envLedger env) cblk
+
   res <- case cblk of
             BlockByron blk -> do
               insertByronBlock tracer blk details
             BlockShelley blk -> do
-              insertShelleyBlock Shelley dataLayer tracer env (Generic.fromShelleyBlock blk) lStateSnap details
+              insertShelleyBlock Shelley dataLayer tracer env (Generic.fromShelleyBlock blk) details
             BlockAllegra blk -> do
-              insertShelleyBlock Allegra dataLayer tracer env (Generic.fromAllegraBlock blk) lStateSnap details
+              insertShelleyBlock Allegra dataLayer tracer env (Generic.fromAllegraBlock blk) details
             BlockMary blk -> do
-              insertShelleyBlock Mary dataLayer tracer env (Generic.fromMaryBlock blk) lStateSnap details
-
-  -- Now we update it in ledgerStateVar and (possibly) store it to disk.
-  liftIO $ saveLedgerStateMaybe (envLedger env)
-                lStateSnap (isSyncedWithinSeconds details 60)
+              insertShelleyBlock Mary dataLayer tracer env (Generic.fromMaryBlock blk) details
 
   pure res
 
@@ -157,10 +151,9 @@ insertShelleyBlock
     -> Trace IO Text
     -> SyncEnv
     -> Generic.Block
-    -> LedgerStateSnapshot
     -> SlotDetails
     -> ReaderT SqlBackend (LoggingT IO) (Either SyncNodeError ())
-insertShelleyBlock blockName dataLayer tracer env blk _lStateSnap details = do
+insertShelleyBlock blockName dataLayer tracer env blk details = do
 
   runExceptT $ do
 
