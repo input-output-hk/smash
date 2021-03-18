@@ -18,7 +18,8 @@ ghc-options:
 
 # Generate files required by Weeder.
 # See https://github.com/ndmitchell/weeder/issues/53
-ghc-options: {"$locals": -ddump-to-file -ddump-hi}
+ghc-options:
+  "$locals": -fwrite-ide-info -ddump-to-file -ddump-hi
 
 extra-deps:
   - Cabal-3.4.0.0
@@ -185,6 +186,11 @@ extra-deps:
   # Compiler error 'System.Metrics.Prometheus.Http.Scrape (serveMetricsT)'
   - prometheus-2.2.2
 
+  # Testing
+  - quickcheck-state-machine-0.7.0
+  - markov-chain-usage-model-0.0.0
+
+  # db-sync dependency
   - git: https://github.com/input-output-hk/cardano-db-sync
     commit: e8359d608c47709a22a140d9f34c2ede43a67922
     subdirs:
