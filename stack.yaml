@@ -45,7 +45,7 @@ extra-deps:
   - generics-sop-0.5.1.0
   - ghc-byteorder-4.11.0.0.10
   - gray-code-0.3.1
-  - hedgehog-1.0.2
+  - hedgehog-1.0.5
   - hedgehog-corpus-0.2.0
   - hedgehog-quickcheck-0.1.1
   - hspec-2.7.0
@@ -86,9 +86,17 @@ extra-deps:
   - websockets-0.12.6.1
   - Win32-2.6.2.0
   - nothunks-0.1.2
-  
+
+  # db-sync dependency
+  - git: https://github.com/input-output-hk/cardano-db-sync
+    commit: 6f6e49964385b46620e055dafe38a69c76249f94
+    subdirs:
+      - cardano-sync
+      - cardano-db
+      - cardano-db-sync
+
   - git: https://github.com/input-output-hk/cardano-base
-    commit: b364d925e0a72689ecba40dd1f4899f76170b894
+    commit: 101e7752cf4b23fd0b411736f523b8f6c43f6bc2
     subdirs:
     - binary
     - binary/test
@@ -101,11 +109,12 @@ extra-deps:
     commit: f73079303f663e028288f9f4a9e08bcca39a923e
   
   - git: https://github.com/input-output-hk/cardano-ledger-specs
-    commit: 99e2f2e32ebfca3291fa523ddcae14c8cbb48fa0
+    commit: 0730828363ad6d0669b7a5a12635e22944b32880
     subdirs:
-    - byron/chain/executable-spec
+    - alonzo/impl
     - byron/crypto
     - byron/crypto/test
+    - byron/chain/executable-spec
     - byron/ledger/executable-spec
     - byron/ledger/impl
     - byron/ledger/impl/test
@@ -115,9 +124,10 @@ extra-deps:
     - shelley/chain-and-ledger/executable-spec
     - shelley/chain-and-ledger/shelley-spec-ledger-test
     - shelley-ma/impl
-  
+    - shelley-ma/shelley-ma-test 
+
   - git: https://github.com/input-output-hk/cardano-node
-    commit: e15515b785f7caae0ae5d997b26d9c4518062c71
+    commit: 1a25af8527f353fd0f2b863c27250b2990fec22a
     subdirs:
     - cardano-api
     - cardano-api/test
@@ -152,7 +162,7 @@ extra-deps:
     - tracer-transformers
   
   - git: https://github.com/input-output-hk/ouroboros-network
-    commit: 96cf17bcc6ea4ef455a19430313ce17d476d62b5
+    commit: 80978a02ad43696538f731e399528d7597a3ffe6
     subdirs:
     - io-sim
     - io-sim-classes
@@ -170,11 +180,33 @@ extra-deps:
     - cardano-client
     - ntp-client
     - ouroboros-consensus-mock
-  
+
+  - git: https://github.com/input-output-hk/plutus
+    commit: ffc1768f5be7af66d8d745a31c9c6a77c5c55104
+    subdirs:
+    - plutus-core
+    - plutus-ledger-api
+    - plutus-tx
+    - prettyprinter-configurable
+
   - git: https://github.com/snoyberg/http-client.git
     commit: 1a75bdfca014723dd5d40760fad854b3f0f37156
     subdirs:
     - http-client
+
+  # Plutus deps
+  - Stream-0.4.7.2
+  - composition-prelude-3.0.0.2
+  - dependent-map-0.4.0.0
+  - dependent-sum-0.6.2.0
+  - dependent-sum-template-0.1.0.3
+  - lazy-search-0.1.2.1
+  - monoidal-containers-0.6.0.1
+  - size-based-0.1.2.0
+  - witherable-0.4.1
+  - constraints-extras-0.3.0.2
+  - indexed-traversable-instances-0.1
+  - lazysmallcheck-0.6
 
   # Additional deps
   - persistent-2.11.0.1
@@ -189,14 +221,6 @@ extra-deps:
   # Testing
   - quickcheck-state-machine-0.7.0
   - markov-chain-usage-model-0.0.0
-
-  # db-sync dependency
-  - git: https://github.com/input-output-hk/cardano-db-sync
-    commit: e8359d608c47709a22a140d9f34c2ede43a67922
-    subdirs:
-      - cardano-sync
-      - cardano-db
-      - cardano-db-sync
 
 nix:
   shell-file: nix/stack-shell.nix

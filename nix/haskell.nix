@@ -67,6 +67,8 @@ let
           "mtl" "parsec" "text" "transformers"
           "xhtml"
           # "stm" "terminfo"
+          # Advice from angerman
+          "directory" "process" "terminfo" "time" "unix"
         ];
       }
       {

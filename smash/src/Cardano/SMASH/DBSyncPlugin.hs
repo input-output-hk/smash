@@ -38,8 +38,6 @@ import qualified Cardano.SMASH.DBSync.Db.Schema     as DB
 import           Cardano.Sync.Error
 import           Cardano.Sync.Types                 as DbSync
 
-import           Cardano.Sync.LedgerState
-
 import           Cardano.Sync                       (SyncEnv (..),
                                                      SyncNodePlugin (..))
 import           Cardano.Sync.Util
