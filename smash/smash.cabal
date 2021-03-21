@@ -61,10 +61,10 @@ library
     , bytestring
     , cardano-crypto-class
     , cardano-sync
-    , cardano-ledger
     , cardano-prelude
     , cardano-slotting
     , cardano-db-sync
+    , cardano-ledger-byron
     , cborg
     , conduit-extra
     , containers
@@ -90,7 +90,6 @@ library
     , persistent-template          >=2.7.0
     , postgresql-simple
     , prometheus
-    , quiet
     , resourcet
     , servant
     , servant-server
@@ -99,7 +98,6 @@ library
     , smash-servant-types
     , swagger2
     , template-haskell
-    , safe-exceptions
     , text
     , time
     , transformers
