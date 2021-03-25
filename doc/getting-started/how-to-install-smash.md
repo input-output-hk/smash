@@ -261,22 +261,18 @@ curl -X GET http://localhost:3100/api/v1/metadata/8517fa7042cb9494818861c53c8778
 
 ## How to figure out the JSON hash?
 
-You can use a cardano-cli command to fetch the stake pool metadata hash from a passive node. But also, you can figure out the JSON hash inside GHCi:
-
+You can use a cardano-cli command to fetch the stake pool metadata hash from a passive node. But also, you can figure out the JSON hash using a command line option from SMASH (for example, here we are using a local test pool metadata file):
 ```
-ghci
+cabal run smash-exe -- print-hash --metadata test_pool.json
 ```
-
+That outputs:
 ```
-Prelude> import qualified Cardano.Crypto.Hash.Class as Crypto
-Prelude> import qualified Cardano.Crypto.Hash.Blake2b as Crypto
-Prelude> import qualified Data.ByteString.Base16 as B16
-
-Prelude> poolMetadata <- readFile "test_pool.json"
-Prelude> B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadata)
+File 'test_pool.json' has file hash 'cbdfc4f21feb0a414b2b9471fa56b0ebd312825e63db776d68cc3fa0ca1f5a2f'.
 ```
 
 This assumes that you have a file called "test_pool.json" in your current directory that contains the JSON metadata for the stake pool.
+
+_If you want to check your own hash from your own metadata file, copy the contents into a file and use the tool above providing the path to the file you want to check._
 
 ## How to insert the reserved ticker name?
 

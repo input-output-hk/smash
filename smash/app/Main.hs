@@ -17,6 +17,7 @@ import           Cardano.SMASH.Lib
 import           Cardano.SMASH.Types
 
 import           Cardano.SMASH.DBSync.Metrics (withMetricSetters)
+import           Cardano.SMASH.DBSyncPlugin   (hashPoolMetadata)
 import           Cardano.SMASH.DBSyncRun      (runCardanoSyncWithSmash,
                                                setupTraceFromConfig)
 
@@ -50,6 +51,7 @@ data Command
   = CreateAdminUser !ApplicationUser
   | DeleteAdminUser !ApplicationUser
   | CreateMigration !MigrationDir
+  | PrintHash !FilePath
   | RunMigrations !ConfigFile !MigrationDir !(Maybe LogFileDir)
   | ForceResync !ConfigFile !MigrationDir !(Maybe LogFileDir)
   | RunApplication !ConfigFile
@@ -82,6 +84,12 @@ runCommand cmd =
             Right adminUser -> putTextLn $ "Deleted admin user: " <> show adminUser
 
     CreateMigration mdir -> doCreateMigration mdir
+
+    PrintHash filePath -> do
+        poolMetadata <- readFile filePath
+        let fileHash = decodeUtf8 $ hashPoolMetadata poolMetadata
+
+        putTextLn $ "File '" <> (toS filePath) <> "' has file hash '" <> fileHash <> "'."
 
     RunMigrations configFile (MigrationDir mdir) mldir -> do
         trce <- setupTraceFromConfig configFile
@@ -201,6 +209,10 @@ pCommand =
         ( Opt.info pCreateMigration
           $ Opt.progDesc "Create a database migration (only really used by devs)."
           )
+    <> Opt.command "print-hash"
+        ( Opt.info pPrintHash
+          $ Opt.progDesc "Output the pool metadata file hash."
+          )
     <> Opt.command "run-migrations"
         ( Opt.info pRunMigrations
           $ Opt.progDesc "Run the database migrations (which are idempotent)."
@@ -237,6 +249,10 @@ pCommand =
     pCreateMigration :: Parser Command
     pCreateMigration =
         CreateMigration <$> pSmashMigrationDir
+
+    pPrintHash :: Parser Command
+    pPrintHash =
+        PrintHash <$> pFilePath
 
     pRunMigrations :: Parser Command
     pRunMigrations =

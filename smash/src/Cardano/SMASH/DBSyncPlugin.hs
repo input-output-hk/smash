@@ -5,6 +5,8 @@ module Cardano.SMASH.DBSyncPlugin
   ( poolMetadataDbSyncNodePlugin
   -- * For future testing
   , insertDefaultBlock
+  -- * Utility for hashing pool metadata
+  , hashPoolMetadata
   ) where
 
 import           Cardano.Prelude
@@ -24,6 +26,8 @@ import           Cardano.SMASH.Types                (PoolId (..),
 
 import           Cardano.Chain.Block                (ABlockOrBoundary (..))
 
+import qualified Cardano.Crypto.Hash.Blake2b        as Crypto
+import qualified Cardano.Crypto.Hash.Class          as Crypto
 import qualified Data.ByteString.Base16             as B16
 
 import           Database.Persist.Sql               (IsolationLevel (..),
@@ -308,4 +312,9 @@ insertPoolRegister dataLayer tracer params = do
 
   liftIO . logInfo tracer $ "Inserted pool register."
   pure ()
+
+-- | Returns a hash from the pool metadata.
+hashPoolMetadata :: Text -> ByteString
+hashPoolMetadata poolMetadata =
+    B16.encode $ Crypto.digest (Proxy :: Proxy Crypto.Blake2b_256) (encodeUtf8 poolMetadata)
 
