@@ -79,23 +79,6 @@ newtype MetaId = MetaId Int
 
 -------------------------------------------------------------------------------
 
-instance DBConversion DB.Block Block where
-    convertFromDB block =
-        Block
-            { bHash = DB.blockHash block
-            , bEpochNo = EpochNo . fromMaybe 0 $ DB.blockEpochNo block
-            , bSlotNo = SlotNo . fromMaybe 0 $ DB.blockSlotNo block
-            , bBlockNo = BlockNo . fromMaybe 0 $ DB.blockBlockNo block
-            }
-
-    convertToDB block =
-        DB.Block
-            { DB.blockHash = bHash block
-            , DB.blockEpochNo = Just . unEpochNo $ bEpochNo block
-            , DB.blockSlotNo = Just . unSlotNo $ bSlotNo block
-            , DB.blockBlockNo = Just . unBlockNo $ bBlockNo block
-            }
-
 instance DBConversion DB.Meta Meta where
     convertFromDB meta =
         Meta
@@ -136,7 +119,7 @@ runCardanoSyncWithSmash mMigrationDir metricsSetters dbSyncNodeParams = do
     DB.runMigrations tracer (\x -> x) smashMigrationDir (Just $ DB.SmashLogFileDir "/tmp")
     logInfo tracer $ "Migrations complete."
 
-    dataLayer <- DB.createCachedDataLayer (Just tracer)
+    let dataLayer = DB.postgresqlDataLayer (Just tracer)
 
     -- The plugin requires the @DataLayer@.
     let smashDbSyncNodePlugin = poolMetadataDbSyncNodePlugin dataLayer
@@ -144,7 +127,7 @@ runCardanoSyncWithSmash mMigrationDir metricsSetters dbSyncNodeParams = do
     let getLatestBlock =
             runMaybeT $ do
                 block <- MaybeT $ DB.runDbIohkLogging tracer DB.queryLatestBlock
-                return $ convertFromDB block
+                return block
 
     -- The base @DataLayer@.
     let syncDataLayer =
@@ -155,7 +138,15 @@ runCardanoSyncWithSmash mMigrationDir metricsSetters dbSyncNodeParams = do
                         Nothing           -> return []
                         Just slotHashPair -> return [slotHashPair]
 
-                , sdlGetLatestBlock = getLatestBlock
+                , sdlGetLatestBlock = runMaybeT $ do
+                    block <- MaybeT getLatestBlock
+
+                    return $ Block
+                        { bHash = DB.blockHash block
+                        , bEpochNo = EpochNo . fromMaybe 0 $ DB.blockEpochNo block
+                        , bSlotNo = SlotNo . fromMaybe 0 $ DB.blockSlotNo block
+                        , bBlockNo = BlockNo . fromMaybe 0 $ DB.blockBlockNo block
+                        }
 
                 , sdlGetLatestSlotNo = SlotNo <$> DB.runDbNoLogging DB.queryLatestSlotNo
 
@@ -218,6 +209,8 @@ insertValidateGenesisDistSmash _dataLayer tracer (NetworkName networkName) cfg =
       case ebid of
         -- TODO(KS): This needs to be moved into DataLayer.
         Right _bid -> runExceptT $ do
+            liftIO $ logInfo tracer "Validating Genesis distribution"
+
             let getMeta = runExceptT $ do
                     meta <- ExceptT $ dbFailToCardanoSyncError <$> (DB.runDbIohkLogging tracer DB.queryMeta)
                     return $ Meta
@@ -237,15 +230,15 @@ insertValidateGenesisDistSmash _dataLayer tracer (NetworkName networkName) cfg =
                             , mNetworkName = Just networkName
                             }
 
-            let block = Block
-                            { bHash = configGenesisHash cfg
-                            , bEpochNo = 0
-                            , bSlotNo = 0
-                            , bBlockNo = 0
+            let block = DB.Block
+                            { DB.blockHash = configGenesisHash cfg
+                            , DB.blockEpochNo = Just 0
+                            , DB.blockSlotNo = Just 0
+                            , DB.blockBlockNo = Just 0
                             }
 
-            let addGenesisMetaBlock = DB.dlAddGenesisMetaBlock (DB.postgresqlDataLayer $ Just tracer)
-            metaIdBlockIdE <- addGenesisMetaBlock (convertToDB meta) (convertToDB block)
+            let addGenesisMetaBlock = DB.dlAddGenesisMetaBlock (DB.postgresqlDataLayer (Just tracer))
+            metaIdBlockIdE <- addGenesisMetaBlock (convertToDB meta) block
 
             case metaIdBlockIdE of
                 Right (_metaId, _blockId) -> pure $ Right ()
@@ -259,9 +252,8 @@ validateGenesisDistribution
     -> Text
     -> ShelleyGenesis StandardShelley
     -> m (Either CardanoSyncError ())
-validateGenesisDistribution tracer meta networkName cfg =
+validateGenesisDistribution _tracer meta networkName cfg =
   runExceptT $ do
-    liftIO $ logInfo tracer "Validating Genesis distribution"
 
     -- Show configuration we are validating
     print cfg

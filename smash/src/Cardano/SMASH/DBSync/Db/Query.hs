@@ -269,6 +269,9 @@ queryPoolMetadataFetchError (Just poolId) = do
             pure $ poolMetadataFetchError
   pure $ fmap entityVal res
 
+-- We currently query the top 10 errors (chronologically) when we don't have the time parameter, but we would ideally
+-- want to see the top 10 errors from _different_ pools (group by), using something like:
+-- select pool_id, pool_hash, max(retry_count) from pool_metadata_fetch_error group by pool_id, pool_hash;
 queryPoolMetadataFetchErrorByTime
     :: MonadIO m
     => Types.PoolId
@@ -278,6 +281,7 @@ queryPoolMetadataFetchErrorByTime poolId Nothing = do
   res <- select . from $ \(poolMetadataFetchError :: SqlExpr (Entity PoolMetadataFetchError)) -> do
             where_ (poolMetadataFetchError ^. PoolMetadataFetchErrorPoolId ==. val poolId)
             orderBy [desc (poolMetadataFetchError ^. PoolMetadataFetchErrorFetchTime)]
+            limit 10
             pure $ poolMetadataFetchError
   pure $ fmap entityVal res
 

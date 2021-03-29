@@ -32,8 +32,6 @@ import           Data.Aeson                  (encode)
 import           Data.Swagger                (Contact (..), Info (..),
                                               License (..), Swagger (..),
                                               URL (..))
-import           Data.Time                   (UTCTime, addUTCTime,
-                                              getCurrentTime, nominalDay)
 import           Data.Version                (showVersion)
 
 import           Network.Wai.Handler.Warp    (defaultSettings, runSettings,
@@ -345,20 +343,13 @@ getPoolErrorAPI dataLayer poolId mTimeInt = convertIOToHandler $ do
     let getFetchErrors = dlGetFetchErrors dataLayer
 
     -- Unless the user defines the date from which he wants to display the errors,
-    -- all the errors from the past day will be shown. We don't want to overwhelm
-    -- the operators.
+    -- we show the latest 10 errors that occured. Those 10 errors can be from a single
+    -- pool, or they can be from different pools, we order them chronologically.
     fetchErrors <- case mTimeInt of
-        Nothing -> do
-            utcDayAgo <- getUTCTimeDayAgo
-            getFetchErrors poolId (Just utcDayAgo)
-
+        Nothing -> getFetchErrors poolId Nothing
         Just (TimeStringFormat time) -> getFetchErrors poolId (Just time)
 
     return . ApiResult $ fetchErrors
-  where
-    getUTCTimeDayAgo :: IO UTCTime
-    getUTCTimeDayAgo =
-        addUTCTime (-nominalDay) <$> getCurrentTime
 
 getRetiredPools :: DataLayer -> Handler (ApiResult DBFail [PoolId])
 getRetiredPools dataLayer = convertIOToHandler $ do
