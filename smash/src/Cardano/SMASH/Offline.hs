@@ -93,7 +93,7 @@ fetchInsertNewPoolMetadata dataLayer tracer refId poolId md  = do
 fetchInsertNewPoolMetadataOld
     :: DataLayer
     -> Trace IO Text
-    -> (PoolId -> Trace IO Text -> PoolFetchRetry -> ExceptT FetchError IO ())
+    -> (DataLayer -> PoolId -> Trace IO Text -> PoolFetchRetry -> ExceptT FetchError IO ())
     -> PoolFetchRetry
     -> IO PoolFetchRetry
 fetchInsertNewPoolMetadataOld dataLayer tracer fetchInsert pfr = do
@@ -112,7 +112,7 @@ fetchInsertNewPoolMetadataOld dataLayer tracer fetchInsert pfr = do
     let currRetryCount :: Word
         currRetryCount = retryCount $ pfrRetry pfr
 
-    res <- runExceptT (fetchInsert poolId tracer pfr)
+    res <- runExceptT (fetchInsert dataLayer poolId tracer pfr)
 
     -- In the case all went well, we do nothing, but if something went wrong
     -- we log that and add the error to the database.
@@ -154,11 +154,12 @@ fetchInsertNewPoolMetadataOld dataLayer tracer fetchInsert pfr = do
 
 -- |We pass in the @PoolId@ so we can know from which pool the error occured.
 fetchInsertDefault
-    :: PoolId
+    :: DataLayer
+    -> PoolId
     -> Trace IO Text
     -> PoolFetchRetry
     -> ExceptT FetchError IO ()
-fetchInsertDefault poolId tracer pfr = do
+fetchInsertDefault dataLayer poolId tracer pfr = do
     -- This is a bit bad to do each time, but good enough for now.
     manager <- liftIO $ Http.newManager tlsManagerSettings
 
@@ -189,7 +190,6 @@ fetchInsertDefault poolId tracer pfr = do
       then left $ FEHashMismatch poolId expectedHash (renderByteStringHex hashFromMetadata) poolMetadataURL
       else liftIO . logInfo tracer $ "Inserting pool data with hash: " <> expectedHash
 
-    let dataLayer = postgresqlDataLayer (Just tracer)
     let addPoolMetadata = dlAddPoolMetadata dataLayer
 
     _ <- liftIO $

@@ -64,7 +64,7 @@ migrationSpec = do
 
                 let dataLayer = postgresqlDataLayer Nothing
 
-                let fetchInsert = \_ _ _ -> left $ FEIOException "Dunno"
+                let fetchInsert = \_ _ _ _ -> left $ FEIOException "Dunno"
 
                 --print $ showRetryTimes (pfrRetry poolFetchRetry)
 

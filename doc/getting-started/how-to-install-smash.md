@@ -330,8 +330,8 @@ If you have a specific pool id you want to check, you can add that pool id (`c0b
 http://localhost:3100/api/v1/errors/062693863e0bcf9f619238f020741381d4d3748aae6faf1c012e80e7
 ```
 
-**This shows all the errors for the pool from a day ago**.
-However, you can filter just the ones you want by using a date you want to filter from, like this (using DD.MM.YYYY):
+**This shows the last 10 errors from your pool id. There might be more then just 10 errors, but you have to filter the query using the time parameter**.
+You can filter just the ones you want by using a date you want to filter from, like this (using DD.MM.YYYY):
 ```
 http://localhost:3100/api/v1/errors/6b6164af70861c5537cc9c8e50fdae35139ca2c8c6fbb42e8b7e6bfb?fromDate=13.10.2020
 ```

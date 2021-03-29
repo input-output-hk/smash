@@ -89,7 +89,7 @@ extra-deps:
 
   # db-sync dependency
   - git: https://github.com/input-output-hk/cardano-db-sync
-    commit: c43a653371ba73ad8e4ececad9ac1b7ad45e2ff5
+    commit: 0c1df9dc05693f6d483ba3ec1c65c7105be0de12
     subdirs:
       - cardano-sync
       - cardano-db

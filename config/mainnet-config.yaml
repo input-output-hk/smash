@@ -107,6 +107,6 @@ options:
     '#aggregation.cardano.epoch-validation.benchmark':
       - EKGViewBK
   mapSeverity:
-    db-sync-node.Subscription: Error
-    db-sync-node.Mux: Error
-    db-sync-node: Info
+    smash-node.Subscription: Error
+    smash-node.Mux: Error
+    smash-node: Info

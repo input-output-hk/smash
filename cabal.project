@@ -46,8 +46,8 @@ package ouroboros-consensus-cardano
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-db-sync
-  tag: c43a653371ba73ad8e4ececad9ac1b7ad45e2ff5
-  --sha256: 156qfrkhrmqgrsr7cd12k8lxbcdvmcn40p82bbxy6qxdm1kkx45c
+  tag: 0c1df9dc05693f6d483ba3ec1c65c7105be0de12
+  --sha256: 13h41zb8qdaa79vldmv085pikjyl40s2z29v0cfz11hjwmx3b1z8
   subdir:
     cardano-sync
     cardano-db
