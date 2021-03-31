@@ -42,6 +42,9 @@ import qualified Cardano.SMASH.DBSync.Db.Schema     as DB
 import           Cardano.Sync.Error
 import           Cardano.Sync.Types                 as DbSync
 
+import           Cardano.Sync.LedgerState           (applyBlock,
+                                                     saveLedgerStateMaybe)
+
 import           Cardano.Sync                       (SyncEnv (..),
                                                      SyncNodePlugin (..))
 import           Cardano.Sync.Util
@@ -101,6 +104,10 @@ insertDefaultBlock
     -> ReaderT SqlBackend (LoggingT IO) (Either SyncNodeError ())
 insertDefaultBlock dataLayer tracer env (BlockDetails cblk details) = do
 
+  -- Calculate the new ledger state to pass to the DB insert functions but do not yet
+  -- update ledgerStateVar.
+  lStateSnap <- liftIO $ applyBlock (envLedger env) cblk
+
   res <- case cblk of
             BlockByron blk -> do
               insertByronBlock tracer blk details
@@ -110,6 +117,10 @@ insertDefaultBlock dataLayer tracer env (BlockDetails cblk details) = do
               insertShelleyBlock Allegra dataLayer tracer env (Generic.fromAllegraBlock blk) details
             BlockMary blk -> do
               insertShelleyBlock Mary dataLayer tracer env (Generic.fromMaryBlock blk) details
+
+  -- Now we update it in ledgerStateVar and (possibly) store it to disk.
+  liftIO $ saveLedgerStateMaybe (envLedger env)
+                lStateSnap (isSyncedWithinSeconds details 60)
 
   pure res
 
