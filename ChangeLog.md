@@ -1,5 +1,21 @@
 # Changelog for smash
 
+## 1.5.0
+
+### Story
+
+- [CAD-2547] - Add Prometheus metrics for slot_no
+- [CAD-2581] - Use the general db-sync plugins system to implement SMASH
+- [CAD-2651] - Fix/improve caching
+- [CAD-2671] - Modify cardano-sync to enable reusing from SMASH
+- [CAD-2724] - CLI option to switch to existing SMASH server filtering
+- [CAD-2810] - Add CLI for checking of pool metadata hash
+- [CAD-2811] - Fix error handling to show last 10 results by default
+
+### Bug
+
+- [CAD-2832] - Smash syncing from scratch every restart
+
 ## 1.4.0
 
 ### Story
