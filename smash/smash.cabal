@@ -44,6 +44,8 @@ library
     Cardano.SMASH.DBSync.Db.PGConfig
     Cardano.SMASH.DBSync.Db.Run
 
+    Cardano.SMASH.ScanBlocksPipelined 
+
     Cardano.SMASH.DBSync.Metrics
     Cardano.SMASH.DBSyncPlugin
     Cardano.SMASH.DBSyncRun
@@ -60,11 +62,12 @@ library
     , base16-bytestring
     , bytestring
     , cardano-crypto-class
-    , cardano-sync
+    --, cardano-sync
     , cardano-prelude
     , cardano-slotting
-    , cardano-db-sync
+    --, cardano-db-sync
     , cardano-ledger-byron
+    , cardano-api
     , cborg
     , conduit-extra
     , containers
@@ -129,7 +132,7 @@ executable smash-exe
   build-depends:
       base                  >=4.7 && <5
     , cardano-prelude
-    , cardano-sync
+    --, cardano-sync
     , cardano-slotting
     , optparse-applicative
     , iohk-monitoring

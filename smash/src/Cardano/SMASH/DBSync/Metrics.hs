@@ -12,8 +12,6 @@ import           Cardano.Prelude
 
 import           Cardano.Slotting.Slot (SlotNo (..))
 
-import           Cardano.Sync.Types (MetricSetters (..))
-
 import           Ouroboros.Network.Block (BlockNo (..))
 
 import           System.Metrics.Prometheus.Concurrent.RegistryT (RegistryT (..), registerGauge,
@@ -21,6 +19,18 @@ import           System.Metrics.Prometheus.Concurrent.RegistryT (RegistryT (..),
 import           System.Metrics.Prometheus.Http.Scrape (serveMetricsT)
 import           System.Metrics.Prometheus.Metric.Gauge (Gauge)
 import qualified System.Metrics.Prometheus.Metric.Gauge as Gauge
+
+-- The metrics we use.
+-- Kept as a separate struct and do not put into environment because
+-- when we need to test functions using this we need to initialize the
+-- whole environment and not just pass in the layer. This shows clearly
+-- that it needs to remain a separate parameter passed around where needed.
+data MetricSetters = MetricSetters
+  { metricsSetNodeBlockHeight :: BlockNo -> IO ()
+  , metricsSetDbQueueLength :: Natural -> IO ()
+  , metricsSetDbBlockHeight :: BlockNo -> IO ()
+  , metricsSetDbSlotHeight :: SlotNo -> IO ()
+  }
 
 data Metrics = Metrics
   { mNodeBlockHeight :: !Gauge
