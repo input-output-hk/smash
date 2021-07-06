@@ -10,6 +10,7 @@ module Main where
 
 import           Cardano.Prelude              hiding (Meta)
 
+import           Cardano.Slotting.Slot        (SlotNo (..))
 
 import qualified Cardano.SMASH.DB             as DB
 
@@ -20,16 +21,17 @@ import           Cardano.SMASH.DBSync.Metrics (withMetricSetters)
 import           Cardano.SMASH.DBSyncPlugin   (hashPoolMetadata)
 import           Cardano.SMASH.DBSyncRun      (runCardanoSyncWithSmash,
                                                setupTraceFromConfig)
-
 import           Cardano.Sync.Config
 import           Cardano.Sync.Config.Types
+
+import           Data.Version (showVersion)
 
 import           Options.Applicative          (Parser, ParserInfo, ParserPrefs)
 import qualified Options.Applicative          as Opt
 
-import           System.FilePath              ((</>))
+import           Paths_smash (version)
 
-import           Cardano.Slotting.Slot        (SlotNo (..))
+import           System.FilePath              ((</>))
 
 
 main :: IO ()
@@ -188,7 +190,7 @@ pSlotNo =
 -- TOOD(KS): Fix this to pick up a proper version.
 pVersion :: Parser (a -> a)
 pVersion =
-  Opt.infoOption "SMASH version 1.3.0"
+  Opt.infoOption ("SMASH version " ++ showVersion version)
     (  Opt.long "version"
     <> Opt.short 'v'
     <> Opt.help "Print the version and exit"
