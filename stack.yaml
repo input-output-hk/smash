@@ -89,14 +89,14 @@ extra-deps:
 
   # db-sync dependency
   - git: https://github.com/input-output-hk/cardano-db-sync
-    commit: 0c1df9dc05693f6d483ba3ec1c65c7105be0de12
+    commit: 1c2262a8a70a023f65fd544e71aec5b387f167e0
     subdirs:
       - cardano-sync
       - cardano-db
       - cardano-db-sync
 
   - git: https://github.com/input-output-hk/cardano-base
-    commit: 101e7752cf4b23fd0b411736f523b8f6c43f6bc2
+    commit: 27f93e64a7d6aa78bfcd1072f0f5c088c79c99fe
     subdirs:
     - binary
     - binary/test
@@ -104,12 +104,12 @@ extra-deps:
     - cardano-crypto-tests
     - cardano-crypto-praos
     - slotting
-  
+
   - git: https://github.com/input-output-hk/cardano-crypto
-    commit: f73079303f663e028288f9f4a9e08bcca39a923e
-  
+    commit: 07397f0e50da97eaa0575d93bee7ac4b2b2576ec
+
   - git: https://github.com/input-output-hk/cardano-ledger-specs
-    commit: 0730828363ad6d0669b7a5a12635e22944b32880
+    commit: 60a47ae42b7d465160a310d5d7f125f73d19c705
     subdirs:
     - alonzo/impl
     - byron/crypto
@@ -124,10 +124,10 @@ extra-deps:
     - shelley/chain-and-ledger/executable-spec
     - shelley/chain-and-ledger/shelley-spec-ledger-test
     - shelley-ma/impl
-    - shelley-ma/shelley-ma-test 
+    - shelley-ma/shelley-ma-test
 
   - git: https://github.com/input-output-hk/cardano-node
-    commit: 1a25af8527f353fd0f2b863c27250b2990fec22a
+    commit: 07c59920321dcada28a38dffcb36aafe4625824f
     subdirs:
     - cardano-api
     - cardano-api/test
@@ -136,21 +136,21 @@ extra-deps:
     - cardano-node
     - cardano-node-chairman
     - hedgehog-extras
-  
+
   - git: https://github.com/input-output-hk/cardano-prelude
-    commit: ee4e7b547a991876e6b05ba542f4e62909f4a571
+    commit: fd773f7a58412131512b9f694ab95653ac430852
     subdirs:
     - cardano-prelude
     - cardano-prelude-test
-  
+
   - git: https://github.com/input-output-hk/cardano-sl-x509
     commit: 43a036c5bbe68ca2e9cbe611eab7982e2348fe49
-  
+
   - git: https://github.com/input-output-hk/goblins
     commit: cde90a2b27f79187ca8310b6549331e59595e7ba
-  
+
   - git: https://github.com/input-output-hk/iohk-monitoring-framework
-    commit: 60b13d80afa266f02f363672950e896ed735e807
+    commit: 808724ff8a19a33d0ed06f9ef59fbd900b08553c
     subdirs:
     - contra-tracer
     - iohk-monitoring
@@ -160,12 +160,13 @@ extra-deps:
     - plugins/backend-trace-forwarder
     - plugins/scribe-systemd
     - tracer-transformers
-  
+
   - git: https://github.com/input-output-hk/ouroboros-network
-    commit: 80978a02ad43696538f731e399528d7597a3ffe6
+    commit: 8a0ff387541a612b787a6e6b6f02baa9ac8d4c71
     subdirs:
     - io-sim
     - io-sim-classes
+    - monoidal-synchronisation
     - network-mux
     - ouroboros-consensus
     - ouroboros-consensus-byron
@@ -182,7 +183,7 @@ extra-deps:
     - ouroboros-consensus-mock
 
   - git: https://github.com/input-output-hk/plutus
-    commit: ffc1768f5be7af66d8d745a31c9c6a77c5c55104
+    commit: c89e13e66c5bef628a1f7ea3a3732951be8be8ba
     subdirs:
     - plutus-core
     - plutus-ledger-api

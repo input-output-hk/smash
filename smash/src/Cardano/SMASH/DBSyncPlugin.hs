@@ -109,6 +109,7 @@ data BlockName
     = Shelley
     | Allegra
     | Mary
+    | Alonzo
     deriving (Eq, Show)
 
 insertDefaultBlocks
@@ -133,7 +134,7 @@ insertDefaultBlock dataLayer tracer env (BlockDetails cblk details) = do
 
   -- Calculate the new ledger state to pass to the DB insert functions but do not yet
   -- update ledgerStateVar.
-  lStateSnap <- liftIO $ applyBlock (envLedger env) cblk
+  lStateSnap <- liftIO $ applyBlock (envLedger env) cblk details
 
   res <- case cblk of
             BlockByron blk -> do
@@ -144,6 +145,8 @@ insertDefaultBlock dataLayer tracer env (BlockDetails cblk details) = do
               insertShelleyBlock Allegra dataLayer tracer env (Generic.fromAllegraBlock blk) details
             BlockMary blk -> do
               insertShelleyBlock Mary dataLayer tracer env (Generic.fromMaryBlock blk) details
+            BlockAlonzo blk ->
+              insertShelleyBlock Alonzo dataLayer tracer env (Generic.fromAlonzoBlock blk) details
 
   -- Now we update it in ledgerStateVar and (possibly) store it to disk.
   liftIO $ saveLedgerStateMaybe (envLedger env)

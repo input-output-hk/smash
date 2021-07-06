@@ -65,7 +65,7 @@ import qualified Network.HTTP.Client              as Http
 import           Network.HTTP.Client.TLS          (tlsManagerSettings)
 import qualified Network.HTTP.Types.Status        as Http
 
-import qualified Shelley.Spec.Ledger.BaseTypes    as Shelley
+import qualified Cardano.Ledger.BaseTypes         as Shelley
 import qualified Shelley.Spec.Ledger.TxBody       as Shelley
 
 -- This is what we call from the actual block-syncing code.
