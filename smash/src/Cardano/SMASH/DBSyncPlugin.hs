@@ -158,7 +158,7 @@ insertByronBlock
     -> ByronBlock
     -> DbSync.SlotDetails
     -> ReaderT SqlBackend (LoggingT IO) (Either SyncNodeError ())
-insertByronBlock tracer blk _details = do
+insertByronBlock tracer blk details = do
   case byronBlockRaw blk of
     ABOBBlock byronBlock -> do
         let blockHash = Byron.blockHash byronBlock
@@ -167,13 +167,15 @@ insertByronBlock tracer blk _details = do
 
         -- Output in intervals, don't add too much noise to the output.
         when (slotNum `mod` 5000 == 0) $
-            liftIO . logInfo tracer $ "Byron block, slot: " <> show slotNum
+            liftIO . logInfo tracer $ mconcat
+                [ "Byron block: epoch ", show (unEpochNo $ sdEpochNo details), ", slot " <> show slotNum
+                ]
 
         -- TODO(KS): Move to DataLayer.
         _blkId <- DB.insertBlock $
                   DB.Block
                     { DB.blockHash = blockHash
-                    , DB.blockEpochNo = Nothing
+                    , DB.blockEpochNo = Just $ unEpochNo (sdEpochNo details)
                     , DB.blockSlotNo = Just $ slotNum
                     , DB.blockBlockNo = Just $ blockNumber
                     }
