@@ -61,6 +61,7 @@ library
     , bytestring
     , cardano-crypto-class
     , cardano-sync
+    , cardano-ledger-core
     , cardano-prelude
     , cardano-slotting
     , cardano-db-sync
@@ -87,7 +88,7 @@ library
     , ouroboros-network
     , persistent
     , persistent-postgresql
-    , persistent-template          >=2.7.0
+    , persistent-template          >=2.9.1.0
     , postgresql-simple
     , prometheus
     , resourcet

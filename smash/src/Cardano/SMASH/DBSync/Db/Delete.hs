@@ -5,6 +5,7 @@ module Cardano.SMASH.DBSync.Db.Delete
   ( deleteDelistedPool
   , deleteRetiredPool
   , deleteAdminUser
+  , deleteCascadeSlotNo
   ) where
 
 import           Cardano.Prelude                hiding (Meta)
@@ -37,4 +38,8 @@ deleteAdminUser adminUser = do
   mapM_ deleteCascade keys
   pure $ not (null keys)
 
-
+deleteCascadeSlotNo :: MonadIO m => Word64 -> ReaderT SqlBackend m Bool
+deleteCascadeSlotNo slotNo = do
+  keys <- selectKeysList [ BlockSlotNo ==. Just slotNo ] []
+  mapM_ deleteCascade keys
+  pure $ not (null keys)

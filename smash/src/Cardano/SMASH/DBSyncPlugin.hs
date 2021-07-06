@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Cardano.SMASH.DBSyncPlugin
@@ -34,9 +35,11 @@ import           Database.Persist.Sql               (IsolationLevel (..),
                                                      SqlBackend,
                                                      transactionSaveWithIsolation)
 
+import qualified Cardano.SMASH.DBSync.Db.Delete     as DB
 import qualified Cardano.SMASH.DBSync.Db.Insert     as DB
 import qualified Cardano.SMASH.DBSync.Db.Run        as DB
 import qualified Cardano.SMASH.DBSync.Db.Schema     as DB
+import qualified Cardano.SMASH.DBSync.Db.Query      as DB
 
 
 import           Cardano.Sync.Error
@@ -54,13 +57,11 @@ import qualified Cardano.DbSync.Era.Shelley.Generic as Generic
 import qualified Cardano.DbSync.Era.Shelley.Generic as Shelley
 import qualified Cardano.Sync.Era.Byron.Util        as Byron
 
-import           Cardano.Slotting.Block             (BlockNo (..))
 import           Cardano.Slotting.Slot              (EpochNo (..),
-                                                     EpochSize (..),
-                                                     SlotNo (..))
+                                                     EpochSize (..))
 
-import           Shelley.Spec.Ledger.BaseTypes      (strictMaybeToMaybe)
-import qualified Shelley.Spec.Ledger.BaseTypes      as Shelley
+import           Cardano.Ledger.BaseTypes           (strictMaybeToMaybe)
+import qualified Cardano.Ledger.BaseTypes           as Shelley
 import qualified Shelley.Spec.Ledger.TxBody         as Shelley
 
 import           Ouroboros.Consensus.Byron.Ledger   (ByronBlock (..))
@@ -68,20 +69,47 @@ import           Ouroboros.Consensus.Byron.Ledger   (ByronBlock (..))
 import           Ouroboros.Consensus.Cardano.Block  (HardForkBlock (..),
                                                      StandardCrypto)
 
+import           Ouroboros.Network.Block hiding (blockHash)
+import           Ouroboros.Network.Point
+
 -- |Pass in the @DataLayer@.
 poolMetadataDbSyncNodePlugin :: DataLayer -> SyncNodePlugin
 poolMetadataDbSyncNodePlugin dataLayer =
   SyncNodePlugin
     { plugOnStartup = []
     , plugInsertBlock = [insertDefaultBlocks dataLayer]
-    , plugRollbackBlock = []
+    , plugRollbackBlock = [rollbackDefaultBlocks]
     }
+
+rollbackDefaultBlocks
+    :: Trace IO Text
+    -> DbSync.CardanoPoint
+    -> IO (Either SyncNodeError ())
+rollbackDefaultBlocks tracer point =
+    DB.runDbAction Nothing $ runExceptT action
+  where
+    action :: MonadIO m => ExceptT SyncNodeError (ReaderT SqlBackend m) ()
+    action = do
+      xs <- lift $ slotsToDelete (pointSlot point)
+      if null xs then
+          liftIO $ logInfo tracer "No Rollback is necessary"
+      else do
+          liftIO . logInfo tracer $
+                mconcat
+                  [ "Deleting ", textShow (length xs), " slots: ", renderSlotList xs
+                  ]
+          mapM_ (lift . DB.deleteCascadeSlotNo) (unSlotNo <$> xs)
+          liftIO $ logInfo tracer "Slots deleted"
+
+    slotsToDelete Origin = DB.querySlotNos
+    slotsToDelete (At sl) = DB.querySlotNosGreaterThan (unSlotNo sl)
 
 -- For information on what era we are in.
 data BlockName
     = Shelley
     | Allegra
     | Mary
+    | Alonzo
     deriving (Eq, Show)
 
 insertDefaultBlocks
@@ -106,7 +134,7 @@ insertDefaultBlock dataLayer tracer env (BlockDetails cblk details) = do
 
   -- Calculate the new ledger state to pass to the DB insert functions but do not yet
   -- update ledgerStateVar.
-  lStateSnap <- liftIO $ applyBlock (envLedger env) cblk
+  lStateSnap <- liftIO $ applyBlock (envLedger env) cblk details
 
   res <- case cblk of
             BlockByron blk -> do
@@ -117,6 +145,8 @@ insertDefaultBlock dataLayer tracer env (BlockDetails cblk details) = do
               insertShelleyBlock Allegra dataLayer tracer env (Generic.fromAllegraBlock blk) details
             BlockMary blk -> do
               insertShelleyBlock Mary dataLayer tracer env (Generic.fromMaryBlock blk) details
+            BlockAlonzo blk ->
+              insertShelleyBlock Alonzo dataLayer tracer env (Generic.fromAlonzoBlock blk) details
 
   -- Now we update it in ledgerStateVar and (possibly) store it to disk.
   liftIO $ saveLedgerStateMaybe (envLedger env)
@@ -131,7 +161,7 @@ insertByronBlock
     -> ByronBlock
     -> DbSync.SlotDetails
     -> ReaderT SqlBackend (LoggingT IO) (Either SyncNodeError ())
-insertByronBlock tracer blk _details = do
+insertByronBlock tracer blk details = do
   case byronBlockRaw blk of
     ABOBBlock byronBlock -> do
         let blockHash = Byron.blockHash byronBlock
@@ -140,13 +170,15 @@ insertByronBlock tracer blk _details = do
 
         -- Output in intervals, don't add too much noise to the output.
         when (slotNum `mod` 5000 == 0) $
-            liftIO . logInfo tracer $ "Byron block, slot: " <> show slotNum
+            liftIO . logInfo tracer $ mconcat
+                [ "Byron block: epoch ", show (unEpochNo $ sdEpochNo details), ", slot " <> show slotNum
+                ]
 
         -- TODO(KS): Move to DataLayer.
         _blkId <- DB.insertBlock $
                   DB.Block
                     { DB.blockHash = blockHash
-                    , DB.blockEpochNo = Nothing
+                    , DB.blockEpochNo = Just $ unEpochNo (sdEpochNo details)
                     , DB.blockSlotNo = Just $ slotNum
                     , DB.blockBlockNo = Just $ blockNumber
                     }

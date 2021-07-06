@@ -15,6 +15,8 @@ module Cardano.SMASH.DBSync.Db.Query
   , queryBlockCount
   , queryBlockNo
   , queryBlockId
+  , querySlotNosGreaterThan
+  , querySlotNos
   , queryMeta
   , queryLatestBlock
   , queryLatestBlockNo
@@ -44,7 +46,7 @@ import           Database.Esqueleto             (Entity, PersistField, SqlExpr,
                                                  not_, orderBy, select,
                                                  subList_select, unValue, val,
                                                  where_, (&&.), (==.), (>=.),
-                                                 (^.))
+                                                 (^.), (>.))
 import           Database.Persist.Sql           (SqlBackend, selectList)
 
 import           Cardano.Slotting.Slot          (SlotNo (..))
@@ -158,6 +160,27 @@ queryBlockId hash = do
             where_ (blk ^. BlockHash ==. val hash)
             pure $ blk ^. BlockId
   pure $ maybeToEither (DbLookupBlockHash hash) unValue (listToMaybe res)
+
+querySlotNosGreaterThan :: MonadIO m => Word64 -> ReaderT SqlBackend m [SlotNo]
+querySlotNosGreaterThan slotNo = do
+  res <- select . from $ \ blk -> do
+            -- Want all BlockNos where the block satisfies this predicate.
+            where_ (blk ^. BlockSlotNo >. just (val slotNo))
+            -- Return them in descending order so we can delete the highest numbered
+            -- ones first.
+            orderBy [desc (blk ^. BlockSlotNo)]
+            pure (blk ^. BlockSlotNo)
+  pure $ mapMaybe (fmap SlotNo . unValue) res
+
+-- | returns all slots in desc order.
+querySlotNos :: MonadIO m => ReaderT SqlBackend m [SlotNo]
+querySlotNos = do
+  res <- select . from $ \ blk -> do
+            -- Return them in descending order so we can delete the highest numbered
+            -- ones first.
+            orderBy [desc (blk ^. BlockSlotNo)]
+            pure (blk ^. BlockSlotNo)
+  pure $ mapMaybe (fmap SlotNo . unValue) res
 
 {-# INLINABLE queryMeta #-}
 -- | Get the network metadata.

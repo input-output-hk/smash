@@ -185,7 +185,7 @@ insertValidateGenesisSmashFunction
     -> ExceptT SyncNodeError IO ()
 insertValidateGenesisSmashFunction dataLayer tracer networkName genCfg =
     firstExceptT cardanoSyncErrorToNodeError $ case genCfg of
-        GenesisCardano _ _bCfg sCfg ->
+        GenesisCardano _ _bCfg sCfg _ ->
             insertValidateGenesisDistSmash dataLayer tracer networkName (scConfig sCfg)
 
 -- | Idempotent insert the initial Genesis distribution transactions into the DB.
@@ -232,9 +232,9 @@ insertValidateGenesisDistSmash _dataLayer tracer (NetworkName networkName) cfg =
 
             let block = DB.Block
                             { DB.blockHash = configGenesisHash cfg
-                            , DB.blockEpochNo = Just 0
-                            , DB.blockSlotNo = Just 0
-                            , DB.blockBlockNo = Just 0
+                            , DB.blockEpochNo = Nothing
+                            , DB.blockSlotNo = Nothing
+                            , DB.blockBlockNo = Nothing
                             }
 
             let addGenesisMetaBlock = DB.dlAddGenesisMetaBlock (DB.postgresqlDataLayer (Just tracer))
