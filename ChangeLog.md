@@ -1,5 +1,25 @@
 # Changelog for smash
 
+
+## 1.5.0
+
+### Story
+
+- Update dependencoes to support Alonzo
+- Handle chain rollbacks correctly
+- [CAD-2547] - Add Prometheus metrics for slot_no
+- [CAD-2581] - Use the general db-sync plugins system to implement SMASH
+- [CAD-2651] - Fix/improve caching
+- [CAD-2671] - Modify cardano-sync to enable reusing from SMASH
+- [CAD-2724] - CLI option to switch to existing SMASH server filtering
+- [CAD-2810] - Add CLI for checking of pool metadata hash
+- [CAD-2811] - Fix error handling to show last 10 results by default
+
+### Bug
+
+- [CAD-2832] - Smash syncing from scratch every restart
+
+
 ## 1.4.0
 
 ### Story
@@ -15,6 +35,7 @@
 - [CAD-2408] - Create directory for --state-dir automatically if it does not exist
 - [CAD-2416] - Database connection inconsistency
 - [CAD-2476] - SMASH not returning active pools that were previously retired
+
 
 ## 1.3.0
 
@@ -33,6 +54,7 @@
 - [CAD-2179] - pool_id delist endpoint is returning 200 for any string (not only for valid pool_ids)
 - [CAD-2181] - All queries that don't return anything should return 404
 
+
 ## 1.2.0
 
 ### Story
@@ -47,6 +69,7 @@
 - [CAD-2085] - Create migration scripts for SMASH
 - [CAD-2088] - Resolve paths relative to the config file, not the executable
 - [CAD-2093] - Use qualified module names
+
 
 ## 1.1.0
 
