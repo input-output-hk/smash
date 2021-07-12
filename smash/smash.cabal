@@ -79,7 +79,7 @@ library
     , http-client-tls
     , http-types
     , http-conduit
-    , io-sim-classes
+    , io-classes
     , iohk-monitoring
     , monad-logger
     , ouroboros-consensus-byron
