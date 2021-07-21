@@ -106,7 +106,7 @@ extra-deps:
     - slotting
 
   - git: https://github.com/input-output-hk/cardano-crypto
-    commit: 07397f0e50da97eaa0575d93bee7ac4b2b2576ec
+    commit: ce8f1934e4b6252084710975bd9bbc0a4648ece4
 
   - git: https://github.com/input-output-hk/cardano-ledger-specs
     commit: ec9c77edbf5700a4b2ece8f97a1e313df06abc97
@@ -127,7 +127,7 @@ extra-deps:
     - shelley-ma/shelley-ma-test
 
   - git: https://github.com/input-output-hk/cardano-node
-    commit: bc225ae3085ba6f4f4007c50c4877bc4cebcd7de
+    commit: 48429531f0d3d71fadce9a5971bf56a6df396f2d
     subdirs:
     - cardano-api
     - cardano-api/test
