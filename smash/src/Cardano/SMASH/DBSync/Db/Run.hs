@@ -41,7 +41,7 @@ import           Database.Persist.Sql                 (IsolationLevel (..),
                                                        runSqlConnWithIsolation)
 import           Database.PostgreSQL.Simple           (connectPostgreSQL)
 
-import           Database.Esqueleto
+import           Database.Esqueleto.Legacy
 import           Database.Esqueleto.Internal.Internal (Mode (..), SqlSelect,
                                                        initialIdentState,
                                                        toRawSql)

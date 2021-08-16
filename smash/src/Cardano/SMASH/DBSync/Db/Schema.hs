@@ -38,7 +38,6 @@ import qualified Cardano.SMASH.DBSync.Db.Types as Types
 
 share
   [ mkPersist sqlSettings
-  , mkDeleteCascade sqlSettings
   , mkMigrate "migrateCardanoDb"
   ]
   [persistLowerCase|
