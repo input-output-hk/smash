@@ -83,6 +83,10 @@ let
           inherit preCheck;
         };
       }
+      {
+        packages.cardano-db-sync.package.extraSrcFiles = ["../schema/*.sql"];
+        packages.cardano-db-sync-extended.package.extraSrcFiles = ["../cardano-db-sync/Setup.hs" "../schema/*.sql"];
+      }
       # TODO: Compile all local packages with -Werror:
       #{
       #  packages = lib.genAttrs projectPackagesNames

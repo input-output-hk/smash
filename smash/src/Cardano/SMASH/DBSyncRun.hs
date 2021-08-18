@@ -34,7 +34,7 @@ import           Cardano.Sync.Database             (runDbThread)
 
 import           Control.Monad.Trans.Maybe
 
-import           Database.Esqueleto
+import           Database.Esqueleto.Legacy
 
 import qualified Cardano.BM.Setup                  as Logging
 import           Cardano.BM.Trace                  (Trace, logInfo, modifyName)

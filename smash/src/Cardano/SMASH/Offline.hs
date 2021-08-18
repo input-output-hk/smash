@@ -51,7 +51,7 @@ import qualified Cardano.SMASH.DBSync.Db.Schema   as DB
 
 import qualified Data.ByteString.Base16           as B16
 
-import           Database.Esqueleto               (Entity (..), InnerJoin (..),
+import           Database.Esqueleto.Legacy        (Entity (..), InnerJoin (..),
                                                    SqlExpr, Value, ValueList,
                                                    desc, from, groupBy, in_,
                                                    just, max_, notExists, on,

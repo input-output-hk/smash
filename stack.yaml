@@ -89,14 +89,14 @@ extra-deps:
 
   # db-sync dependency
   - git: https://github.com/input-output-hk/cardano-db-sync
-    commit: 7815b392bfe9825bd89966bf96c04437e02c2429
+    commit: f2777884123ae76bae2e00dd75f71cdda4f3f96f
     subdirs:
       - cardano-sync
       - cardano-db
       - cardano-db-sync
 
   - git: https://github.com/input-output-hk/cardano-base
-    commit: b6a215c42a28dc8b71b42946fe30256a333d34af
+    commit: cb0f19c85e5bb5299839ad4ed66af6fa61322cc4
     subdirs:
     - binary
     - binary/test
@@ -106,10 +106,10 @@ extra-deps:
     - slotting
 
   - git: https://github.com/input-output-hk/cardano-crypto
-    commit: ce8f1934e4b6252084710975bd9bbc0a4648ece4
+    commit: f73079303f663e028288f9f4a9e08bcca39a923e
 
   - git: https://github.com/input-output-hk/cardano-ledger-specs
-    commit: ec9c77edbf5700a4b2ece8f97a1e313df06abc97
+    commit: 12a0ef69d64a55e737fbf4e846bd8ed9fb30a956
     subdirs:
     - alonzo/impl
     - byron/crypto
@@ -127,7 +127,7 @@ extra-deps:
     - shelley-ma/shelley-ma-test
 
   - git: https://github.com/input-output-hk/cardano-node
-    commit: 48429531f0d3d71fadce9a5971bf56a6df396f2d
+    commit: 3a56ac245c83d3345f81123ec3bb496bb23477a3
     subdirs:
     - cardano-api
     - cardano-api/test
@@ -138,7 +138,7 @@ extra-deps:
     - hedgehog-extras
 
   - git: https://github.com/input-output-hk/cardano-prelude
-    commit: fd773f7a58412131512b9f694ab95653ac430852
+    commit: bb4ed71ba8e587f672d06edf9d2e376f4b055555
     subdirs:
     - cardano-prelude
     - cardano-prelude-test
@@ -162,7 +162,7 @@ extra-deps:
     - tracer-transformers
 
   - git: https://github.com/input-output-hk/ouroboros-network
-    commit: e338f2cf8e1078fbda9555dd2b169c6737ef6774
+    commit: f149c1c1e4e4bb5bab51fa055e9e3a7084ddc30e
     subdirs:
     - io-sim
     - io-sim-classes
@@ -176,14 +176,16 @@ extra-deps:
     - ouroboros-network-framework
     - typed-protocols
     - typed-protocols-examples
-    - Win32-network
     # Extra packages not used by cardano-node
     - cardano-client
     - ntp-client
     - ouroboros-consensus-mock
 
+  - git : https://github.com/input-output-hk/Win32-network
+    commit: 3825d3abf75f83f406c1f7161883c438dac7277d
+
   - git: https://github.com/input-output-hk/plutus
-    commit: 523f349f3d68db07c98150734793ed7003d1f562
+    commit: 2c8161ad142f56b14611cc0f66b0a2803016fe37
     subdirs:
     - plutus-core
     - plutus-ledger-api

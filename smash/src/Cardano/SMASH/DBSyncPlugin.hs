@@ -45,8 +45,10 @@ import qualified Cardano.SMASH.DBSync.Db.Query      as DB
 import           Cardano.Sync.Error
 import           Cardano.Sync.Types                 as DbSync
 
-import           Cardano.Sync.LedgerState           (applyBlock,
-                                                     saveLedgerStateMaybe)
+import           Cardano.Sync.LedgerState           (LedgerStateSnapshot (..),
+                                                     applyBlock,
+                                                     getAlonzoPParams,
+                                                     saveCleanupState)
 
 import           Cardano.Sync                       (SyncEnv (..),
                                                      SyncNodePlugin (..))
@@ -132,27 +134,30 @@ insertDefaultBlock
     -> ReaderT SqlBackend (LoggingT IO) (Either SyncNodeError ())
 insertDefaultBlock dataLayer tracer env (BlockDetails cblk details) = do
 
-  -- Calculate the new ledger state to pass to the DB insert functions but do not yet
-  -- update ledgerStateVar.
-  lStateSnap <- liftIO $ applyBlock (envLedger env) cblk details
+    -- Calculate the new ledger state to pass to the DB insert functions but do not yet
+    -- update ledgerStateVar.
+    lStateSnap <- liftIO $ applyBlock (envLedger env) cblk details
+    mkSnapshotMaybe lStateSnap (isSyncedWithinSeconds details 60)
+    res <- case cblk of
+              BlockByron blk -> do
+                insertByronBlock tracer blk details
+              BlockShelley blk -> do
+                insertShelleyBlock Shelley dataLayer tracer env (Generic.fromShelleyBlock blk) details
+              BlockAllegra blk -> do
+                insertShelleyBlock Allegra dataLayer tracer env (Generic.fromAllegraBlock blk) details
+              BlockMary blk -> do
+                insertShelleyBlock Mary dataLayer tracer env (Generic.fromMaryBlock blk) details
+              BlockAlonzo blk -> do
+                let pp = getAlonzoPParams $ lssState lStateSnap
+                insertShelleyBlock Alonzo dataLayer tracer env (Generic.fromAlonzoBlock pp blk) details
 
-  res <- case cblk of
-            BlockByron blk -> do
-              insertByronBlock tracer blk details
-            BlockShelley blk -> do
-              insertShelleyBlock Shelley dataLayer tracer env (Generic.fromShelleyBlock blk) details
-            BlockAllegra blk -> do
-              insertShelleyBlock Allegra dataLayer tracer env (Generic.fromAllegraBlock blk) details
-            BlockMary blk -> do
-              insertShelleyBlock Mary dataLayer tracer env (Generic.fromMaryBlock blk) details
-            BlockAlonzo blk ->
-              insertShelleyBlock Alonzo dataLayer tracer env (Generic.fromAlonzoBlock blk) details
+    pure res
+  where
 
-  -- Now we update it in ledgerStateVar and (possibly) store it to disk.
-  liftIO $ saveLedgerStateMaybe (envLedger env)
-                lStateSnap (isSyncedWithinSeconds details 60)
-
-  pure res
+    mkSnapshotMaybe snapshot syncState =
+      whenJust (lssNewEpoch snapshot) $ \newEpoch -> do
+        let newEpochNo = Generic.neEpoch newEpoch
+        liftIO $ saveCleanupState (envLedger env) (lssOldState snapshot) syncState  (Just $ newEpochNo - 1)
 
 
 -- We don't care about Byron, no pools there
@@ -251,7 +256,7 @@ insertCertificate
     -> SyncEnv
     -> Generic.TxCertificate
     -> ExceptT SyncNodeError m ()
-insertCertificate dataLayer blockNumber tracer _env (Generic.TxCertificate _idx cert) =
+insertCertificate dataLayer blockNumber tracer _env (Generic.TxCertificate _ _idx cert) =
   case cert of
     Shelley.DCertDeleg _deleg ->
         -- Since at some point we start to have a large number of delegation
