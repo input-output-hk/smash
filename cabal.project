@@ -15,6 +15,9 @@ constraints:
 package smash
   ghc-options: -Wall -Werror -Wredundant-constraints -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wunused-imports
 
+package postgresql-libpq
+  flags: +use-pkg-config
+
 ------------------------------------------------------------------------------
 
 -- Disable all tests by default
@@ -197,4 +200,3 @@ source-repository-package
   location: https://github.com/Quid2/flat.git
   tag: 95e5d7488451e43062ca84d5376b3adcc465f1cd
   --sha256: 06l31x3y93rjpryvlxnpsyq2zyxvb0z6lik6yq2fvh36i5zwvwa3
-
