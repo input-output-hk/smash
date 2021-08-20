@@ -39,7 +39,7 @@ import           Control.Monad.Extra            (mapMaybeM)
 
 import           Data.Time.Clock                (UTCTime)
 
-import           Database.Esqueleto             (Entity, PersistField, SqlExpr,
+import           Database.Esqueleto.Legacy      (Entity, PersistField, SqlExpr,
                                                  Value, ValueList, countRows,
                                                  desc, entityVal, from,
                                                  isNothing, just, limit, notIn,

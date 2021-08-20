@@ -89,14 +89,14 @@ extra-deps:
 
   # db-sync dependency
   - git: https://github.com/input-output-hk/cardano-db-sync
-    commit: 7815b392bfe9825bd89966bf96c04437e02c2429
+    commit: 7ab7a9a2863cb1cdd344fccafef163b2a8372dc5
     subdirs:
       - cardano-sync
       - cardano-db
       - cardano-db-sync
 
   - git: https://github.com/input-output-hk/cardano-base
-    commit: b6a215c42a28dc8b71b42946fe30256a333d34af
+    commit: cb0f19c85e5bb5299839ad4ed66af6fa61322cc4
     subdirs:
     - binary
     - binary/test
@@ -106,10 +106,10 @@ extra-deps:
     - slotting
 
   - git: https://github.com/input-output-hk/cardano-crypto
-    commit: ce8f1934e4b6252084710975bd9bbc0a4648ece4
+    commit: 07397f0e50da97eaa0575d93bee7ac4b2b2576ec
 
   - git: https://github.com/input-output-hk/cardano-ledger-specs
-    commit: ec9c77edbf5700a4b2ece8f97a1e313df06abc97
+    commit: d5b184a820853c7ba202efd615b8fadca1acb52c
     subdirs:
     - alonzo/impl
     - byron/crypto
@@ -127,7 +127,7 @@ extra-deps:
     - shelley-ma/shelley-ma-test
 
   - git: https://github.com/input-output-hk/cardano-node
-    commit: 48429531f0d3d71fadce9a5971bf56a6df396f2d
+    commit: 9a6a6c81e3aebfaf757b562c823146c7da601e1c
     subdirs:
     - cardano-api
     - cardano-api/test
@@ -162,7 +162,7 @@ extra-deps:
     - tracer-transformers
 
   - git: https://github.com/input-output-hk/ouroboros-network
-    commit: e338f2cf8e1078fbda9555dd2b169c6737ef6774
+    commit: d070bad7ce389a4b2ff7fb4fcb7937fdeca80f3a
     subdirs:
     - io-sim
     - io-sim-classes
@@ -176,14 +176,16 @@ extra-deps:
     - ouroboros-network-framework
     - typed-protocols
     - typed-protocols-examples
-    - Win32-network
     # Extra packages not used by cardano-node
     - cardano-client
     - ntp-client
     - ouroboros-consensus-mock
 
+  - git : https://github.com/input-output-hk/Win32-network
+    commit: 3825d3abf75f83f406c1f7161883c438dac7277d
+
   - git: https://github.com/input-output-hk/plutus
-    commit: 523f349f3d68db07c98150734793ed7003d1f562
+    commit: 8c83c4abe211b4bbcaca3cdf1b2c0e38d0eb683f
     subdirs:
     - plutus-core
     - plutus-ledger-api

@@ -38,7 +38,6 @@ import qualified Cardano.SMASH.DBSync.Db.Types as Types
 
 share
   [ mkPersist sqlSettings
-  , mkDeleteCascade sqlSettings
   , mkMigrate "migrateCardanoDb"
   ]
   [persistLowerCase|
@@ -69,7 +68,7 @@ share
     tickerName          Types.TickerName          sqltype=text
     hash                Types.PoolMetadataHash    sqltype=text
     metadata            Types.PoolMetadataRaw     sqltype=text
-    pmrId               PoolMetadataReferenceId Maybe
+    pmrId               PoolMetadataReferenceId Maybe OnDeleteCascade
     UniquePoolMetadata  poolId hash
 
   -- The pools themselves (identified by the owner vkey hash)
@@ -92,7 +91,7 @@ share
     fetchTime           UTCTime                   sqltype=timestamp
     poolId              Types.PoolId              sqltype=text
     poolHash            Types.PoolMetadataHash    sqltype=text
-    pmrId               PoolMetadataReferenceId
+    pmrId               PoolMetadataReferenceId   OnDeleteCascade
     fetchError          Text
     retryCount          Word                      sqltype=uinteger
     UniquePoolMetadataFetchError fetchTime poolId poolHash retryCount
