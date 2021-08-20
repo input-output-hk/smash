@@ -91,7 +91,7 @@ migrationTest = do
 
     -- TODO(KS): This version HAS to be changed manually so we don't mess up the
     -- migration.
-    let expected = SchemaVersion 1 8 0
+    let expected = SchemaVersion 1 9 0
     actual <- getDbSchemaVersion
     unless (expected == actual) $
         panic $ mconcat
