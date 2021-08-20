@@ -1,5 +1,10 @@
 # Changelog for smash
 
+## 1.5.0
+
+- Let Postgres cascade deletes instead of using the deprecated persistant feature
+- Use the same rollback logic as db-sync
+
 ## 1.4.0
 
 ### Story
