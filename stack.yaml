@@ -89,7 +89,7 @@ extra-deps:
 
   # db-sync dependency
   - git: https://github.com/input-output-hk/cardano-db-sync
-    commit: ba5fbc4f8777b16e0e2617175126eae8eae55ea3
+    commit: 07ee3b0aa3f2991eda0be6c96ec1d6d17e81f732
     subdirs:
       - cardano-sync
       - cardano-db
@@ -127,7 +127,7 @@ extra-deps:
     - shelley-ma/shelley-ma-test
 
   - git: https://github.com/input-output-hk/cardano-node
-    commit: c17315f2775eaf988e432b7caea3a094d62ce6c9
+    commit: 4c59442958072657812c6c0bb8e0b4ab85ce1ba2
     subdirs:
     - cardano-api
     - cardano-api/test
