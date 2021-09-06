@@ -16,6 +16,11 @@ in {
         internal = true;
         type = lib.types.package;
       };
+      sync = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Whether to syncs up pools (default) or just serves db (false)";
+      };
       smashPkgs = lib.mkOption {
         type = lib.types.attrs;
         default = import ../. {};
@@ -125,11 +130,11 @@ in {
       fi
 
       ${cfg.package}/bin/smash-exe run-migrations --config ${configFile} --mdir ${../../schema}
-      exec ${cfg.package}/bin/smash-exe run-app-with-db-sync \
-        --config ${configFile} \
+      exec ${cfg.package}/bin/smash-exe run-app${lib.optionalString cfg.sync "-with-db-sync"} \
+        --config ${configFile} ${lib.optionalString cfg.sync ''\
         --socket-path "$CARDANO_NODE_SOCKET_PATH" \
         --schema-dir ${../../schema} \
-        --state-dir $STATE_DIRECTORY
+        --state-dir $STATE_DIRECTORY''}
     '';
     environment.systemPackages = [ cfg.package config.services.postgresql.package ];
     systemd.services.smash = {
