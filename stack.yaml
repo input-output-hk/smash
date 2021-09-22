@@ -89,14 +89,14 @@ extra-deps:
 
   # db-sync dependency
   - git: https://github.com/input-output-hk/cardano-db-sync
-    commit: 07ee3b0aa3f2991eda0be6c96ec1d6d17e81f732
+    commit: 420bd3c46bc711ec8235cf52ac7a5e1a2939bb81
     subdirs:
       - cardano-sync
       - cardano-db
       - cardano-db-sync
 
   - git: https://github.com/input-output-hk/cardano-base
-    commit: cb0f19c85e5bb5299839ad4ed66af6fa61322cc4
+    commit: 592aa61d657ad5935a33bace1243abce3728b643
     subdirs:
     - binary
     - binary/test
@@ -109,7 +109,7 @@ extra-deps:
     commit: 07397f0e50da97eaa0575d93bee7ac4b2b2576ec
 
   - git: https://github.com/input-output-hk/cardano-ledger-specs
-    commit: 6aa1cd0a64a464371b94d4ac182e7e2cddc83a36
+    commit: ec51e4fb1b17461ab612cf427b79f1742942e8cb
     subdirs:
     - alonzo/impl
     - byron/crypto
@@ -127,7 +127,7 @@ extra-deps:
     - shelley-ma/shelley-ma-test
 
   - git: https://github.com/input-output-hk/cardano-node
-    commit: 4c59442958072657812c6c0bb8e0b4ab85ce1ba2
+    commit: 191b91eec3c7d845a55347781329d50bf36871d7
     subdirs:
     - cardano-api
     - cardano-api/test
@@ -162,7 +162,7 @@ extra-deps:
     - tracer-transformers
 
   - git: https://github.com/input-output-hk/ouroboros-network
-    commit: 877ce057ff6fb086474c8eaad53f2b7f0e0fce6b
+    commit: 5d37a927046bc7da2887830d8e35cf604622ce09
     subdirs:
     - io-sim
     - io-sim-classes
@@ -185,7 +185,7 @@ extra-deps:
     commit: 3825d3abf75f83f406c1f7161883c438dac7277d
 
   - git: https://github.com/input-output-hk/plutus
-    commit: edc6d4672c41de4485444122ff843bc86ff421a0
+    commit: 15121dd4dc66df7c17c6c0f2f4a8702ad841c020
     subdirs:
     - plutus-core
     - plutus-ledger-api
