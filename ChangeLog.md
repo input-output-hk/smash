@@ -1,5 +1,11 @@
 # Changelog for smash
 
+## 1.6.1
+
+### Story
+
+- Update dependencies to match the latest node
+
 ## 1.6.0
 
 ### Story
