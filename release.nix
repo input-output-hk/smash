@@ -59,7 +59,9 @@ let
   # Paths or prefixes of paths of derivations to build only on the default system (ie. linux on hydra):
   onlyBuildOnDefaultSystem = [
     ["dockerImage"]
-    ["checks" "tests" "smash" "db-spec-test"] ["haskellPackages" "smash" "checks" "db-spec-test"]
+    ["checks" "tests" "smash" "db-spec-test"]
+    ["haskellPackages" "smash" "checks" "db-spec-test"]
+    ["haskellPackages" "smash" "coverageReport"]
   ];
 
   jobs = {
