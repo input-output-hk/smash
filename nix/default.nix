@@ -7,8 +7,10 @@ let
   sources = import ./sources.nix { inherit pkgs; }
     // sourcesOverride;
   iohkNix = import sources.iohk-nix {};
-  haskellNix = import sources."haskell.nix" {};
-  nixpkgs = haskellNix.sources.nixpkgs-2105;
+  haskellNix = import sources."haskell.nix" {
+    pkgs = import nixpkgs { inherit system; };
+  };
+  nixpkgs = iohkNix.nixpkgs;
 
   # for inclusion in pkgs:
   overlays =
